@@ -1,0 +1,444 @@
+2026-04-26 12:28:37 Supervisor started. destinations=['C:\\Users\\mmq8658\\Desktop\\Microprobe\\Convert_CP_to_EIS 1\\result\\260426']
+2026-04-26 12:28:37 LONGTERM start=2026-04-26 11:32:44 end=2026-04-26 21:32:44
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 12:28:37 Waiting 246.0s for repeat #7 scheduled at 12:32:44
+2026-04-26 12:32:44 START measurement label=350C_restart_longterm_repeat007_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 12:37:03 END measurement label=350C_restart_longterm_repeat007_0V folder=continuous_prepost_seeded_reference_20260426_123245 score=0.05562123043634094
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 12:37:04 Waiting 339.1s for repeat #8 scheduled at 12:42:44
+2026-04-26 12:42:44 START measurement label=350C_restart_longterm_repeat008_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 12:46:55 END measurement label=350C_restart_longterm_repeat008_0V folder=continuous_prepost_seeded_reference_20260426_124245 score=0.055466414568797945
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 12:46:56 Waiting 347.6s for repeat #9 scheduled at 12:52:44
+2026-04-26 12:52:44 START measurement label=350C_restart_longterm_repeat009_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 12:57:02 END measurement label=350C_restart_longterm_repeat009_0V folder=continuous_prepost_seeded_reference_20260426_125245 score=0.059910087714787834
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 12:57:03 Waiting 340.6s for repeat #10 scheduled at 13:02:44
+2026-04-26 13:02:44 START measurement label=350C_restart_longterm_repeat010_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 13:06:51 END measurement label=350C_restart_longterm_repeat010_0V folder=continuous_prepost_seeded_reference_20260426_130245 score=0.05449309209033608
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 13:06:53 Waiting 350.8s for repeat #11 scheduled at 13:12:44
+2026-04-26 13:12:44 START measurement label=350C_restart_longterm_repeat011_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 13:17:10 END measurement label=350C_restart_longterm_repeat011_0V folder=continuous_prepost_seeded_reference_20260426_131245 score=0.054211441273638465
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 13:17:12 Waiting 331.8s for repeat #12 scheduled at 13:22:44
+2026-04-26 13:22:44 START measurement label=350C_restart_longterm_repeat012_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 13:27:15 END measurement label=350C_restart_longterm_repeat012_0V folder=continuous_prepost_seeded_reference_20260426_132245 score=0.053749990133370375
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 13:27:17 Waiting 326.9s for repeat #13 scheduled at 13:32:44
+2026-04-26 13:32:44 START measurement label=350C_restart_longterm_repeat013_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 13:37:05 END measurement label=350C_restart_longterm_repeat013_0V folder=continuous_prepost_seeded_reference_20260426_133245 score=0.05640685832021072
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 13:37:07 Waiting 336.7s for repeat #14 scheduled at 13:42:44
+2026-04-26 13:42:44 START measurement label=350C_restart_longterm_repeat014_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 13:47:02 END measurement label=350C_restart_longterm_repeat014_0V folder=continuous_prepost_seeded_reference_20260426_134245 score=0.05497782092838724
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 13:47:03 Waiting 340.1s for repeat #15 scheduled at 13:52:44
+2026-04-26 13:52:44 START measurement label=350C_restart_longterm_repeat015_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 13:57:08 END measurement label=350C_restart_longterm_repeat015_0V folder=continuous_prepost_seeded_reference_20260426_135245 score=0.06013413373666047
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 13:57:10 Waiting 333.7s for repeat #16 scheduled at 14:02:44
+2026-04-26 14:02:44 START measurement label=350C_restart_longterm_repeat016_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 14:07:02 END measurement label=350C_restart_longterm_repeat016_0V folder=continuous_prepost_seeded_reference_20260426_140245 score=0.05617922778140622
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 14:07:03 Waiting 340.5s for repeat #17 scheduled at 14:12:44
+2026-04-26 14:12:44 START measurement label=350C_restart_longterm_repeat017_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 14:17:00 END measurement label=350C_restart_longterm_repeat017_0V folder=continuous_prepost_seeded_reference_20260426_141245 score=0.06466038584044441
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 14:17:01 Waiting 342.1s for repeat #18 scheduled at 14:22:44
+2026-04-26 14:22:44 START measurement label=350C_restart_longterm_repeat018_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 14:26:57 END measurement label=350C_restart_longterm_repeat018_0V folder=continuous_prepost_seeded_reference_20260426_142245 score=0.05659288638254585
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 14:26:59 Waiting 344.9s for repeat #19 scheduled at 14:32:44
+2026-04-26 14:32:44 START measurement label=350C_restart_longterm_repeat019_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 14:37:01 END measurement label=350C_restart_longterm_repeat019_0V folder=continuous_prepost_seeded_reference_20260426_143245 score=0.053587061866443776
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 14:37:03 Waiting 340.7s for repeat #20 scheduled at 14:42:44
+2026-04-26 14:42:44 START measurement label=350C_restart_longterm_repeat020_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 14:46:54 END measurement label=350C_restart_longterm_repeat020_0V folder=continuous_prepost_seeded_reference_20260426_144245 score=0.056535968688153464
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 14:46:56 Waiting 347.8s for repeat #21 scheduled at 14:52:44
+2026-04-26 14:52:44 START measurement label=350C_restart_longterm_repeat021_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 14:57:01 END measurement label=350C_restart_longterm_repeat021_0V folder=continuous_prepost_seeded_reference_20260426_145245 score=0.055154939205123286
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 14:57:02 Waiting 341.4s for repeat #22 scheduled at 15:02:44
+2026-04-26 15:02:44 START measurement label=350C_restart_longterm_repeat022_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 15:07:01 END measurement label=350C_restart_longterm_repeat022_0V folder=continuous_prepost_seeded_reference_20260426_150245 score=0.06122247241431019
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 15:07:03 Waiting 340.7s for repeat #23 scheduled at 15:12:44
+2026-04-26 15:12:44 START measurement label=350C_restart_longterm_repeat023_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 15:16:57 END measurement label=350C_restart_longterm_repeat023_0V folder=continuous_prepost_seeded_reference_20260426_151245 score=0.057556593666111884
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 15:16:59 Waiting 344.6s for repeat #24 scheduled at 15:22:44
+2026-04-26 15:22:44 START measurement label=350C_restart_longterm_repeat024_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 15:27:01 END measurement label=350C_restart_longterm_repeat024_0V folder=continuous_prepost_seeded_reference_20260426_152245 score=0.054787519103552396
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 15:27:03 Waiting 340.7s for repeat #25 scheduled at 15:32:44
+2026-04-26 15:32:44 START measurement label=350C_restart_longterm_repeat025_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 15:36:59 END measurement label=350C_restart_longterm_repeat025_0V folder=continuous_prepost_seeded_reference_20260426_153245 score=0.056957787260894045
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 15:37:00 Waiting 343.1s for repeat #26 scheduled at 15:42:44
+2026-04-26 15:42:44 START measurement label=350C_restart_longterm_repeat026_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 15:47:15 END measurement label=350C_restart_longterm_repeat026_0V folder=continuous_prepost_seeded_reference_20260426_154245 score=0.05118840609298105
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 15:47:16 Waiting 327.5s for repeat #27 scheduled at 15:52:44
+2026-04-26 15:52:44 START measurement label=350C_restart_longterm_repeat027_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 15:57:08 END measurement label=350C_restart_longterm_repeat027_0V folder=continuous_prepost_seeded_reference_20260426_155245 score=0.055000261248905294
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 15:57:09 Waiting 334.3s for repeat #28 scheduled at 16:02:44
+2026-04-26 16:02:44 START measurement label=350C_restart_longterm_repeat028_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 16:06:52 END measurement label=350C_restart_longterm_repeat028_0V folder=continuous_prepost_seeded_reference_20260426_160245 score=0.05333465328379714
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 16:06:54 Waiting 349.7s for repeat #29 scheduled at 16:12:44
+2026-04-26 16:12:44 START measurement label=350C_restart_longterm_repeat029_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 16:16:51 END measurement label=350C_restart_longterm_repeat029_0V folder=continuous_prepost_seeded_reference_20260426_161245 score=0.05727946204229037
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 16:16:53 Waiting 350.8s for repeat #30 scheduled at 16:22:44
+2026-04-26 16:22:44 START measurement label=350C_restart_longterm_repeat030_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 16:26:50 END measurement label=350C_restart_longterm_repeat030_0V folder=continuous_prepost_seeded_reference_20260426_162245 score=0.05625575009885915
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 16:26:52 Waiting 351.9s for repeat #31 scheduled at 16:32:44
+2026-04-26 16:32:44 START measurement label=350C_restart_longterm_repeat031_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 16:36:55 END measurement label=350C_restart_longterm_repeat031_0V folder=continuous_prepost_seeded_reference_20260426_163245 score=0.05638326834115669
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 16:36:57 Waiting 346.6s for repeat #32 scheduled at 16:42:44
+2026-04-26 16:42:44 START measurement label=350C_restart_longterm_repeat032_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 16:47:00 END measurement label=350C_restart_longterm_repeat032_0V folder=continuous_prepost_seeded_reference_20260426_164245 score=0.058415036861081536
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 16:47:02 Waiting 341.6s for repeat #33 scheduled at 16:52:44
+2026-04-26 16:52:44 START measurement label=350C_restart_longterm_repeat033_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 16:57:09 END measurement label=350C_restart_longterm_repeat033_0V folder=continuous_prepost_seeded_reference_20260426_165245 score=0.05753564313146895
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 16:57:11 Waiting 332.8s for repeat #34 scheduled at 17:02:44
+2026-04-26 17:02:44 START measurement label=350C_restart_longterm_repeat034_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 17:06:59 END measurement label=350C_restart_longterm_repeat034_0V folder=continuous_prepost_seeded_reference_20260426_170245 score=0.05607652082204555
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 17:07:00 Waiting 343.3s for repeat #35 scheduled at 17:12:44
+2026-04-26 17:12:44 START measurement label=350C_restart_longterm_repeat035_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 17:17:05 END measurement label=350C_restart_longterm_repeat035_0V folder=continuous_prepost_seeded_reference_20260426_171245 score=0.05452856429438192
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 17:17:06 Waiting 337.3s for repeat #36 scheduled at 17:22:44
+2026-04-26 17:22:44 START measurement label=350C_restart_longterm_repeat036_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 17:26:58 END measurement label=350C_restart_longterm_repeat036_0V folder=continuous_prepost_seeded_reference_20260426_172245 score=0.05160391764898906
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 17:27:00 Waiting 343.8s for repeat #37 scheduled at 17:32:44
+2026-04-26 17:32:44 START measurement label=350C_restart_longterm_repeat037_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 17:37:07 END measurement label=350C_restart_longterm_repeat037_0V folder=continuous_prepost_seeded_reference_20260426_173245 score=0.05568419107902202
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 17:37:08 Waiting 335.4s for repeat #38 scheduled at 17:42:44
+2026-04-26 17:42:44 START measurement label=350C_restart_longterm_repeat038_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 17:46:58 END measurement label=350C_restart_longterm_repeat038_0V folder=continuous_prepost_seeded_reference_20260426_174245 score=0.05541265307354848
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 17:47:00 Waiting 343.8s for repeat #39 scheduled at 17:52:44
+2026-04-26 17:52:44 START measurement label=350C_restart_longterm_repeat039_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 17:56:56 END measurement label=350C_restart_longterm_repeat039_0V folder=continuous_prepost_seeded_reference_20260426_175245 score=0.054735874624123895
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 17:56:58 Waiting 345.5s for repeat #40 scheduled at 18:02:44
+2026-04-26 18:02:44 START measurement label=350C_restart_longterm_repeat040_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 18:07:03 END measurement label=350C_restart_longterm_repeat040_0V folder=continuous_prepost_seeded_reference_20260426_180245 score=0.0579735108101114
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 18:07:05 Waiting 338.6s for repeat #41 scheduled at 18:12:44
+2026-04-26 18:12:44 START measurement label=350C_restart_longterm_repeat041_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 18:17:12 END measurement label=350C_restart_longterm_repeat041_0V folder=continuous_prepost_seeded_reference_20260426_181245 score=0.053919604873589835
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 18:17:13 Waiting 330.1s for repeat #42 scheduled at 18:22:44
+2026-04-26 18:22:44 START measurement label=350C_restart_longterm_repeat042_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 18:26:56 END measurement label=350C_restart_longterm_repeat042_0V folder=continuous_prepost_seeded_reference_20260426_182245 score=0.0538777490099314
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 18:26:57 Waiting 346.3s for repeat #43 scheduled at 18:32:44
+2026-04-26 18:32:44 START measurement label=350C_restart_longterm_repeat043_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 18:37:00 END measurement label=350C_restart_longterm_repeat043_0V folder=continuous_prepost_seeded_reference_20260426_183245 score=0.061142560128490064
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 18:37:01 Waiting 342.2s for repeat #44 scheduled at 18:42:44
+2026-04-26 18:42:44 START measurement label=350C_restart_longterm_repeat044_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 18:47:02 END measurement label=350C_restart_longterm_repeat044_0V folder=continuous_prepost_seeded_reference_20260426_184245 score=0.05564359178734479
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 18:47:03 Waiting 340.1s for repeat #45 scheduled at 18:52:44
+2026-04-26 18:52:44 START measurement label=350C_restart_longterm_repeat045_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 18:56:54 END measurement label=350C_restart_longterm_repeat045_0V folder=continuous_prepost_seeded_reference_20260426_185245 score=0.056872691050539825
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 18:56:55 Waiting 348.0s for repeat #46 scheduled at 19:02:44
+2026-04-26 19:02:44 START measurement label=350C_restart_longterm_repeat046_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 19:07:02 END measurement label=350C_restart_longterm_repeat046_0V folder=continuous_prepost_seeded_reference_20260426_190245 score=0.05394915034672426
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 19:07:04 Waiting 339.9s for repeat #47 scheduled at 19:12:44
+2026-04-26 19:12:44 START measurement label=350C_restart_longterm_repeat047_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 19:16:51 END measurement label=350C_restart_longterm_repeat047_0V folder=continuous_prepost_seeded_reference_20260426_191245 score=0.05748106751296151
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 19:16:53 Waiting 351.0s for repeat #48 scheduled at 19:22:44
+2026-04-26 19:22:44 START measurement label=350C_restart_longterm_repeat048_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 19:26:54 END measurement label=350C_restart_longterm_repeat048_0V folder=continuous_prepost_seeded_reference_20260426_192245 score=0.05583118783279631
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 19:26:56 Waiting 347.8s for repeat #49 scheduled at 19:32:44
+2026-04-26 19:32:44 START measurement label=350C_restart_longterm_repeat049_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 19:37:07 END measurement label=350C_restart_longterm_repeat049_0V folder=continuous_prepost_seeded_reference_20260426_193245 score=0.054518065472082454
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 19:37:08 Waiting 335.2s for repeat #50 scheduled at 19:42:44
+2026-04-26 19:42:44 START measurement label=350C_restart_longterm_repeat050_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 19:47:13 END measurement label=350C_restart_longterm_repeat050_0V folder=continuous_prepost_seeded_reference_20260426_194245 score=0.05558217743393683
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 19:47:15 Waiting 328.8s for repeat #51 scheduled at 19:52:44
+2026-04-26 19:52:44 START measurement label=350C_restart_longterm_repeat051_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 19:57:04 END measurement label=350C_restart_longterm_repeat051_0V folder=continuous_prepost_seeded_reference_20260426_195245 score=0.055363880141213635
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 19:57:06 Waiting 337.3s for repeat #52 scheduled at 20:02:44
+2026-04-26 20:02:44 START measurement label=350C_restart_longterm_repeat052_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 20:06:56 END measurement label=350C_restart_longterm_repeat052_0V folder=continuous_prepost_seeded_reference_20260426_200245 score=0.05417834259453019
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 20:06:58 Waiting 345.7s for repeat #53 scheduled at 20:12:44
+2026-04-26 20:12:44 START measurement label=350C_restart_longterm_repeat053_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 20:16:49 END measurement label=350C_restart_longterm_repeat053_0V folder=continuous_prepost_seeded_reference_20260426_201245 score=0.05670577392928192
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 20:16:51 Waiting 352.9s for repeat #54 scheduled at 20:22:44
+2026-04-26 20:22:44 START measurement label=350C_restart_longterm_repeat054_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 20:27:01 END measurement label=350C_restart_longterm_repeat054_0V folder=continuous_prepost_seeded_reference_20260426_202245 score=0.054358083980654365
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 20:27:03 Waiting 340.7s for repeat #55 scheduled at 20:32:44
+2026-04-26 20:32:44 START measurement label=350C_restart_longterm_repeat055_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 20:37:13 END measurement label=350C_restart_longterm_repeat055_0V folder=continuous_prepost_seeded_reference_20260426_203245 score=0.05634860473245754
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 20:37:15 Waiting 329.0s for repeat #56 scheduled at 20:42:44
+2026-04-26 20:42:44 START measurement label=350C_restart_longterm_repeat056_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 20:47:11 END measurement label=350C_restart_longterm_repeat056_0V folder=continuous_prepost_seeded_reference_20260426_204245 score=0.053380576351361175
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 20:47:13 Waiting 330.4s for repeat #57 scheduled at 20:52:44
+2026-04-26 20:52:44 START measurement label=350C_restart_longterm_repeat057_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 20:57:09 END measurement label=350C_restart_longterm_repeat057_0V folder=continuous_prepost_seeded_reference_20260426_205245 score=0.05835965310618986
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 20:57:11 Waiting 332.6s for repeat #58 scheduled at 21:02:44
+2026-04-26 21:02:44 START measurement label=350C_restart_longterm_repeat058_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 21:07:02 END measurement label=350C_restart_longterm_repeat058_0V folder=continuous_prepost_seeded_reference_20260426_210245 score=0.05641508786579194
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 21:07:04 Waiting 339.8s for repeat #59 scheduled at 21:12:44
+2026-04-26 21:12:44 START measurement label=350C_restart_longterm_repeat059_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 21:16:57 END measurement label=350C_restart_longterm_repeat059_0V folder=continuous_prepost_seeded_reference_20260426_211245 score=0.05955830026182642
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 21:16:59 Waiting 344.8s for repeat #60 scheduled at 21:22:44
+2026-04-26 21:22:44 START measurement label=350C_restart_longterm_repeat060_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 21:26:52 END measurement label=350C_restart_longterm_repeat060_0V folder=continuous_prepost_seeded_reference_20260426_212245 score=0.05630143478041207
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 21:26:54 Waiting 349.9s for repeat #61 scheduled at 21:32:44
+2026-04-26 21:32:44 START measurement label=350C_restart_longterm_repeat061_0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 21:37:01 END measurement label=350C_restart_longterm_repeat061_0V folder=continuous_prepost_seeded_reference_20260426_213245 score=0.05384023493681368
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 21:37:03 LONGTERM complete with 61 records
+2026-04-26 21:37:03 START measurement label=350C_voltage_ladder_01_p0p3V bias=+0.300 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0.3 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 21:59:16 END measurement label=350C_voltage_ladder_01_p0p3V folder=continuous_prepost_seeded_reference_20260426_213704 score=0.09612678193264695
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 21:59:18 START measurement label=350C_voltage_ladder_02_p0p2V bias=+0.200 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0.2 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 22:02:28 END measurement label=350C_voltage_ladder_02_p0p2V folder=continuous_prepost_seeded_reference_20260426_215920 score=0.07468455882759015
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 22:02:29 START measurement label=350C_voltage_ladder_03_p0p1V bias=+0.100 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0.1 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 22:06:04 END measurement label=350C_voltage_ladder_03_p0p1V folder=continuous_prepost_seeded_reference_20260426_220230 score=0.05218879697229276
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 22:06:05 START measurement label=350C_voltage_ladder_04_p0p0V bias=+0.000 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias 0 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 22:12:41 END measurement label=350C_voltage_ladder_04_p0p0V folder=continuous_prepost_seeded_reference_20260426_220607 score=0.0583679696166343
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 22:12:42 START measurement label=350C_voltage_ladder_05_m0p1V bias=-0.100 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias -0.1 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 22:16:23 END measurement label=350C_voltage_ladder_05_m0p1V folder=continuous_prepost_seeded_reference_20260426_221244 score=0.05500519870854832
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 22:16:23 START measurement label=350C_voltage_ladder_06_m0p2V bias=-0.200 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias -0.2 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 22:19:39 END measurement label=350C_voltage_ladder_06_m0p2V folder=continuous_prepost_seeded_reference_20260426_221625 score=0.08357212127821291
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 22:19:39 START measurement label=350C_voltage_ladder_07_m0p3V bias=-0.300 cmd=C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\run_continuous_prepost_seeded_reference.py --bias -0.3 --ip 192.109.209.128 --channel 1 --dv 0.03 --peis-amplitude-mv 10 --bandwidth BW4 --dt 0.1 --pre-min 60 --pre-max 900 --scout-min 60 --scout-max 1200 --peis-floor 0.5 --peis-deep-limit 0.05 --peis-npts 60 --peis-high 1000000 --post-stable-buffer 20 --fit-model RQRQ
+2026-04-26 22:22:48 END measurement label=350C_voltage_ladder_07_m0p3V folder=continuous_prepost_seeded_reference_20260426_221941 score=0.10644412136352335
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+Single EIS cycle detected (60 points)
+Frequency range: 0.5000 ~ 1000031.2 Hz
+2026-04-26 22:22:49 VOLTAGE ladder complete with 7 records
+2026-04-26 22:22:49 Supervisor finished. longterm_records=61

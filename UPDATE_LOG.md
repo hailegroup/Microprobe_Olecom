@@ -1,0 +1,2671 @@
+# Update Log
+
+This file tracks cross-machine and cross-AI edits for the `Microprobe Python` project.
+최신 항목은 **맨 아래**에 추가.
+
+---
+
+## Coordination Protocol
+
+- Before any substantial work, append a `Session start` note at the bottom with date/time, AI name, exact scope, claimed files/folders, and expected output.
+- Mirror that scope claim in `PLAN_LOG.md` with a `doing` item so other AIs can see the ownership before editing.
+- When stopping, append a `Session end` note that says whether the work finished, partially finished, or blocked, and explicitly release or carry forward the claimed scope.
+- If the scope changes mid-session, append a new note rather than silently expanding into another AI's area.
+- Avoid overlapping edits whenever possible; if overlap is unavoidable, record the dependency/conflict first and split responsibilities explicitly.
+
+---
+
+## 2026-04-18 | Codex
+
+- Re-created this update log after it was overwritten so the recent GUI and BioLogic work remains documented.
+- Added a `Live Monitor` tab in the GUI to watch measurement progress during a run.
+- Added live CA/CP current plotting and live impedance Nyquist plotting in the GUI using incoming BioLogic data segments.
+- Connected the BioLogic driver callback path so CA hold, PEIS, and CA perturbation can push live segments to the GUI while measuring.
+- Updated the measurement sequence to emit run-step and data events for the GUI monitor during Rapid EIS execution.
+- Added a `Manual Control` tab with current-state readback and target-state controls for temperature, motor XYZ, and gas flows.
+- Added COM port refresh and serial autodetect in the hardware tab so motor, temp controller, and MFC ports can be re-selected when Windows changes COM numbers.
+- Rolled back the COM port refresh/autodetect UI and probing logic after it proved unstable in practice. Returned serial device connection flow to the original fixed-port behavior.
+- Re-enabled COM port refresh/autodetect after confirming the earlier connection failure was caused by another program holding the serial ports open, not by the autodetect feature itself.
+- Hardened GUI shutdown so closing the window now disconnects hardware, quits Tk cleanly, and then force-exits the Python process to avoid Anaconda Prompt staying open.
+- Added `Copy Current -> Target` in Manual Control so the current hardware state can be copied into the editable target fields with one click.
+- Added a `Quick EIS` panel in Manual Control for one-off manual PEIS runs using the connected BioLogic, with results sent to the live monitor.
+- Expanded the Conditions table to show PEIS high/low frequency, PEIS point count, CA dt, and a new `GasStableTime_s` column.
+- Updated automation logic so temperature, gas, and stage actions are skipped when the next row keeps the same conditions.
+- Changed gas stabilization to use `GasStableTime_s` with a 600 s default instead of a hard-coded 30 s wait on every row.
+- Added a first-pass manual `Find Contact Z` workflow that uses BioLogic OCV while stepping Z downward from a start offset and then applies a small extra engage distance after contact is detected.
+- Contact-search thresholds, step size, settle time, and engage depth still need experimental tuning and are intentionally exposed as editable parameters in the GUI.
+
+---
+
+## Coordination Protocol
+
+- Before any substantial work, append a `Session start` note at the bottom with date/time, AI name, exact scope, claimed files/folders, and expected output.
+- Mirror that scope claim in `PLAN_LOG.md` with a `doing` item so other AIs can see the ownership before editing.
+- When stopping, append a `Session end` note that says whether the work finished, partially finished, or blocked, and explicitly release or carry forward the claimed scope.
+- If the scope changes mid-session, append a new note rather than silently expanding into another AI's area.
+- Avoid overlapping edits whenever possible; if overlap is unavoidable, record the dependency/conflict first and split responsibilities explicitly.
+
+---
+
+## 2026-04-18 | Claude (Sonnet)
+
+- 프로젝트 전체 코드 구조 파악 (코드 수정 없음)
+- `Microprobe Project/` 폴더는 기존 LabVIEW 프로그램임을 확인 (수정 대상 아님)
+- `requirements.txt`에 `pywatlow` 누락 확인
+- UPDATE_LOG.md 실수로 초기화 후 Codex 기록 복원
+
+---
+
+## Coordination Protocol
+
+- Before any substantial work, append a `Session start` note at the bottom with date/time, AI name, exact scope, claimed files/folders, and expected output.
+- Mirror that scope claim in `PLAN_LOG.md` with a `doing` item so other AIs can see the ownership before editing.
+- When stopping, append a `Session end` note that says whether the work finished, partially finished, or blocked, and explicitly release or carry forward the claimed scope.
+- If the scope changes mid-session, append a new note rather than silently expanding into another AI's area.
+- Avoid overlapping edits whenever possible; if overlap is unavoidable, record the dependency/conflict first and split responsibilities explicitly.
+
+---
+
+## 2026-04-19 | Codex
+
+- Confirmed the new manual-control additions are present in the active top-level Python project, including `Copy Current -> Target`, live OCV readout, `Quick EIS`, and `Find Contact Z`.
+- Added BioLogic-side OCV read support (`get_ocv`) so the GUI can check contact state without starting a measurement program.
+- Implemented a first-pass manual Z contact-search routine that starts slightly above the target Z, steps downward, checks OCV after each step, and then moves slightly further down after contact for more stable measurement contact.
+- Left the Z contact-search parameters user-editable in the GUI because the practical values still need to be tuned experimentally on the real setup.
+- Explicit follow-up needed: validate OCV threshold, Z step size, per-step settle time, and final engage distance under real temperature and probe-contact conditions before relying on this for unattended runs.
+- Renamed the existing `Conditions` tab to `Semi-auto` and added a new `Full-auto` tab so the two workflows are visually separated in the GUI.
+- Added a first-pass `Full-auto` condition generator that expands temperature lists, gas-pair lists, voltage lists, and electrode ranges into rows and pushes them into the `Semi-auto` table for review before running.
+- Implemented linear XY interpolation between electrode 1 and electrode N inside the `Full-auto` generator so intermediate electrode positions can be generated automatically.
+- Left Z in the `Full-auto` generator as a seed value for now; automatic OCV-based contact finding still needs to be connected into the actual run loop for true unattended electrode-by-electrode operation.
+- Updated the Rapid EIS sequence definition to support a separate `PostPEIS_HoldTime_s` at `V_dc` after PEIS and before the long CA at `V_dc + dV`.
+- Implemented the post-PEIS CA as one CA technique with two internal sequences (`V_dc` short hold, then `V_dc + dV` long hold) instead of saving two separately run CA techniques and stitching files afterward.
+- Added `PostPEIS_HoldTime_s` to the `Semi-auto` table, `Full-auto` generator inputs, and `conditions_template.csv`.
+- Changed file output so each measurement no longer creates a per-label subfolder; raw files are now written directly into the selected result folder.
+- Added saving for the pre-PEIS stabilization CA with filenames prefixed by `Pre_stabilization_`, while keeping PEIS and post-PEIS CA sequence files saved separately in the same result folder.
+- Unified `dV` usage so the same value is now applied to both the PEIS amplitude and the post-PEIS CA voltage step.
+- Cleaned up several mojibake-corrupted log messages in `gui.py` so run-status messages are readable again.
+- Hardened `get_ocv()` to fail with an explicit message if the installed `easy-biologic` device object does not provide `get_values()`, since that API still needs confirmation against the actual package version used on the instrument PC.
+- Created a new `Reference&Old stuff` folder in the project root and moved non-runtime reference materials into it, including the legacy `Microprobe Project` folder, troubleshooting/test scripts, hardware manuals, logs, and old support files.
+- Kept only the active runtime files in the project root and re-ran Python syntax checks on the core application modules after the cleanup.
+- Added one-click GUI launchers in the project root: `Launch_Microprobe_GUI.bat` for a simple batch launch and `Launch_Microprobe_GUI.vbs` for launching the GUI without keeping a visible console window open.
+- Copied the analysis-side CP/CA-to-EIS codebase into `Analysis_Convert_CP_to_EIS/` inside the active project so future measurement-analysis integration can happen locally without modifying the original external analysis folder.
+- Included the current adaptive-measurement prototype files in that local analysis copy and confirmed the copied modules still import from the new location.
+
+---
+
+## Coordination Protocol
+
+- Before any substantial work, append a `Session start` note at the bottom with date/time, AI name, exact scope, claimed files/folders, and expected output.
+- Mirror that scope claim in `PLAN_LOG.md` with a `doing` item so other AIs can see the ownership before editing.
+- When stopping, append a `Session end` note that says whether the work finished, partially finished, or blocked, and explicitly release or carry forward the claimed scope.
+- If the scope changes mid-session, append a new note rather than silently expanding into another AI's area.
+- Avoid overlapping edits whenever possible; if overlap is unavoidable, record the dependency/conflict first and split responsibilities explicitly.
+
+---
+
+## 2026-04-19 | Claude (Sonnet)
+
+- 코드 수정 없음 — 전체 파일 현황 파악 및 Codex 로그 대조
+- gui.py 1710줄, driver_biologic.py 222줄, measurement_sequence.py 106줄 확인
+- 탭 6개(Hardware / Semi-auto / Full-auto / Run·Monitor / Live Monitor / Manual Control) 전부 구현 확인
+- 한글 깨짐 및 get_ocv() 문제는 Codex가 수정 완료 확인
+- 미결: get_ocv()의 get_values() API는 장비 연결해서 검증 필요
+
+---
+
+## Coordination Protocol
+
+- Before any substantial work, append a `Session start` note at the bottom with date/time, AI name, exact scope, claimed files/folders, and expected output.
+- Mirror that scope claim in `PLAN_LOG.md` with a `doing` item so other AIs can see the ownership before editing.
+- When stopping, append a `Session end` note that says whether the work finished, partially finished, or blocked, and explicitly release or carry forward the claimed scope.
+- If the scope changes mid-session, append a new note rather than silently expanding into another AI's area.
+- Avoid overlapping edits whenever possible; if overlap is unavoidable, record the dependency/conflict first and split responsibilities explicitly.
+
+---
+
+## 2026-04-19 | Claude (Sonnet) — 2차 세션
+
+- 실제 프로젝트 위치가 `G:\My Drive\...\Microprobe Python\`임을 파악 (이전에 `Desktop\Microprobe Project\Python\`에 중복 생성한 것은 무효 — 삭제 권장)
+- HML DMFC utility tool 스크린샷으로 MFC 스펙 확인: ID 007 = 100 sccm, ID 008 = 1000 sccm (config.py의 전체 스케일 값 수정 필요)
+- Aera MFC 프로토콜: Digital 모드, COM5 / 9600 bps 확인
+- driver_mfc.py에 `probe_protocol(log_fn=)` 파라미터 추가 — GUI 로그에 직접 출력 가능하도록
+- gui.py Hardware 탭에 `MFC Protocol Test` 버튼 추가 제안 (현재 Codex 버전에는 미반영 — 필요 시 병합 필요)
+- 미결: Codex 버전 gui.py에 MFC Protocol Test 버튼 병합, config.py MFC 전체 스케일 값 확인 및 수정
+
+---
+
+## Coordination Protocol
+
+- Before any substantial work, append a `Session start` note at the bottom with date/time, AI name, exact scope, claimed files/folders, and expected output.
+- Mirror that scope claim in `PLAN_LOG.md` with a `doing` item so other AIs can see the ownership before editing.
+- When stopping, append a `Session end` note that says whether the work finished, partially finished, or blocked, and explicitly release or carry forward the claimed scope.
+- If the scope changes mid-session, append a new note rather than silently expanding into another AI's area.
+- Avoid overlapping edits whenever possible; if overlap is unavoidable, record the dependency/conflict first and split responsibilities explicitly.
+
+---
+
+## 2026-04-19 | Codex
+
+- Added a GUI-independent adaptive measurement layer to the active project with `adaptive_types.py`, `analysis_adapter.py`, and `adaptive_engine.py`.
+- Added internal dataclasses for point metadata, measurement execution records, analysis payloads, recommendation payloads, remeasurement requests, and per-point state tracking.
+- Added a fast machine-readable analysis adapter that uses the copied `Analysis_Convert_CP_to_EIS/` backend without figure or Excel export so recommendations can be produced quickly after a measurement finishes.
+- Standardized local analysis outputs to include `recommended_peis_lowest_freq_hz`, `recommended_peis_conservative_cp_time_s`, `data_sufficient`, `peis_only_sufficient`, confidence, reason, and conservative/provisional notes.
+- Implemented a headless adaptive engine with hybrid-wait behavior: it can briefly wait for analysis, continue with conservative fallback when analysis is late, and apply late analysis results to later points.
+- Implemented internal point-state transitions covering measurement complete, analysis pending, recommendation ready, applied-to-future-point, and remeasure-required.
+- Implemented automatic remeasurement request generation when the analysis says the current point is insufficient or when the actual run parameters are too optimistic relative to the recommendation.
+- Kept the adaptive policy conservative by reusing the copied `adaptive_measurement_policy.py` logic for same-electrode preference, first-pass fallback, asymmetric trend handling, and mode selection between normal EIS and Rapid EIS.
+- Added `run_adaptive_engine_demo.py` to dry-run the internal engine without GUI or hardware and to save a machine-readable summary under `result/adaptive_engine_demo/`.
+- Added `test_adaptive_engine.py` with unit and integration coverage for history selection, asymmetric trend behavior, first-pass fallback, remeasurement generation, mode selection, hybrid wait behavior, and fast analysis adapter output generation from saved files.
+- Verified the new modules with Python syntax checks, ran the dry-run adaptive demo successfully, and passed all `python -m unittest test_adaptive_engine.py` checks.
+- Added `stabilization_policy.py` for pre-PEIS bias-stabilization assessment, adaptive pre-hold planning from delta-V/history, and bias sweep order scoring.
+- Extended the internal adaptive engine so it can assess whether the pre-PEIS CP looks stable enough, recommend more hold time, and request a retry if PEIS started before bias stabilization was convincing.
+- Added internal support for planned pre-PEIS hold time in recommendation payloads and remeasurement requests so later runtime integration can adapt bias-stabilization time per point.
+- Added dry-run and unit-test coverage for pre-PEIS stabilization success, PEIS abort/retry on unstable bias, and bias sweep order selection.
+- Re-ran `python -m unittest test_adaptive_engine.py` after the stabilization additions and kept the full adaptive-engine test suite passing.
+- Added a 20 s floor for planned pre-PEIS stabilization hold and planned post-PEIS hold inside the internal adaptive engine.
+- Added internal post-PEIS hold recommendation logic so the short CA at `V_dc` before stepping to `V_dc + dV` can be adapted from delta-V and history instead of staying fixed forever.
+- Extended recommendation and remeasurement payloads to carry both `planned_pre_peis_hold_s` and `planned_post_peis_hold_s` for later runtime/GUI hookup.
+- Added test coverage to keep the post-PEIS hold recommendation at or above 20 s.
+- Added `full_processing_adapter.py` so the copied analysis project can run a heavier export/processing path in the background while fast recommendation logic continues to drive the next point.
+- Extended the adaptive engine with a separate full-processing executor, per-point full-processing state, queue-status reporting, and `start_post_measurement_pipeline()` to launch fast analysis and background processing together.
+- Added unit coverage proving that fast analysis can be used for the next-point decision while slower full processing keeps running in the background and finishes later.
+- Re-ran the adaptive-engine test suite after the queue split and kept all tests passing.
+- Debugged manual hardware-command failures in the active GUI path after field testing showed that BioLogic, MFC, and Watlow would connect but ignore action commands while the motor still worked.
+- Hardened `gui.py` manual actions so exceptions raised by worker threads are surfaced in the Manual Control status bar and the GUI log instead of failing silently.
+- Updated `driver_biologic.py` to use the documented `easy-biologic` 0.4.x PEIS/CA parameter names and `run('data')`, and removed the explicit `sweep` key because the library mishandles `dict` params via `params.sweep`, which matched the observed `Quick EIS failed: 'dict' object has no attribute 'sweep'` error.
+- Reworked `driver_temp.py` to use pywatlow write APIs compatible with parameter 7001 setpoint writes, added explicit response/error validation, and added setpoint readback logging after each temperature command.
+- Reworked `driver_mfc.py` so MFC setpoint commands now force flow mode + valve open before writing, raise on non-OK serial responses, and report readback setpoints instead of silently accepting failed commands.
+- Updated `requirements.txt` to pin `easy-biologic` to the supported 0.4.x line and clarified the Watlow COM3 comment in `config.py` to reflect Standard Bus / pywatlow usage.
+- Re-ran Python syntax checks on `gui.py`, `driver_biologic.py`, `driver_temp.py`, `driver_mfc.py`, and `measurement_sequence.py` after the manual-command fixes.
+- Added temperature ramp-rate handling across Manual Control, Semi-auto rows, Full-auto generation, and the automated run loop using a new `RampRate_C_per_min` field.
+- Added Watlow ramp-rate helper methods to `driver_temp.py` and hooked temperature commands so the configured ramp rate is written before each new setpoint is sent.
+- Updated `conditions_template.csv` to include the new ramp-rate column with a default seed value.
+- Disabled Aera MFC digital write commands by default via `MFC_WRITE_ENABLED = False` in `config.py` after real hardware testing showed that the current protocol guess can drive both MFCs into unsafe high-flow behavior.
+- Added `mfc_protocol_diagnostic.py` as a read-only probe script for the Aera controllers so the real instrument PC can be queried without sending any setpoint or valve-changing commands.
+- Confirmed on the lab PC that the active Aera read protocol is `STX + hex-address` rather than the legacy `@007Q`-style ASCII path, because `RFK/RFX/RFD` read probes returned valid values while the legacy probes returned nothing.
+- Updated `driver_mfc.py` to treat `RFK`, `RFX`, and `RFD` responses as engineering-unit values (sccm) instead of percent-of-full-scale, based on the real diagnostic output (`RFK=100/1000`, `RFX≈0`, `RFD=0`).
+- Simplified MFC setpoint writing to send clamped direct-sccm `SFD...` values without the earlier percent conversion logic, while still keeping digital writes disabled by default until a small controlled hardware validation run is completed.
+- Fixed the Live Monitor fallback path for Quick EIS and Rapid EIS so the GUI now queues the final parsed PEIS/CA datasets even when the installed `easy-biologic` build does not emit streaming `on_data` callbacks during measurement.
+- Updated Manual `Quick EIS` saving so PEIS data is now written automatically under the selected result folder inside a dedicated `Manual EIS` subfolder instead of being left unsaved.
+- Added row-level skip tokens (`None`, `non`, blank, `-`, `skip`, `na`, `n/a`) for temperature, gas, and stage fields so dummy-cell or BioLogic-only tests can bypass unused hardware steps without changing the rest of the automation flow.
+- Updated both the GUI run loop and `run_automation.py` to interpret those skip tokens consistently, and made the CLI runner avoid connecting temperature / MFC / motor hardware when the loaded condition file does not actually request those devices.
+- Added `Full-auto` hardware-use toggles (`Use temperature`, `Use gas`, `Use tip position`) in the GUI so users can disable unused hardware directly from the generator; disabled sections now gray out their input boxes and emit `None` values into generated rows.
+- Updated visible GUI wording from `stage` to `tip` where appropriate in the manual controls and run-monitor messaging so the interface better matches the actual motion hardware concept.
+- Fixed BioLogic CA parsing for the installed `easy-biologic` variant by allowing CA data rows to use `voltage/current` fields instead of assuming `Ewe/I`; this unblocks Rapid EIS automation from failing in the pre-PEIS CA hold before any files are saved.
+- Synced the copied internal analysis backend with the latest external `Convert_CP_to_EIS 1` project for the files that matter to adaptive measurement planning: `compare_full_vs_optimized_fit.py`, `Load_CP_Data.py`, `Convert_CP_to_EIS.py`, `EIS_Fitting.py`, `run_trusted_sample_analysis.py`, and the new `export_origin_friendly.py`.
+- Reworked `analysis_adapter.py` so the internal adaptive engine now uses the latest optimized-analysis entrypoint (`recommend_optimized_configuration`) instead of the older simplified FFT-only bridge.
+- Extended the internal machine-readable `AnalysisResult` payload with newer analysis outputs including `recommended_cp_highest_freq_hz`, `minimum_valid_cp_duration_s`, `saturation_recommended_cp_duration_s`, `optimization_selection_reason`, `peis_only_selection_reason`, `cp_saturation_*`, `postcheck_reason`, and `agreement_rel_err`.
+- Added logic in the adapter to classify `PEIS-only sufficient` cases as hybrid-unnecessary and to mark hybrid cases as insufficient when the optimized analysis says the measured CP trace is still too short or the CP tail is not saturated enough.
+- Updated the adaptive engine so post-measurement analysis now prefers `post_ca_path` over `pre_ca_path` when both exist, which better matches the intended CP/PEIS pairing for the later adaptive workflow.
+- Extended `RecommendationPayload` so future runtime integration can see whether hybrid was unnecessary and what analysis reason drove the suggestion, without needing GUI changes yet.
+- Added unit coverage proving that the adaptive engine prefers the post-PEIS CA file when choosing the DC trace to analyze.
+- Re-ran `python -m unittest test_adaptive_engine.py` after the analysis-backend update and kept all 13 tests passing.
+- Re-ran `run_adaptive_engine_demo.py` after the update and regenerated `result/adaptive_engine_demo/adaptive_engine_demo_summary.json`.
+- Verified the new adapter directly on `Convert_CP_to_EIS 1/Input data/260419 microprobe semiauto-3/V+0.000` and confirmed that the internal result now captures the external analysis judgment `PEIS-only sufficient = True` with `reason = PEIS already appears to reach the LF saturation region, so hybrid is unnecessary`.
+- Updated the internal adaptive policy so `PEIS-only sufficient` points are treated as valid history even when no hybrid CP duration is returned, which keeps same-electrode experience available for later points.
+- Updated the internal adaptive policy so `normal_eis` / `PEIS-only` recommendations no longer carry a fake hybrid CP duration by default when the analysis did not actually request one.
+- Added `simulate_adaptive_sequence.py`, a headless replay utility that reads an existing measured folder, analyzes each point with the current internal engine, and records what the auto-system would have recommended for the next point.
+- Replayed `Convert_CP_to_EIS 1/Input data/260419 microprobe semiauto-5` through the new sequence simulator and saved `result/adaptive_sequence_simulations/260419 microprobe semiauto-5_adaptive_sequence.json`.
+- The current simulated sequence for `260419 microprobe semiauto-5` says `V+0.000 -> V+0.100` and `V+0.100 -> V+0.200` would already have switched to `normal_eis` with `hybrid_unnecessary = True`, while the final `V+0.200` analysis itself also came back `PEIS-only sufficient` and suggested a much higher PEIS cutoff than the actually measured `0.01 Hz`.
+- Generalized `simulate_adaptive_sequence.py` so it can replay both Microprobe-style timestamped text folders and generic `.mpr/.mpt/.txt/.csv/.dat` PEIS/CA pairs using the same base-name / file-type logic as the analysis project.
+- Added a simple label parser to the sequence simulator so dataset names like `300 rapid measurement` and `400 rapid measurement` are treated as different temperature regimes during replay.
+- Replayed `Convert_CP_to_EIS 1/Input data/260419-1` through the same simulator and saved `result/adaptive_sequence_simulations/260419-1_adaptive_sequence.json`.
+- The current simulated sequence for `260419-1` found no replay/runtime errors and judged both `300 rapid measurement` and `400 rapid measurement` as `PEIS-only sufficient`, with the next-point recommendation after `300 rapid measurement` already switching to `normal_eis`, `hybrid_unnecessary = True`, `recommended PEIS lowest freq ~ 0.0425 Hz`, and `recommended hybrid CP duration = 0 s`.
+- Added completed-hold optimization logic for both pre-PEIS CP and post-PEIS CP in `stabilization_policy.py` so the internal system can judge whether a finished hold trace already saturated early, was just right, or was still not stabilized enough.
+- The new completed-hold assessment now returns `estimated_stable_time_s`, `recommended_next_hold_s`, `recommended_retry_hold_s`, and explicit flags for `should_extend_now` and `can_reduce_next_time`.
+- Extended `MeasurementExecution` with `optimized_pre_peis_hold_s` and `optimized_post_peis_hold_s` so the system can remember a shorter/longer recommended hold for future points instead of blindly reusing the raw hold that happened last time.
+- Updated `recommend_initial_pre_peis_hold(...)` and `recommend_post_peis_hold(...)` to seed from those optimized hold values rather than only from the raw observed hold length.
+- Added adaptive-engine methods `assess_completed_pre_peis_hold(...)` and `assess_completed_post_peis_hold(...)` so later runtime integration can feed completed CP traces back into the internal hold optimizer.
+- Added unit coverage for: shortening future pre-PEIS holds after an early plateau, extending future pre-PEIS holds when saturation is not reached, and carrying a shorter optimized post-PEIS hold into the next-point recommendation.
+- Re-ran `python -m unittest test_adaptive_engine.py` after the hold-optimization update and kept all 16 tests passing.
+- Tightened the runtime trust rules around `PEIS-only sufficient` so the internal auto-system no longer drops from Rapid/Hybrid to `normal_eis` just because the analysis backend returned a raw PEIS-only flag.
+- Added runtime guards in `adaptive_engine.py` for three specific cases: heuristic PEIS-only reasons (`peis_plateau_and_no_hybrid_gain`, `peis_plateau_exceeds_cp_saturation`), weak PEIS/CP LF agreement, and first-point-of-new-regime transitions.
+- Added a regime-aware conservative rule so the first point of a new `electrode + temperature + gas` regime stays on Rapid EIS even if the previous point's analysis says PEIS-only may be sufficient.
+- Updated the runtime recommendation path so `hybrid_unnecessary` now reflects the guarded runtime decision rather than the raw backend flag.
+- Updated the internal adaptive policy seed logic so, when an optimized hybrid CP duration is missing, the next-point planner can fall back to the actually measured CP duration instead of collapsing to an unrealistically short default.
+- Added runtime fallback seeding from CP tail saturation duration when a raw PEIS-only judgment is rejected because the CP tail still appears unsaturated.
+- Replayed `Convert_CP_to_EIS 1/Input data/260419-1` again and confirmed the internal auto-system now keeps `300 rapid measurement -> 400 rapid measurement` on `rapid_eis` with a suggested CP around 322 s, which is much closer to the actual measured rapid run.
+- Replayed `Convert_CP_to_EIS 1/Input data/260419 microprobe semiauto-5` again and confirmed the internal auto-system now keeps the sequence on `rapid_eis` with a guarded CP suggestion around 287.5 s instead of prematurely switching to `normal_eis`.
+- Added new adaptive-engine test coverage for: trusted PEIS-only transitions that are allowed to switch to normal EIS, new-regime first points that stay conservative, and heuristic PEIS-only cases that keep Rapid EIS while preserving a realistic CP seed.
+- Re-ran `python -m unittest test_adaptive_engine.py` after the runtime trust-guard update and kept all 18 tests passing.
+- Re-ran `simulate_adaptive_sequence.py` for both `260419-1` and `260419 microprobe semiauto-5` and regenerated the JSON summaries under `result/adaptive_sequence_simulations/`.
+- Spot-checked the latest `analysis_adapter.py` output directly against the external `compare_full_vs_optimized_fit.recommend_optimized_configuration(...)` call on representative `.mpr` and Microprobe `.txt` cases and confirmed the machine-readable fields still match the analysis project outputs for the compared keys.
+- Re-checked the external analysis project again after a newer timestamp appeared on `Convert_CP_to_EIS 1/compare_full_vs_optimized_fit.py`, verified that the local copied backend now matches the external hash, and re-ran unit tests plus the `260419-1` replay to confirm there was no regression.
+
+---
+
+## Coordination Protocol
+
+- Before any substantial work, append a `Session start` note at the bottom with date/time, AI name, exact scope, claimed files/folders, and expected output.
+- Mirror that scope claim in `PLAN_LOG.md` with a `doing` item so other AIs can see the ownership before editing.
+- When stopping, append a `Session end` note that says whether the work finished, partially finished, or blocked, and explicitly release or carry forward the claimed scope.
+- If the scope changes mid-session, append a new note rather than silently expanding into another AI's area.
+- Avoid overlapping edits whenever possible; if overlap is unavoidable, record the dependency/conflict first and split responsibilities explicitly.
+
+---
+
+## 2026-04-19 | Claude (Sonnet) — 버그 수정
+
+- Fixed `run_automation.py` `finally` block so `motor`, `tc`, and `mfc` are guarded with `if` checks before calling `.disconnect()`; previously would raise `AttributeError` when those devices were not connected.
+- Fixed `measurement_sequence.py` crash when PEIS returns an empty result array: added a `len(eis_data) == 0` guard that prints a warning and returns empty arrays immediately instead of crashing on `eis_data[:,0].min()`.
+
+---
+
+## Coordination Protocol
+
+- Before any substantial work, append a `Session start` note at the bottom with date/time, AI name, exact scope, claimed files/folders, and expected output.
+- Mirror that scope claim in `PLAN_LOG.md` with a `doing` item so other AIs can see the ownership before editing.
+- When stopping, append a `Session end` note that says whether the work finished, partially finished, or blocked, and explicitly release or carry forward the claimed scope.
+- If the scope changes mid-session, append a new note rather than silently expanding into another AI's area.
+- Avoid overlapping edits whenever possible; if overlap is unavoidable, record the dependency/conflict first and split responsibilities explicitly.
+
+---
+
+## 2026-04-20 | Claude (Opus)
+
+- 세션 시작 시 UPDATE_LOG.md, PLAN_LOG.md, Analysis_Convert_CP_to_EIS/UPDATE_LOG.md 전체 읽고 현재 프로젝트 상태 파악.
+- `Professor_Meeting_Update_2026-04-20_v2.pptx` 생성 (8 슬라이드, `make_ppt.py`로 python-pptx 사용).
+  - Slide 1: 타이틀 (3개 주제 박스)
+  - Slide 2: 문제·접근 방식 (Problem vs Solution 비교 레이아웃)
+  - Slide 3: GUI 6개 탭 목업 + 탭별 기능 설명
+  - Slide 4: Rapid EIS 4단계 시퀀스 (타임라인 + 저장 파일 목록)
+  - Slide 5: 분석 파이프라인 + 실측 검증 테이블 (hybrid/PEIS-only 색상 구분)
+  - Slide 6: Adaptive Engine 흐름도 + 완료/미완료 항목
+  - Slide 7: Replay 시뮬레이션 실제 데이터 (semiauto-5 3개 점)
+  - Slide 8: Next Steps (하드웨어/소프트웨어/과학적 결정 3트랙)
+- `make_ppt.py` 파일은 프로젝트 루트에 남겨둠 (재생성/수정용).
+- `Professor_Meeting_Update_2026-04-20_v3.pptx` 생성 (10 슬라이드, `make_ppt_v3.py`).
+  - 전체 영어, 폰트 확대 (제목 26pt, 슬라이드 본문 11–14pt)
+  - 실제 데이터 피규어 삽입: reference PEIS (300°C rapid + microprobe), CP→Z recovery Nyquist, optimization sweep, full vs optimized comparison
+  - Two sample types 명시 (Type A: hybrid needed 260419-4, Type B: PEIS-only semiauto-5)
+  - RQRQRQ 파라미터 테이블 (R0/R1/R2 실측값 + optimized rel. error)
+  - Adaptive engine + replay 시뮬레이션 결과 포함
+
+---
+
+## Coordination Protocol
+
+- Before any substantial work, append a `Session start` note at the bottom with date/time, AI name, exact scope, claimed files/folders, and expected output.
+- Mirror that scope claim in `PLAN_LOG.md` with a `doing` item so other AIs can see the ownership before editing.
+- When stopping, append a `Session end` note that says whether the work finished, partially finished, or blocked, and explicitly release or carry forward the claimed scope.
+- If the scope changes mid-session, append a new note rather than silently expanding into another AI's area.
+- Avoid overlapping edits whenever possible; if overlap is unavoidable, record the dependency/conflict first and split responsibilities explicitly.
+
+---
+
+## 2026-04-20 | Codex
+
+- Prepared a shared Python 3.12 virtual environment at `Microprobe\.venv` for both the GUI/automation project and the external analysis project.
+- Installed the currently needed runtime packages for active features, including GUI/runtime dependencies (`numpy`, `pandas`, `pyserial`, `pymodbus`, `pywatlow`, `easy-biologic`) and analysis/export dependencies (`scipy`, `matplotlib`, `lmfit`, `xlsxwriter`, `openpyxl`, `yadg`, `python-pptx`).
+- Pinned the environment to `setuptools<81` because the installed `easy-biologic 0.4.0` still imports `pkg_resources`, which is missing in newer setuptools layouts.
+- Updated `Launch_Microprobe_GUI.bat` to prefer the shared `..\.venv` runtime before falling back to Anaconda / PATH Python.
+- Fixed the current GUI startup crash in `gui.py` by restoring the missing adaptive full-auto helper methods `_update_adaptive_full_auto_field_states()` and `_generate_adaptive_full_auto_conditions()`.
+- Re-verified that `tkinter` works on this PC, `python -m unittest test_adaptive_engine.py` passes, `run_adaptive_engine_demo.py` completes, and the GUI now stays alive when launched under the shared environment.
+- Important handoff: GUI import / startup now works on this machine, but real hardware actions still depend on actual instrument availability, COM-port ownership, and the existing runtime safety guards (especially MFC write disable).
+- Updated `config.py` to treat the Watlow temperature controller as `COM4` after live port identification on this PC showed only `COM1`, `COM4`, and `COM5`, with the user confirming `COM4` is the temperature controller and `COM5` remains the MFC.
+- Re-checked the current BioLogic network path and confirmed it is still unreachable from this session until the Windows `Ethernet` adapter is manually moved onto the `192.109.209.x` subnet with administrator privileges.
+- Investigated the unresolved motor cable failure on the current Windows 11 x64 PC in more detail:
+  - confirmed the present device is `MD-CC4xx` with hardware ID `USB\VID_10C4&PID_806F`
+  - confirmed the legacy `MD-CC40x-000_DRIVERS` package includes matching INF IDs but its critical driver binaries (`slabbus.sys`, `slabser.sys`, etc.) are x86-only
+  - confirmed the newer project-side `silabser.sys` / `silabenm.sys` files are x64 but unsigned, which explains why Windows 11 rejects the legacy route
+- Added a best-effort local test package at `Motor_CP210x_Custom_PID_806F/`:
+  - `slabvcp_806F_custom.inf`
+  - `silabser.sys`
+  - `WdfCoInstaller01009.dll`
+  - `README.txt`
+- Purpose of the custom package: try the modern Silicon Labs x64 CP210x serial driver directly against the project cable's legacy custom PID `806F` on this PC only, without changing the old working computer or the cable EEPROM/USB ID.
+- Important handoff: this package is an unsigned local test INF, so installation still requires temporary Windows driver-signature enforcement disable / test-mode style installation. Success is not guaranteed, but it is the cleanest remaining current-PC-only experiment before touching cable ID or hardware.
+- Investigated the Live Monitor behavior after the user reported that PEIS only appears after completion and the CA/CP plot does not show reliably.
+- Updated `driver_biologic.py` so CA/PEIS program execution prefers the lower-level easy-biologic `_run(..., read_interval=0.25)` path when available, which should make `on_data` callbacks arrive more frequently instead of relying on the library's default 1 s retrieval interval.
+- Updated `measurement_sequence.py` to always emit the final pre-PEIS CA hold dataset as a monitor event, not just streaming callbacks, so the current plot is populated even when callbacks are sparse.
+- Updated `gui.py` monitor handling to be more robust:
+  - catches malformed monitor events instead of silently killing monitor polling
+  - normalizes incoming array payloads before plotting
+  - keeps CA/PEIS series separated by step name
+  - replaces the plot with the final full dataset on `*_done` events
+  - uses clearer DC chart titles (`Pre-PEIS Hold Current`, `Post-PEIS CA Current`)
+- Verification: `python -m py_compile` passed for `driver_biologic.py`, `measurement_sequence.py`, and `gui.py`, and basic imports for `driver_biologic` / `measurement_sequence` succeeded in the shared `.venv`.
+- Housekeeping: moved the temporary motor-driver troubleshooting artifacts that had been placed directly in `Microprobe Python/` into `Reference&Old stuff/Motor driver troubleshooting archive 2026-04-20/` so the active project folder stays cleaner. This archive now contains the copied old-PC driverstore folders, the custom PID 806F CP210x test package, the downloaded Set ID tool zip, and the loose Silicon Labs driver binaries/coinstallers used during investigation.
+- Performed a first-pass active-root cleanup so the main `Microprobe Python/` folder better reflects what is currently used or likely to be used next:
+  - kept the active runtime/core files in the root: `gui.py`, `config.py`, device drivers, `measurement_sequence.py`, `run_automation.py`, adaptive-engine core modules, launchers, and logs
+  - moved one-off utilities into `tools/`: `run_adaptive_engine_demo.py`, `simulate_adaptive_sequence.py`, `mfc_protocol_diagnostic.py`
+  - moved automated tests into `tests/`: `test_adaptive_engine.py` (+ `tests/__init__.py`)
+  - moved sync-conflict leftovers into `Reference&Old stuff/Conflict archive 2026-04-20/`
+- Patched the moved utility/test scripts so they prepend the project root to `sys.path` and still run from their new locations.
+- Verification after cleanup:
+  - `python -m py_compile` passed for the moved scripts
+  - `python -m unittest tests.test_adaptive_engine` passed (18 tests)
+- Verified that the current GUI can generate and run a "BioLogic-only / dummy-cell" condition table by disabling temperature, gas, and tip-position in the Semi-auto generator:
+  - generated rows correctly populate `None` for temperature, gas, and XYZ fields
+  - the run loop already skips those hardware steps when the corresponding values are `None`
+- Added a ready-to-load short preset for this use case:
+  - `tools/presets/dummy_cell_bias_only_short_test.csv`
+  - rows: `V+0.000`, `V+0.100`, `V+0.200`
+  - shortened hold/CA durations for quick dummy-cell verification
+- Wired the adaptive engine into the live GUI run loop for `ADAPT*` rows:
+  - the first point of each same-regime block still runs with the conservative CSV seed
+  - later same-regime rows now call `AdaptiveMeasurementEngine.recommend_next_point(...)` before measurement
+  - the run loop now applies the recommended `PEIS_fLow`, `CA_duration_s`, `HoldTime_s`, and `PostPEIS_HoldTime_s` to that upcoming row
+- Added a real `normal_eis` execution branch for adaptive runtime:
+  - `measurement_sequence.py` now exposes `normal_eis_sequence(...)` alongside `rapid_eis_sequence(...)`
+  - when the adaptive engine trusts PEIS-only, the next adaptive row can now execute PEIS-only instead of the full hybrid rapid sequence
+  - `measurement_sequence.py` also now returns a structured `SequenceResult` object with saved-file paths while keeping tuple-style unpacking compatibility for older callers
+- After each adaptive rapid row completes, the GUI now:
+  - registers the point with `AdaptiveMeasurementEngine`
+  - starts the post-measurement analysis/full-processing background pipeline
+  - waits briefly for the next-point recommendation
+  - logs any background-delay or remeasurement request in the run log
+- Added focused regression coverage for this hookup:
+  - new `tests/test_gui_adaptive_runtime.py`
+  - verifies that the second adaptive row can switch from rapid to `normal_eis`
+  - verifies that a second adaptive row can stay in rapid mode but receive updated LF/carry-over hold parameters from the first row's analysis
+- Referenced the archived `Reference&Old stuff/biologic-com-main/` package to check whether it offered a better live-data path than `easy-biologic`.
+  - Result: the package is built around EC-Lab OLE/COM (`EClabCOM.EClabExe`) plus file-based measurement helpers, not a ready-made drop-in replacement for our LAN/easy-biologic path on this PC.
+  - Confirmed on this PC that the COM ProgID is not registered and `comtypes` is not installed, so that package cannot be used directly right now.
+  - Reused the useful part conceptually: its `CurrentValues / MeasureStatus` approach inspired an explicit live-scalar polling path in our current driver.
+- Added `BioLogicController.get_live_values()` in `driver_biologic.py`, exposing the current EC-Lib scalar fields (Ewe, I, Freq, elapsed time, buffer fill, etc.) through the already-installed `easy-biologic` device object.
+- Hooked that live-scalar polling into the GUI measurement run:
+  - while a BioLogic sequence is running, the GUI now polls `get_live_values()` in the background
+  - Live Monitor can now show changing frequency / elapsed time / current / voltage status even when Nyquist points only arrive after a PEIS buffered retrieval
+- Verification after these changes:
+  - `python -m py_compile gui.py measurement_sequence.py driver_biologic.py tests/test_gui_adaptive_runtime.py` passed
+  - `python -m unittest` passed (20 tests total)
+- Performed a real hardware-backed dummy-cell adaptive runtime check on this PC with BioLogic connected:
+  - launched the GUI logic through a hidden Tk instance and ran actual `ADAPT*` rows against the connected SP-200
+  - confirmed that later same-regime rows are not just logging adaptive intent; the second row's live execution parameters were actually rewritten by the runtime before measurement
+  - observed a concrete adaptive re-plan from the conservative seed (`HoldTime_s=2`, `PostPEIS_HoldTime_s=2`, `PEIS_fLow=1.0 Hz`, `CA_duration_s=4 s`) to a more conservative hybrid follow-up (`HoldTime_s≈23 s`, `PostPEIS_HoldTime_s≈23 s`, `PEIS_fLow≈0.05 Hz`, `CA_duration_s≈120 s`) on the next row
+  - this particular dummy-cell run stayed in `rapid_eis` / hybrid mode; it did not yet produce a runtime switch to `normal_eis`
+  - saved real output files under `results/adaptive_runtime_dummy_test_quick/` and `results/adaptive_runtime_dummy_test_2rows/`
+- Ran a separate short live-monitor verification pass against the connected BioLogic:
+  - saved a machine-readable summary at `results/live_monitor_quick_summary.json`
+  - confirmed `contains_live_freq_text=true`, `contains_elapsed_in_step=true`, and `contains_current_updates=true`
+  - confirmed that the GUI Live Monitor status text now changes during PEIS with live scalar updates such as frequency / elapsed time / current / voltage
+  - Nyquist point plotting still arrives in buffered chunks and remains the main remaining limitation of the current `easy-biologic` / EC-Lib path
+- Relaxed the PEIS-only sufficiency logic so very strong PEIS/CP endpoint agreement can override a slightly non-flat PEIS LF tail:
+  - updated `Analysis_Convert_CP_to_EIS/compare_full_vs_optimized_fit.py` in the active GUI project
+  - mirrored the same logic into the external source project `Convert_CP_to_EIS 1/compare_full_vs_optimized_fit.py`
+  - added an explicit note path in `analysis_adapter.py` so this branch is visible in analysis notes as `peis_only_plateau_relaxed_by_strong_endpoint_agreement`
+- Added regression coverage in `tests/test_peis_only_override.py`:
+  - one test verifies that strong endpoint agreement can relax the plateau requirement when the LF tail is only slightly rough
+  - one test verifies that a genuinely non-plateau LF tail still stays hybrid
+- Verification after the override change:
+  - `python -m py_compile` passed for the patched analysis files and new test
+  - `python -m unittest tests.test_peis_only_override tests.test_adaptive_engine tests.test_gui_adaptive_runtime` passed (22 tests total)
+  - re-analysis of `results/adaptive_runtime_dummy_test_quick/ADAPT_E1_V+0.000` now returns `peis_only_sufficient=True` with `peis_only_selection_reason=peis_reaches_saturation_via_strong_agreement`
+  - runtime recommendation still remains `rapid_eis` for the immediate next point because the separate CP saturation guard is still active (`cp_saturation_reached=False`)
+- Regenerated the explanatory figure to match the new logic:
+  - `results/adaptive_guard_summary.png` now reflects the strong-agreement override on the first point and makes it explicit that the remaining blocker is the runtime CP saturation guard rather than the PEIS-only classification itself
+
+## 2026-04-20 | Codex
+
+- Extended the adaptive runtime so `normal_eis` points no longer break the optimization chain:
+  - `analysis_adapter.py` now supports a PEIS-only follow-up analysis path when only a PEIS file is available
+  - the adaptive engine now allows `start_analysis()` / `start_post_measurement_pipeline()` to run even when there is no CA/CP file
+  - `tools/run_adaptive_bias_sweep.py` now analyzes both rapid and normal points instead of skipping normal-EIS follow-up analysis
+- Added safer runtime fallback behavior for PEIS-only / normal-EIS follow-up:
+  - if a PEIS-only follow-up does **not** prove LF saturation, the engine now upgrades the retry request back to `rapid_eis` instead of asking for another `normal_eis`
+  - added a periodic refresh guard so, after `max_consecutive_normal_eis_points` consecutive normal points in the same regime, the next recommendation is forced back to `rapid_eis` with a carried-over CP seed to keep LF/CP optimization calibrated
+- Added regression coverage for the new runtime behavior:
+  - `tests/test_adaptive_engine.py` now covers PEIS-only analysis without a DC file, normal-EIS insufficiency forcing a rapid retry, and periodic rapid-refresh insertion after consecutive normal points
+- Performed a new real hardware-backed adaptive sweep on the connected BioLogic across `-0.3 V ... +0.3 V` using the current runtime:
+  - results saved under `results/adaptive_bias_sweep_20260421_000350/`
+  - all executed live points in that sweep still stayed on `rapid_eis`
+  - negative-bias points (`-0.3`, `-0.2`, `-0.1 V`) remained clearly hybrid-needed with high PEIS/CP disagreement (`~0.54`, `~0.48`, `~0.43`)
+  - the positive-bias side improved, but not enough to drop hybrid automatically in the live run:
+    - `0.0 V` and `+0.1 V` later replayed as heuristic `peis_plateau_and_no_hybrid_gain` cases
+    - `+0.2 V` and `+0.3 V` replayed as `peis_reaches_saturation`, but still did not trigger a live normal-EIS switch under the current runtime trust guards
+- Fixed `tools/simulate_adaptive_sequence.py` so it now scans result folders recursively (`rglob`) rather than only reading the top-level directory.
+  - This lets the simulator replay newer per-point subfolder result sets such as `results/adaptive_bias_sweep_20260421_000350/`
+  - replay output saved at `result/adaptive_sequence_simulations/adaptive_bias_sweep_20260421_000350_adaptive_sequence.json`
+- The recursive replay of `adaptive_bias_sweep_20260421_000350` showed:
+  - `ADAPT_E1_Vm0.300`, `Vm0.200`, `Vm0.100`: still strongly hybrid-needed
+  - `ADAPT_E1_Vp0.000`, `Vp0.100`: `peis_only=True` but only via heuristic `peis_plateau_and_no_hybrid_gain` with relatively weak agreement (`~0.20` to `~0.26`), so runtime correctly kept `rapid_eis`
+  - `ADAPT_E1_Vp0.200`, `Vp0.300`: stronger `peis_reaches_saturation` cases (`agreement ~0.116`, `~0.093`), but still not enough to justify removing hybrid entirely under the current guarded rules
+- Added stage-travel safety groundwork for future full-auto operation:
+  - `config.py` now includes a disabled-by-default `STAGE_SAFE_MOVE` policy block (`enabled`, `clearance_z_mm`, `lift_delta_mm`, `positive_z_is_up`, `settle_s`)
+  - `driver_motor.py` now exposes `plan_safe_xyz_move(...)` and `move_xyz_safe(...)` to support the safer sequence `Z up -> XY move -> Z down`
+  - `run_automation.py` and the GUI run loop now use the shared planner logic instead of blindly moving `X`, `Y`, `Z` in row order
+  - the policy stays disabled until the real stage Z sign / clearance height are validated on hardware, so this is structure-first rather than a risky immediate behavior change
+- Added motor safe-move unit tests:
+  - `tests/test_motor_safe_move.py`
+  - verifies legacy-direct order when disabled and verifies the protected `Z -> X/Y -> Z` order when enabled
+- Added minimal image-guided full-auto groundwork:
+  - new `vision_stage_mapper.py` provides affine pixel-to-stage calibration and bilinear grid generation for future OM/design-image workflows
+  - new `tests/test_vision_stage_mapper.py` verifies the calibration and grid math
+  - this is the math/core layer needed later for click-to-stage mapping, OM-based electrode localization, and future microscope-camera overlays
+- Verification after the above changes:
+  - `python -m unittest tests.test_peis_only_override tests.test_adaptive_engine tests.test_gui_adaptive_runtime tests.test_motor_safe_move tests.test_vision_stage_mapper`
+  - all 33 tests passed
+
+## 2026-04-21 | Codex
+
+- Reworked the runtime trust guard so `normal_eis` switching is now driven primarily by the PEIS LF saturation/plateau signal rather than by CP-tail saturation:
+  - removed the old runtime dependence on `cp_saturation_reached` as the main blocker for normal-mode switching
+  - added explicit trusted plateau reasons in `adaptive_engine.py` (`peis_reaches_saturation`, `peis_plateau_and_no_hybrid_gain`)
+  - kept PEIS/CP LF agreement as a secondary sanity check so obviously inconsistent PEIS-only conclusions still stay conservative
+- Replayed the real dummy-cell-backed adaptive sweep `results/adaptive_bias_sweep_20260421_000350/` with the updated runtime guard:
+  - saved replay summary to `results/adaptive_bias_sweep_20260421_000350/adaptive_bias_sweep_replay_after_guard_update.json`
+  - updated conclusion from replay:
+    - `-0.3`, `-0.2`, `-0.1 V` still stay `rapid_eis`
+    - `0.0`, `+0.1`, `+0.2 V` now switch to `normal_eis`
+    - `+0.3 V` is the final point in the sweep, but its analysis also lands on the normal-EIS side (`peis_reaches_saturation`)
+- Revalidated the runtime test suite after the guard change:
+  - `python -m unittest tests.test_peis_only_override tests.test_adaptive_engine tests.test_gui_adaptive_runtime tests.test_motor_safe_move tests.test_vision_stage_mapper`
+  - all 34 tests passed
+- Also replayed legacy / stored datasets under `Convert_CP_to_EIS 1/Input data` using the same updated logic:
+  - summary saved to `C:\Users\mmq8658\Desktop\Microprobe\Convert_CP_to_EIS 1\result\input_data_replay_summary_after_guard_update.json`
+  - most older rapid-measurement folders (`260417-7`, `260419`, `260419-1/2/3/4/6`) now replay cleanly as PEIS-only / normal-followup cases
+  - the remaining notable blocker is the `260419 microprobe semiauto-3/4/5/6` family:
+    - all three bias points are already `peis_only_sufficient=True`
+    - `V+0.000` and `V+0.100` still remain on `rapid_eis` replay because their reason is `peis_plateau_exceeds_cp_saturation`
+    - `V+0.200` already lands on `peis_reaches_saturation`
+  - handoff: the next logic review should focus on whether `peis_plateau_exceeds_cp_saturation` is still too conservative for real microprobe data where CP endpoint noise is known to be high
+- Tightened the old `peis_plateau_and_no_hybrid_gain` heuristic so it no longer flips obviously hybrid cases such as `260419/300 rapid` and `260419/400 rapid` into PEIS-only:
+  - the heuristic now requires a plateau-like PEIS LF tail and only moderate agreement mismatch (`agreement_rel_err <= 0.60`) rather than allowing extremely inconsistent PEIS/CP endpoints
+  - after this fix, `260419 300/400 rapid` and `260419-4 300/400 rapid` again classify as `hybrid_still_helpful` with `recommended_min_cp_duration_s = 300 s`
+- Rechecked the recent dummy-cell bias sweep after the heuristic fix:
+  - all dummy-cell sweep points from `-0.3 V` to `+0.3 V` now classify as PEIS-only / normal-EIS-side
+  - `-0.3`, `-0.2`, `-0.1`, `0.0`, `+0.1 V` use `peis_plateau_and_no_hybrid_gain`
+  - `+0.2`, `+0.3 V` use `peis_reaches_saturation`
+- Updated the runtime trust list so `peis_plateau_exceeds_cp_saturation` is no longer treated as an automatic runtime block:
+  - replay of `260419 microprobe semiauto-6` now gives `normal_eis` follow-up for `V+0.000` and `V+0.100`
+  - `V+0.200` already remained on the PEIS-only / normal side
+
+- Fixed a major adaptive-analysis mismatch between the internal runtime adapter and the trusted offline workflow:
+  - `analysis_adapter.py` had still defaulted to `auto_trim=False`, while the trusted `Start_here.py` / batch analysis path uses `auto_trim=True`
+  - this mismatch was the main reason the runtime-side adapter could produce over-conservative rapid recommendations such as `240 s` / `global_best` for `260419-4 300 rapid`, even though the trusted offline path still gave `210 s` with `minimum_valid+quality_margin_cutoff`
+  - `AnalysisBackendSettings.auto_trim` now defaults to `True`
+  - added current-unit auto-detection in `analysis_adapter.py`:
+    - native `.mpr/.mpt` files default to `current_in_mA=True`
+    - text exports with headers such as `I/A` now auto-switch to `current_in_mA=False`
+    - this fixes the recent dummy-cell live txt replays, which were otherwise being mis-scaled as if they were mA data
+- Fixed the direction of the `peis_plateau_and_no_hybrid_gain` shortcut:
+  - the shortcut should only trigger when the fast PEIS-only cutoff does **not** ask for a lower frequency than the already measured PEIS minimum
+  - the previous comparison sign was backwards, which suppressed PEIS-only promotion for the recent dummy-cell live sweep even when the fast recommendation was already above the measured PEIS LF
+  - after the fix, the recent dummy sweep under `results/adaptive_bias_sweep_20260421_000350/` replays as fully normal-side again
+- Revalidated the most important reference cases with the corrected runtime-side adapter and saved a fresh summary:
+  - summary file: `results/analysis_adapter_alignment_summary_20260421.json`
+  - `260419-4 300 rapid` and `400 rapid` now replay as:
+    - `rapid`
+    - `recommended_cp_duration_s = 210 s`
+    - `minimum_valid_cp_duration_s = 90 s`
+    - `optimization_selection_reason = minimum_valid+quality_margin_cutoff`
+  - `260419 microprobe semiauto-6` (`0.0 / 0.1 / 0.2 V`) now replay as normal-side
+  - the recent dummy live sweep points (`-0.3 V ... +0.3 V`) now replay as normal-side again, with the negative and low-positive points carried by `peis_plateau_and_no_hybrid_gain` and the higher-positive points by `peis_reaches_saturation`
+- Added regression coverage for the adapter defaults and unit inference:
+  - `tests/test_adaptive_engine.py` now checks that `AnalysisBackendSettings` defaults to trusted `auto_trim=True`
+  - added a unit test for current-unit inference from text headers (`I/A` vs native files)
+  - `python -m unittest tests.test_peis_only_override tests.test_adaptive_engine` now passes (`30` tests)
+
+- Hardened stage safe-move execution so XY travel cannot silently proceed when the Z safety reference is unknown:
+  - added `UnsafeStageMoveError` in `driver_motor.py`
+  - `plan_safe_xyz_move(...)` now raises when safe-move is enabled, XY is changing, and neither an absolute `clearance_z_mm` nor a readable current Z position is available
+  - this prevents the previous failure mode where `STAGE_SAFE_MOVE` could be enabled but, with unknown Z and no absolute clearance configured, the planner would still allow direct XY travel
+- Removed the remaining caller-side bypasses around safe stage motion:
+  - `run_automation.py` and the GUI run loop now call `motor.move_xyz_safe(...)` instead of planning moves and executing `move_abs_wait(...)` themselves
+  - `move_xyz_safe(...)` now supports injected `current_positions` and `log_fn`, so callers can still reuse already-read positions and keep their own logging style without bypassing the shared safety path
+- Added regression tests for the hardened motion behavior:
+  - `tests/test_motor_safe_move.py` now covers:
+    - direct-order behavior when safe move is disabled
+    - safe `Z -> XY -> Z` planning
+    - hard failure on `current Z unknown + no clearance_z_mm`
+    - ordered execution/logging through `move_xyz_safe(...)`
+- Verification after the motion-safety hardening:
+  - `python -m unittest tests.test_motor_safe_move` -> passed (`5` tests)
+  - `python -m unittest tests.test_adaptive_engine` -> passed (`26` tests)
+
+- Closed a real adaptive-summary bookkeeping gap in `tools/run_adaptive_bias_sweep.py`:
+  - root cause: the script wrote `adaptive_bias_sweep_summary.json` immediately after each row using the first `finalize_completed_point(...)` snapshot, so rows that were still `analysis_pending` at that moment stayed stale in the saved JSON even if the background analysis completed later
+  - change: added `_backfill_pending_summary(...)` plus a final end-of-run refresh pass (`--final-backfill-timeout`, default `15 s`) so the saved summary is rewritten from the latest engine state before shutdown
+  - also added `point_id` to each saved point summary so late refreshes have a stable key rather than relying on label parsing
+- Validation for the backfill fix:
+  - new regression test: `tests/test_run_adaptive_bias_sweep.py`
+  - verified with project environment:
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_run_adaptive_bias_sweep`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine`
+  - result: helper test passed (`2` tests) and adaptive regression suite still passed (`26` tests)
+- Confirmed limitation / next step:
+  - this closes the stale-summary problem for the lab helper script, but the GUI/live runner still only calls `finalize_completed_point(...)` once per row and does not backfill late analysis into any persisted runtime summary yet
+  - next step: add the same late-analysis refresh pattern to the GUI/runtime reporting path, not just the standalone bias-sweep helper
+
+- Closed the matching adaptive-summary gap on the GUI/live runtime path:
+  - `gui.py` now creates `adaptive_runtime_summary.json` inside the selected run result directory whenever ADAPT rows are present
+  - each adaptive row now writes a persisted point summary (`point_id`, used parameters, recommendation used, finalize snapshot, file paths)
+  - at the end of `_run_worker()`, the GUI now performs a delayed backfill pass over those persisted summaries using the latest engine state before shutdown
+  - this removes the previous mismatch where the GUI path could only log the first `finalize_completed_point(...)` snapshot and had no persisted artifact to refresh later
+- Validation for the GUI/runtime summary fix:
+  - extended `tests/test_gui_adaptive_runtime.py` with a delayed-analyzer regression that forces the first row to finish measurement before the adaptive analysis is ready
+  - verified with project environment:
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_run_adaptive_bias_sweep`
+  - result: GUI adaptive runtime tests passed (`3` tests) and the related adaptive/helper suites still passed (`28` tests total in the second run)
+- Root-cause / side-effect check:
+  - root cause solved: there is now an actual persisted GUI adaptive summary file, and delayed background analysis can update it before shutdown
+  - no regression observed in the existing adaptive runtime tests
+  - remaining limitation: `run_automation.py` still writes only `measurement_log.csv`; it does not yet emit a matching adaptive JSON summary for headless batch runs
+
+- Added adaptive-runtime parity to the headless batch runner in `run_automation.py`:
+  - the runner now understands `ADAPT*` rows instead of always forcing `rapid_eis`
+  - it can switch later same-regime rows to `normal_eis` when the adaptive engine trusts PEIS-only
+  - it now persists `adaptive_runtime_summary.json` for headless runs, including per-point finalize snapshots and end-of-run backfill for delayed background analysis
+  - `measurement_log.csv` now also records `MeasurementMode`
+- Validation and one bounded failure-follow-up:
+  - added `tests/test_run_automation_adaptive.py`
+  - initial test attempt failed because it tried to prove both immediate mode-switching and delayed backfill in the same scenario; with a delayed analyzer, the second row correctly remained `rapid_eis` because the first analysis was not yet ready in time
+  - follow-up improvement: split the regression into two explicit cases
+    - immediate analyzer -> verifies second-row `normal_eis` switch
+    - delayed analyzer -> verifies persisted summary backfill after analysis completes
+  - verified with project environment:
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_run_automation_adaptive`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime tests.test_run_adaptive_bias_sweep tests.test_adaptive_engine`
+  - result: new headless adaptive tests passed (`2` tests) and the broader related adaptive/gui/helper suites still passed (`31` tests)
+- Root-cause / side-effect check:
+  - root cause solved: `run_automation.py` is no longer a rapid-only blind path and now emits the same kind of persisted adaptive summary/backfill artifact as the helper/GUI flows
+  - side effect checked: existing GUI/helper/adaptive tests still pass, so the new headless path did not break the previously fixed summary/backfill logic
+  - remaining uncertainty: this is currently regression-tested with fake sequences and fake analyzers only; the next concrete step is one saved-data or lab-style dry-run through `run_automation.py` using ADAPT-labelled conditions
+- Added a real BioLogic live-polling benchmark on the connected dummy cell:
+  - new script: `tools/benchmark_biologic_live_polling.py`
+  - it runs a real `CA hold` (`0 V`, `8 s`) and a short real `PEIS` (`10 kHz -> 10 Hz`, `12 pts`) while polling `get_live_values()` from a parallel thread at a target `50 ms` cadence
+  - saved benchmark output:
+    - `results/live_polling_benchmark_20260421_115447/live_polling_benchmark_summary.json`
+    - raw poll traces:
+      - `results/live_polling_benchmark_20260421_115447/ca_hold_live_samples.csv`
+      - `results/live_polling_benchmark_20260421_115447/peis_live_samples.csv`
+- Measured live-polling behavior on the actual connected dummy-cell setup:
+  - `CA hold`
+    - achieved interval median `50.49 ms`, p95 `50.63 ms`, max `184.28 ms`
+    - blocking call duration median `3.14 ms`, p95 `3.59 ms`
+    - but rare stalls remain: `>100 ms` count `3`, `>500 ms` count `1`, max blocking call `4982 ms`
+    - technique runtime was `13.46 s` for an `8.0 s` hold (`~5.46 s` overhead)
+  - `PEIS`
+    - achieved interval median `50.48 ms`, p95 `50.62 ms`, max `208.92 ms`
+    - blocking call duration median `3.02 ms`, p95 `12.24 ms`
+    - rare stalls remain here too: `>100 ms` count `2`, `>500 ms` count `1`, max blocking call `4977 ms`
+    - live frequency actually changed during the run (`frequency_updates = 13`), so scalar PEIS status is visible during measurement
+  - interpretation:
+    - live scalar polling is fast enough for GUI/status updates
+    - it is not yet safe for hard real-time stop logic on the main control thread because `get_live_values()` can still block for multiple seconds and sometimes throws `Device is not connected` right after technique completion
+- Cross-check against the direct EC-Lib style used by NUPyLab:
+  - inspected NUPyLab's BioLogic driver API (`get_current_values()` vs `get_data()`) and used that same conceptual split here:
+    - scalar current-values polling is useful for live status
+    - buffered data retrieval remains a separate path
+  - we did not port NUPyLab code directly because the current lab stack is still `easy-biologic`, not a direct EC-Lib driver binding
+- Root-cause / side-effect check:
+  - root cause addressed for this session: we now have direct evidence for how fast the current stack can poll, instead of guessing from GUI behavior
+  - no production driver behavior was changed; only a benchmark tool was added
+  - remaining limitation: the current stack still needs a worker-thread / timeout-safe live poller before it should be trusted for online stopping logic
+
+## 2026-04-21 - Codex (GPT-5) - Split normal-mode LF source from CP-comparison LF source
+- User feedback was correct: the signal used to decide whether hybrid is still needed should not automatically be the same signal used to choose the next `normal_eis` PEIS lowest frequency.
+- Implemented a structural split across the runtime/analysis bridge:
+  - `Analysis_Convert_CP_to_EIS/compare_full_vs_optimized_fit.py` and the analysis-project copy now return `recommended_normal_peis_lowest_freq_hz`
+  - `analysis_adapter.py` carries that field into `AnalysisResult`
+  - `adaptive_measurement_policy.py` now uses `recommended_normal_peis_lowest_freq_hz` whenever the chosen next mode is `normal_eis`
+  - the existing `recommended_peis_lowest_freq_hz` remains available as the general / CP-comparison-informed recommendation for hybrid-style logic
+- Validation:
+  - added regression coverage in `tests/test_adaptive_engine.py`
+  - fake recommendation case:
+    - `recommended_peis_lowest_freq_hz = 0.05`
+    - `recommended_normal_peis_lowest_freq_hz = 1.0`
+  - confirmed that `normal_eis` next-point planning now uses the PEIS-only normal LF (`0.85 Hz` after conservative factor) rather than the CP-comparison LF (`0.0425 Hz`)
+  - verified with:
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine`
+    - result: passed (`27` tests)
+- Cross-check against the trusted semiauto normal case:
+  - re-ran `260419 microprobe semiauto-6 / V+0.100`
+  - current values are:
+    - `recommended_peis_lowest_freq_hz = 1.0016039`
+    - `recommended_normal_peis_lowest_freq_hz = 1.0016039`
+  - so this case already agrees numerically; the fix is structural and protects future divergent cases
+- Root-cause / side-effect check:
+  - root cause addressed: normal-mode LF source is now explicitly separated from the hybrid/CP-comparison LF source
+  - no regression observed in the adaptive-engine suite
+
+## 2026-04-21 - Codex (GPT-5) - Confirmed with saved data that normal-LF split matters in practice
+- The structural split between general LF and `recommended_normal_peis_lowest_freq_hz` is now backed by a real replay case, not just a fake regression.
+- Cross-project scan result from `Convert_CP_to_EIS 1`:
+  - trusted divergent cases exist in `260419 microprobe semiauto-3/4/5/6` at `V+0.000` and `V+0.100`
+  - those cases are normal-side, but their general LF recommendation remains `0.0100 Hz` while the PEIS-only normal LF is `0.1000 Hz`
+- This confirms the user feedback was materially important:
+  - normal-mode runtime planning must not silently reuse the CP-comparison / general LF on these cases
+  - the runtime split added earlier is therefore not only conceptual but scientifically relevant on saved data too
+
+## 2026-04-21 - Codex (GPT-5) - Fixed Manual Quick EIS live monitor not surfacing during GUI runs
+- Root cause checked from the actual GUI path after the user reported that live monitoring still did not appear during measurement.
+- The main automated run path already started `_start_biologic_live_poll(...)`, but `Manual Quick EIS` did not.
+- This meant the Live Monitor tab could still receive final PEIS data, yet the live scalar status (`frequency_hz`, `elapsed_s`, `current_a`, `ewe_v`) never appeared during manual measurements.
+- Implemented GUI/runtime fix in `gui.py`:
+  - `Manual Quick EIS` now starts/stops the same BioLogic live-poll thread used by automated runs.
+  - tightened the default GUI live-poll interval from `0.25 s` to `0.05 s` so PEIS status changes are visible more promptly.
+  - added a small `[Live poll] ... stopped (...)` log entry when the polling thread exits because of an EC-Lib / device exception instead of failing silently.
+- Validation:
+  - added regression `test_manual_quick_eis_emits_live_device_events` in `tests/test_gui_adaptive_runtime.py`
+  - verified with:
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py`
+  - result: `4` GUI tests passed; broader adaptive + GUI suite also passed (`31` tests).
+- Root-cause / side-effect check:
+  - root cause solved for the manual-PEIS GUI path: it now emits live `device_live` monitor events instead of waiting for only the final PEIS dataset.
+  - no regression observed in the broader adaptive GUI/runtime suite.
+  - remaining limitation: this improves scalar live status visibility, not PEIS point-by-point Nyquist streaming. The Nyquist trace still depends on whether the BioLogic / easy-biologic stack emits intermediate PEIS segments.
+
+## 2026-04-21 - Codex (GPT-5) - Turned live scalar PEIS values into real-time proxy plots
+- Follow-up fix after user lab confirmation: live scalar values (`frequency_hz`, `elapsed_s`, `current_a`) were reaching the GUI labels, but the plots still stayed blank until the final PEIS dataset arrived.
+- Root cause:
+  - `device_live` events updated only the text labels and never appended proxy plot points.
+  - the first fix still keyed that proxy logic off `'peis' in step_text`, but the actual manual GUI status string is `Quick EIS running`, so the condition never triggered.
+- Implemented GUI plotting fix in `gui.py`:
+  - `device_live` now appends live current-vs-time points to the left plot and live frequency-vs-time points to the right plot whenever no real streamed series has taken over yet.
+  - added dynamic axis labels so the right plot can temporarily show `Time (s)` vs `Frequency (Hz)` during PEIS status polling, then switch back to Nyquist axes when real impedance points arrive.
+  - removed the brittle dependency on the step text containing `peis`; the proxy plot now uses the active series state instead.
+- Validation:
+  - added regression `test_device_live_updates_proxy_plots_during_peis` in `tests/test_gui_adaptive_runtime.py`
+  - verified with:
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\driver_biologic.py C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\measurement_sequence.py`
+  - result: GUI suite passed (`5` tests) and broader adaptive + GUI suite also passed (`32` tests).
+- Root-cause / side-effect check:
+  - root cause solved for the lab-reported symptom: live scalar data now produces a moving proxy plot during Quick EIS instead of updating only the text rows.
+  - no regression observed in the broader adaptive GUI/runtime suite.
+  - remaining limitation: the Nyquist curve itself still appears only when real PEIS segments are available from the BioLogic stack; the live right-hand proxy during measurement is `frequency vs time`, not true Nyquist.
+
+## 2026-04-21 - Codex (GPT-5) - Restored the right-hand plot to Nyquist-only after lab feedback
+- User lab feedback was correct: using the right-hand impedance canvas for a live `frequency vs time` proxy was misleading because that area should stay reserved for true Nyquist data.
+- Implemented GUI follow-up fix in `gui.py`:
+  - left plot still uses live scalar polling to draw a PEIS current-vs-time proxy during measurement
+  - right plot no longer reuses the Nyquist canvas for live frequency-vs-time data
+  - the right-hand plot now stays reserved for real impedance points only and switches to Nyquist once actual `eis_data` arrives
+- Validation:
+  - updated regression in `tests/test_gui_adaptive_runtime.py` to assert that `device_live` updates the left proxy only while keeping the right canvas empty / Nyquist-reserved
+  - verified with:
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe C:\Users\mmq8658\Desktop\Microprobe\Convert_CP_to_EIS 1\test_trusted_lf_split_cases.py`
+  - result: GUI suite passed (`5` tests), broader adaptive + GUI suite passed (`32` tests), trusted Convert replay regression also still passed (`2` tests).
+- Root-cause / side-effect check:
+  - root cause solved for the UI semantics issue: the right canvas is no longer overloaded with non-Nyquist proxy data.
+  - no regression observed in adaptive GUI/runtime logic or trusted Convert saved-data replay.
+
+## 2026-04-21 - Codex (GPT-5) - Added manual stop, Quick Rapid EIS, recommendation note, and zero-anchored time plots
+- Implemented the requested manual-control refresh in `gui.py`, `driver_biologic.py`, and `measurement_sequence.py`.
+- Manual UI / workflow changes:
+  - `Quick EIS` now keeps HF/LF fixed internally at `100000 Hz -> 0.1 Hz`; those free input boxes were removed from the GUI.
+  - added a side-by-side `Quick Rapid EIS` box with manual inputs for `Vdc`, `dV`, `pre-hold`, `post-hold`, `CA duration`, and PEIS point count.
+  - added `Stop Measurement` for manual BioLogic runs.
+  - added a small manual recommendation line below the quick-measurement controls.
+- Runtime / stop plumbing changes:
+  - `driver_biologic.py` now supports a `stop_event` path for `run_peis`, `run_ca_hold`, `run_ca_sequence`, and `run_ca_perturbation`.
+  - added `BioLogicController.stop_measurement()` using the active stop event plus `device.stop_channel(...)` when available.
+  - `measurement_sequence.py` now forwards `stop_event` through both rapid and normal sequence helpers.
+  - GUI auto-run `_stop_run()` now also requests a BioLogic stop instead of only setting the local GUI flag.
+- Recommendation behavior:
+  - manual runs now call `analysis_adapter.analyze_measurement_files(...)` after saving files and display a short recommendation such as:
+    - `normal EIS is sufficient`
+    - `normal EIS is sufficient; higher LF should be enough`
+    - `rapid EIS or lower-LF normal EIS`
+- Plot-axis behavior:
+  - time-axis plots are now zero-anchored when all x-values are nonnegative, so `0 s` stays at the left edge instead of drifting into the middle due to symmetric padding.
+- Validation:
+  - added GUI regression coverage in `tests/test_gui_adaptive_runtime.py` for:
+    - live current proxy behavior while keeping the Nyquist canvas reserved
+    - zero-anchored time-axis bounds
+    - manual recommendation wording for normal-side and rapid-side cases
+  - verified with:
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\driver_biologic.py C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\measurement_sequence.py`
+  - result: GUI suite passed (`8` tests), broader adaptive + GUI suite passed (`35` tests).
+- Root-cause / side-effect check:
+  - root causes addressed:
+    - manual quick normal no longer exposes misleading free HF/LF inputs
+    - manual path now has a real stop request path instead of no measurement-stop control
+    - manual runs now leave a direct recommendation note instead of forcing log-only interpretation
+    - time-axis current plots now anchor naturally at `0 s`
+  - remaining uncertainty: the new stop path is wired and syntax-/suite-validated, but still needs one real lab stop test during an actual Quick EIS / Quick Rapid EIS run to verify how quickly EC-Lib stops and what partial files are saved.
+
+## 2026-04-21 - Codex (GPT-5) - Normalized manual live-current plot time to the first live sample
+- User lab feedback exposed a remaining GUI usability bug: the left `PEIS Live Current Monitor` plot was zero-anchored at the axis level, but the actual plotted data still used the absolute BioLogic `elapsed_s`, so if the first live sample arrived at e.g. `32 s`, the curve began in the middle of the panel with blank space from `0 s` to that first point.
+- Implemented the fix in `gui.py`:
+  - added a per-row/per-monitor `self._monitor_live_elapsed_origin`
+  - reset that origin in `_monitor_reset()` and on each `row_start`
+  - normalize live proxy x-values as `elapsed_s - first_live_elapsed_s` before appending `device_live_current` points
+- Validation:
+  - expanded `tests/test_gui_adaptive_runtime.py` with `test_device_live_normalizes_elapsed_time_to_first_sample`
+  - also tightened the existing proxy-plot test so the first live point must land at `0.0 s`
+  - verified with:
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py`
+  - result: GUI suite passed (`9` tests), broader adaptive + GUI suite passed (`36` tests).
+- Root-cause / side-effect check:
+  - root cause solved: the left live-current trace now starts at `0 s` from the first observed live sample instead of showing a blank front segment.
+  - no regression observed in adaptive GUI/runtime logic.
+  - remaining limitation: the right Nyquist canvas still depends on real PEIS segment delivery from the BioLogic / easy-biologic stack, so it may remain empty until technique end on this installation.
+
+## 2026-04-21 - Codex (GPT-5) - Moved manual BioLogic stop to a shared manual-level control
+- User lab feedback found a real manual-tab UX bug: `Stop Measurement` existed only inside the `Quick Rapid EIS` panel, so it looked like Quick EIS had no stop path even though the underlying stop plumbing was shared.
+- Implemented the UI fix in `gui.py`:
+  - removed `Stop Measurement` from the `Quick Rapid EIS` box
+  - added a shared `manual_measure_btns` row below both quick-measurement panels
+  - exposed the button as `self._manual_stop_measurement_btn` so the layout can be regression-tested
+- Validation:
+  - added `test_manual_stop_measurement_button_is_shared_outside_rapid_panel` in `tests/test_gui_adaptive_runtime.py`
+  - verified with:
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py`
+  - result: GUI suite passed (`10` tests), broader adaptive + GUI suite passed (`37` tests).
+- Root-cause / side-effect check:
+  - root cause solved at the UI level: the stop control is now visibly shared by both `Quick EIS` and `Quick Rapid EIS` instead of appearing rapid-only.
+  - no regression observed in adaptive GUI/runtime logic.
+  - remaining uncertainty unchanged: actual hardware stop latency / partial-save behavior still needs one lab validation run.
+
+## 2026-04-21 - Codex (GPT-5) - Clarified the PEIS/Nyquist buffering limitation during live rapid runs
+- Real lab feedback from `Quick Rapid EIS` showed a confusing state: the header lines clearly updated (`live freq ... | buffer=56 B`) while the right Nyquist canvas still said `Waiting for live data...`.
+- Closed-loop improvement implemented in `gui.py` and `driver_biologic.py`:
+  - added `_monitor_eis_placeholder_text()` so the right canvas now explains the actual PEIS state instead of the generic empty message
+  - when PEIS is active and `buffer_bytes > 0` but no parsed Nyquist chunk has arrived yet, the placeholder now says BioLogic is buffering PEIS data and that Nyquist points will appear when the next chunk completes
+  - added a driver-side warning in `driver_biologic.py` for empty PEIS live chunks that still report nonzero `MemFilled`, so the log can distinguish buffering/parser limitations from a totally dead PEIS path
+- Validation:
+  - added `test_monitor_eis_placeholder_text_explains_peis_buffering` in `tests/test_gui_adaptive_runtime.py`
+  - verified with:
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\driver_biologic.py`
+  - result: GUI suite passed (`11` tests), broader adaptive + GUI suite passed (`38` tests).
+- Root-cause / side-effect check:
+  - this does not magically create point-by-point Nyquist data; instead it fixes the misleading UI state and makes the underlying limitation observable.
+  - evidence still points to a stack limitation where PEIS live scalar status (`get_values`) updates faster than parseable PEIS data chunks arrive on this installation.
+  - no regression observed in the adaptive GUI/runtime suite.
+  - next concrete step: instrument whether `easy-biologic` is delivering empty PEIS callbacks with nonzero `MemFilled`, then try one bounded follow-up change to the PEIS read cadence / chunking path rather than continuing to guess.
+
+## 2026-04-21 - Codex (GPT-5) - Made the left plot switch from pre-hold CA to PEIS live current during rapid runs
+- User lab feedback found a real rapid-path monitor bug: during `Quick Rapid EIS`, the left plot stayed stuck on `Pre-PEIS Hold Current` even after PEIS had started.
+- Root cause:
+  - the GUI only allowed `device_live` current-proxy points onto the left canvas when the existing DC series was empty / already `device_live_current`
+  - rapid runs populate the left plot first with pre-hold CA data, so the later PEIS live-current updates never took over
+  - the old PEIS detection was also too narrow for manual quick-normal text like `Quick EIS running`
+- Implemented fix in `gui.py`:
+  - treat both `...peis...` and `...eis...` step texts as PEIS/live-EIS phases for the left current proxy
+  - when a live-EIS phase begins and the current left series is not yet `device_live_current`, replace the pre-hold trace with a fresh PEIS live-current series and reset the elapsed-time origin for that proxy
+- Validation:
+  - added regression `test_device_live_replaces_pre_hold_trace_during_peis` in `tests/test_gui_adaptive_runtime.py`
+  - revalidated the earlier live-current proxy tests as well
+  - verified with:
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py`
+  - result: GUI suite passed (`12` tests), broader adaptive + GUI suite passed (`39` tests).
+- Root-cause / side-effect check:
+  - root cause solved for the lab-reported symptom: rapid runs now allow the left canvas to switch from pre-hold CA to PEIS live current instead of freezing on the pre-hold trace.
+  - no regression observed in the broader adaptive GUI/runtime suite.
+  - remaining limitation: post-PEIS CA still depends on the CA segment callbacks / final fallback, and right-side Nyquist remains limited by parseable PEIS chunk availability from the BioLogic stack.
+
+## 2026-04-21 - Codex (GPT-5) - Switched the left rapid-run monitor from replacement to a continuous current timeline
+- User feedback was right: replacing the pre-hold trace with PEIS live current threw away useful context. The left monitor is more useful if `pre-hold -> PEIS live -> post-PEIS CA` can appear as one continuous timeline (or at least the next technique visibly takes over).
+- Implemented the continuity fix in `gui.py`:
+  - `device_live_current` no longer blindly replaces the pre-hold trace
+  - if the current left series is a completed pre-hold DC trace, the first PEIS live-current point is appended after the last pre-hold x-value and the title switches to `Measurement Current Timeline`
+  - if `post_peis_ca_sequence` data arrives after PEIS live current, it is also appended after the current timeline rather than replacing the existing left plot immediately
+  - `device_live` PEIS detection now accepts both `...peis...` and `...eis...` monitor-step text, so manual quick-normal / quick-rapid statuses both trigger the PEIS live-current path
+- Validation:
+  - updated / added GUI regressions in `tests/test_gui_adaptive_runtime.py`:
+    - `test_device_live_appends_after_pre_hold_trace_during_peis`
+    - `test_post_peis_ca_appends_after_live_current_timeline`
+  - verified with:
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py`
+  - result: GUI suite passed (`13` tests), broader adaptive + GUI suite passed (`40` tests).
+- Root-cause / side-effect check:
+  - root cause solved for the reported UX issue: the left plot no longer gets stuck as pure pre-hold or discards the pre-hold when PEIS begins; it now behaves like a continuous current timeline across rapid-run sub-techniques.
+  - no regression observed in the broader adaptive GUI/runtime suite.
+  - remaining limitation: the right Nyquist canvas still depends on parseable PEIS chunks from the BioLogic stack, so it may stay in the buffering-placeholder state until chunk completion / technique end.
+
+## 2026-04-21 - Codex (GPT-5) - Hardened PEIS live polling and made single-point Nyquist rendering possible
+- New lab feedback showed a harsher failure mode during Quick EIS / Quick Rapid EIS: after PEIS started, both left and right monitor panels could appear frozen. The screenshot with `Step: PEIS started` but no live `freq / t` extras strongly suggested the live poll thread may have died on a transient `get_live_values()` exception at the PEIS transition.
+- Implemented two concrete follow-up fixes in `gui.py` / `driver_biologic.py`:
+  1. `gui.py::_start_biologic_live_poll()` is now resilient to transient live-poll failures.
+     - it no longer stops on the first exception
+     - it logs transient failures and keeps retrying
+     - it only gives up after `20` consecutive failures
+  2. `gui.py::_draw_line_plot()` now renders a single point instead of showing `Waiting for live data...` until at least two points arrive, so an early single Nyquist point can appear immediately.
+  3. `driver_biologic.py::run_peis()` default `read_interval` increased from `0.25 s` to `1.0 s` as a bounded PEIS chunking experiment, to reduce the chance that the stack clears the PEIS buffer too frequently before parseable Nyquist chunks accumulate.
+- Validation:
+  - added / updated GUI regressions in `tests/test_gui_adaptive_runtime.py`:
+    - `test_live_poll_recovers_from_transient_get_live_values_failure`
+    - `test_draw_line_plot_renders_single_nyquist_point`
+  - verified with:
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\driver_biologic.py`
+  - result: GUI suite passed (`15` tests), broader adaptive + GUI suite passed (`42` tests).
+- Root-cause / side-effect check:
+  - this fixes one likely root cause of the PEIS-start freeze symptom: transient live-poll exceptions no longer permanently kill the monitor thread.
+  - it also removes the artificial `>=2 points` barrier for the Nyquist canvas.
+  - no regression observed in the broader adaptive GUI/runtime suite.
+  - remaining uncertainty: whether this PEIS read-interval change is sufficient for this BioLogic installation to emit parseable mid-run Nyquist chunks still needs one fresh lab restart/run confirmation.
+
+## 2026-04-21 - Codex (GPT-5) - Restored editable HF/LF inputs for both Quick EIS modes with the old defaults preserved
+- User requested to bring back editable PEIS HF/LF for both `Quick EIS` and `Quick Rapid EIS`, while keeping the previous fixed values as the defaults.
+- Implemented in `gui.py`:
+  - `self._quick_eis` now includes editable `peis_f_high` / `peis_f_low` with defaults `100000 Hz` and `0.1 Hz`
+  - `self._quick_rapid` now includes editable `peis_f_high` / `peis_f_low` with the same defaults
+  - both manual panels now show `PEIS HF (Hz)` and `PEIS LF (Hz)` entry boxes instead of a hard-coded fixed-range-only UI
+  - the helper note now says the displayed defaults match the previous fixed quick-EIS ranges
+  - `_manual_run_quick_eis()` and `_manual_run_quick_rapid_eis()` now pass the user-entered HF/LF values through to BioLogic / `rapid_eis_sequence`
+  - manual recommendation analysis now receives the actual selected `current_low_hz` instead of always assuming the old fixed `0.1 Hz`
+  - manual log messages now record the selected PEIS range too
+- Validation:
+  - added GUI regressions in `tests/test_gui_adaptive_runtime.py` for:
+    - preserved default HF/LF values on both quick panels
+    - `Quick EIS` using the user-configured HF/LF values
+    - `Quick Rapid EIS` using the user-configured HF/LF values
+  - verified with:
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py`
+  - result: GUI suite passed (`18` tests), broader adaptive + GUI suite passed (`45` tests).
+- Root-cause / side-effect check:
+  - root cause solved: HF/LF are no longer locked behind the previous fixed quick-measurement range; both manual quick modes now expose and actually use user-entered PEIS limits.
+  - no regression observed in the broader adaptive GUI/runtime suite.
+  - remaining note: a GUI restart is needed on the lab machine before the new fields become visible in the currently open window.
+
+## 2026-04-21 - Codex (GPT-5) - Mirrored manual recommendation into Live Monitor and auto-filled manual quick controls from the latest recommendation
+- User asked for the manual recommendation text to also appear in the `Live Monitor` tab and for `Quick EIS` / `Quick Rapid EIS` controls to auto-update after a manual run with the just-measured / just-recommended values.
+- Implemented in `gui.py`:
+  - added `self._monitor_recommendation_var` and rendered it below the live canvases in the `Live Monitor` tab
+  - `_manual_set_recommendation()` now updates both the manual tab and the live-monitor recommendation line
+  - `_analyze_manual_sequence_result()` now accepts `measured_settings` and feeds the parsed analysis result into `_apply_manual_recommendation_to_controls(...)`
+  - after a manual run, `Quick EIS` now auto-updates to the measured Vdc/HF/points and the recommended normal-side LF
+  - after a manual run, `Quick Rapid EIS` now auto-updates to the measured Vdc/dV/HF/points/hold fields plus the recommended hybrid-side LF and recommended CA duration when available
+- Validation:
+  - added GUI regressions:
+    - `test_manual_recommendation_is_mirrored_to_live_monitor`
+    - `test_manual_recommendation_autofills_quick_controls`
+  - verified with:
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py`
+  - result: GUI suite passed (`20` then `21` tests after the follow-up below), broader adaptive + GUI suite passed (`47` then `48` tests).
+- Root-cause / side-effect check:
+  - root cause solved for the recommendation visibility gap: the same recommendation text is now visible in both the manual tab and the live-monitor tab.
+  - root cause solved for the manual-control sync gap: manual quick controls now inherit the latest measured/recommended values instead of staying stale after each run.
+  - no regression observed in the broader adaptive + GUI suite.
+
+## 2026-04-21 - Codex (GPT-5) - Made post-PEIS CA append to the left current timeline even when PEIS live-current callbacks were sparse or absent
+- User reported that the left monitor could still fail to append `post-CP` after rapid measurements.
+- Root cause:
+  - `post_peis_ca_sequence*_done` events were still treated as `replace=True` because of the `_done` suffix, so they could overwrite the pre-hold timeline instead of appending.
+  - the append guard also used to be overly strict and assumed a live PEIS current phase had to have been present first.
+- Implemented in `gui.py`:
+  - widened the append condition so any existing current timeline can be extended by `post_peis_ca_sequence*`
+  - prevented `_done` CA sequence payloads from replacing the timeline when they are supposed to append
+- Validation:
+  - added regression `test_post_peis_ca_appends_even_without_peis_live_current`
+  - verified with:
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py`
+  - result: GUI suite passed (`21` tests), broader adaptive + GUI suite passed (`48` tests).
+- Verified limitation with evidence:
+  - inspected the installed `easy_biologic.lib.ec_lib.CurrentValues` definition; it only exposes scalar live fields (`State`, `MemFilled`, `Ewe`, `I`, `ElapsedTime`, `Freq`, etc.) and does not expose live `Re(Z)` / `-Im(Z)` values.
+  - this means the GUI can only draw a true live Nyquist plot when the PEIS callback path yields parseable impedance chunks; without those chunks, `get_live_values()` alone is insufficient to synthesize Nyquist points.
+  - next executable step: add a bounded raw-PEIS-chunk inspection path in `driver_biologic.py` so the first mid-run PEIS callback can be logged/decoded when `MemFilled > 0` but `_parse_eis()` still returns zero points.
+
+## 2026-04-21 - Codex (GPT-5) - Relaxed the manual recommendation wording for PEIS-only cases that are already near the estimated LF target
+- User reported that a manual Quick EIS run with LF around `9 Hz` still showed a blunt `Recommendation: rapid EIS`, even though the arc already looked essentially complete.
+- Verified directly on the saved lab file:
+  - `C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\results\Manual EIS\manual_eis_PEIS_20260421_133234.txt`
+  - reanalysis returned:
+    - `peis_only_sufficient = False`
+    - `recommended_peis_lowest_freq_hz = 9.741261482238768`
+    - `recommended_normal_peis_lowest_freq_hz = 9.741261482238768`
+    - `recommended_peis_conservative_cp_time_s = None`
+  - so the previous wording was too harsh: the analysis was not really asking for hybrid / rapid, it was saying the current PEIS-only run had not *proven* plateau beyond the already-near target LF.
+- Implemented in `gui.py`:
+  - `_format_manual_recommendation_text(...)` now detects the PEIS-only follow-up pattern (`no recommended CP duration`) and emits a softer message when the estimated LF target is already close to the currently used LF:
+    - `normal EIS is close; the current LF (...) is already near the estimated target (...)`
+    - `normal EIS is close; try a slightly lower LF (...) before switching to rapid EIS`
+  - kept the stronger `rapid EIS or lower-LF normal EIS` wording for cases where the estimated LF is materially lower than the currently used LF.
+- Validation:
+  - added regression `test_manual_recommendation_marks_nearby_peis_only_lf_as_close_normal`
+  - verified with:
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime`
+    - direct replay of the saved file above through `analyze_measurement_files(...)` + `MicroprobGUI._format_manual_recommendation_text(...)`
+  - result: GUI suite passed (`22` tests), broader adaptive + GUI suite passed (`49` tests)
+  - reproduced new wording on the saved file: `Recommendation: normal EIS is close; the current LF (~9 Hz) is already near the estimated target (~9.74 Hz).`
+- Root-cause / side-effect check:
+  - root cause solved: manual recommendation wording no longer collapses all non-sufficient PEIS-only cases into a misleading `rapid EIS` label when the current LF is already effectively on target.
+  - no regression observed in the broader adaptive + GUI suite.
+
+## 2026-04-21 - Codex (GPT-5) - Made the Manual Control tab vertically scrollable so Z Contact Search and future sections no longer get clipped
+- User reported that the lower portion of the `Manual Control` tab, especially the `Z Contact Search` area, could be clipped on screen.
+- Implemented in `gui.py`:
+  - wrapped the entire `Manual Control` content in a vertical scrollable canvas container
+  - added a dedicated manual scroll canvas + scrollbar + resize sync so the inner frame keeps the tab width while remaining scrollable vertically
+  - preserved the existing widget layout inside the new scrollable content frame
+- Validation:
+  - updated the existing shared-stop layout regression so it no longer assumes a flat parent chain
+  - added regression `test_manual_tab_uses_scrollable_canvas_container`
+  - verified with:
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py`
+  - result: GUI suite passed (`23` tests), broader adaptive + GUI suite passed (`50` tests)
+- Root-cause / side-effect check:
+  - root cause solved: the manual tab is no longer constrained to showing all sections without vertical overflow, so lower sections like `Z Contact Search` remain reachable even on tighter window heights.
+  - no regression observed in the broader adaptive + GUI suite.
+
+## 2026-04-21 - Codex (GPT-5) - Added manual rapid Nyquist overlay using CP-FFT recovered impedance when hybrid / rapid is recommended
+- User requested that when a manual rapid measurement is judged to still need `rapid EIS`, the right Nyquist plot should overlay the measured PEIS arc with the CP-derived FFT reconstructed Nyquist in a different color.
+- Implemented in `analysis_adapter.py`:
+  - added `analyze_measurement_files_with_visuals(...)` so the manual GUI path can retrieve both the `AnalysisResult` and plotting-ready visual payloads
+  - added `_build_visual_overlay_payload(...)` to expose:
+    - `peis_nyquist_points`
+    - `recovered_fft_nyquist_points`
+    - `has_recovered_fft_overlay`
+  - refactored the existing optimized-analysis result construction into `_build_analysis_result_from_optimized_output(...)` so the normal adapter path and the new visual path share the same analysis logic.
+- Implemented in `gui.py`:
+  - manual post-run analysis now uses `analyze_measurement_files_with_visuals(...)`
+  - when the recommendation remains hybrid / rapid (`peis_only_sufficient=False`) and CP-FFT recovered points exist, the right Nyquist canvas now keeps the measured PEIS arc in gold and overlays the recovered FFT Nyquist in blue with a small legend
+  - normal / PEIS-only recommendations now clear that overlay instead of leaving stale FFT data behind
+- Manual recommendation wording follow-up:
+  - `_format_manual_recommendation_text(...)` now uses the raw LF estimate for branch decisions and the capped LF only for displayed / autofilled values
+  - this preserves sensible `normal EIS is close` wording for cases like `current LF ~9 Hz` while still enforcing the `<= 1 Hz` display/autofill policy.
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime tests.test_adaptive_engine tests.test_driver_biologic`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\analysis_adapter.py C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py`
+- Result:
+  - Microprobe GUI + adaptive + driver suite passed (`56` tests)
+  - py_compile passed
+- Saved-data reproducibility check:
+  - replayed trusted rapid reference `Convert_CP_to_EIS 1\Input data\260419-4\300 rapid measurement_01/02`
+  - summary written to `C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\results\manual_overlay_validation_20260421.json`
+  - confirmed on trusted data:
+    - `peis_only_sufficient = false`
+    - `recommended_cp_s = 210.0`
+    - `PEIS points = 164`
+    - `recovered FFT points = 80`
+    - `has_recovered_fft_overlay = true`
+- Root-cause / side-effect check:
+  - root cause solved for the requested overlay path: the GUI can now show a second Nyquist series when rapid is still the better recommendation, instead of only text guidance.
+  - no regression observed in the broader GUI/adaptive/driver suite.
+  - still uncertain: this only affects post-analysis overlay after a completed manual rapid run; it does not change the earlier confirmed limitation that mid-run Nyquist chunking may still be absent on the current BioLogic/easy-biologic stack.
+- Next step:
+  - if the user likes the overlay in manual mode, mirror the same recovered-FFT overlay into saved adaptive summaries / post-run result figures so rapid-side evidence stays inspectable outside the live GUI too.
+
+## 2026-04-21 - Codex (GPT-5) - Reduced aggressive downsampling on the left live-current monitor so older points do not appear to vanish during long manual runs
+- User reported that the left manual live-current plot still looked like points were gradually disappearing during the run.
+- Root cause:
+  - both the left time-series canvas and the right Nyquist canvas were sharing the same generic point-cap (`800`) inside `_draw_line_plot(...)`
+  - this meant the left live-current plot was being repeatedly downsampled even for moderate-duration runs, which made older oscillations appear to shift or fade as the redraw subset changed.
+- Implemented in `gui.py`:
+  - introduced separate monitor caps:
+    - `MONITOR_TIME_SERIES_MAX_POINTS = 5000`
+    - `MONITOR_NYQUIST_MAX_POINTS = 1200`
+  - the left `CA / CP Current Monitor` now redraws with the larger time-series limit, while the right Nyquist canvas keeps a lower cap suitable for impedance arcs / overlays.
+- Validation executed:
+  - added GUI regressions:
+    - `test_time_series_plot_keeps_dense_live_history_without_downsampling`
+    - `test_nyquist_plot_still_downsamples_large_series`
+  - verified with:
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime tests.test_adaptive_engine tests.test_driver_biologic`
+    - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py`
+- Result:
+  - Microprobe GUI + adaptive + driver suite passed (`58` tests)
+  - py_compile passed
+- Root-cause / side-effect check:
+  - root cause solved for the left-plot decimation issue: moderate-density live current traces are no longer resampled as aggressively as Nyquist overlays.
+  - no regression observed in the broader GUI/adaptive/driver suite.
+  - remaining limitation unchanged: the right Nyquist plot still depends on parseable PEIS chunks from the BioLogic/easy-biologic stack and may stay empty mid-run when only scalar live values are available.
+- Next step:
+  - if the user still sees odd left-plot behavior after restarting the GUI, inspect whether the remaining artifacts come from true technique transitions (pre-hold -> PEIS -> post-CA) rather than canvas decimation.
+
+## 2026-04-21 - Codex (GPT-5) - Rechecked real BioLogic live-poll timing on the connected dummy cell and compared saved rapid/pre/post CP traces against scalar-only stabilization rules
+- User asked whether now that live BioLogic values are visible, we can trust current/live CP stabilization itself more directly, including for `rapid` adequacy and the separate `pre-PEIS` / `post-PEIS` CP times.
+- Actual lab-PC live-poll validation rerun:
+  - executed `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tools\benchmark_biologic_live_polling.py`
+  - new summary: [C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\results\live_polling_benchmark_20260421_161222\live_polling_benchmark_summary.json](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/results/live_polling_benchmark_20260421_161222/live_polling_benchmark_summary.json)
+  - confirmed again on the connected dummy cell:
+    - achieved live-poll interval median stays about `50.4 ms`
+    - normal poll call median stays about `3.0 ms`
+    - but both CA and PEIS still show one rare blocking stall near `5 s`
+    - so scalar live status is fast enough for monitoring, but still not trustworthy enough by itself for a hard real-time stop / switch decision.
+- Cross-project saved-data replay follow-up:
+  - added [C:\Users\mmq8658\Desktop\Microprobe\Convert_CP_to_EIS 1\simulate_cp_hold_stability_strategy.py](C:/Users/mmq8658/Desktop/Microprobe/Convert_CP_to_EIS%201/simulate_cp_hold_stability_strategy.py)
+  - this replay now checks:
+    - trusted rapid references (`260419-4 300/400 rapid`) against scalar-only CP saturation stopping
+    - saved Manual Rapid EIS `Pre_stabilization_*` and `manual_rapid_CA_*` traces against the shared pre/post stabilization policy.
+- Key replay results:
+  - trusted rapid references still require `210 s`, but scalar-only saturation would stop around `120 s`, undershooting by `90 s`
+  - recent dummy-cell Manual Rapid traces with `pre=5 s` / `post=3 s` (or the older `10 s / 10 s` run) are all still too short under the current stabilization policy, which recommends roughly:
+    - `pre-PEIS 5 s -> ~25 s`
+    - `post-PEIS 3 s -> ~23 s`
+    - `pre/post 10 s -> ~30 s`
+  - meaning: previous-data / offline-informed optimization is still needed for rapid adequacy, while current-trace stabilization remains useful as a conservative guard rather than a standalone replacement.
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe C:\Users\mmq8658\Desktop\Microprobe\Convert_CP_to_EIS 1\simulate_cp_hold_stability_strategy.py`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest C:\Users\mmq8658\Desktop\Microprobe\Convert_CP_to_EIS 1\test_cp_hold_stability_strategy.py`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe C:\Users\mmq8658\Desktop\Microprobe\Convert_CP_to_EIS 1\test_trusted_lf_split_cases.py`
+- Root-cause / side-effect check:
+  - this does not change the runtime yet; it verifies with saved data and the current dummy-cell lab setup that scalar-only CP stabilization is still too optimistic for trusted rapid references.
+  - no regression observed in the trusted Convert replay baseline after adding the new replay path.
+- Next step:
+  - if we want to use more live information for adaptive runtime, the next prototype should combine current stabilization with buffered partial-data analysis (not scalar-only stopping) and should keep `pre/post hold` shortening as a guarded / suggestive action rather than an unconditional replacement.
+## 2026-04-21 - Codex (GPT-5) - Evaluated the idea of using a CP-FFT estimate before PEIS to set PEIS LF
+- Re-read the saved-data online-strategy results to answer whether a short exploratory CP (conceptually a pre-PEIS analog of the current post-PEIS CP FFT) could set the PEIS LF before running PEIS.
+- Validation executed (no code change in this follow-up): inspected `result\\live_monitoring_strategy\\live_monitoring_strategy_summary.json` and re-extracted the best prefix-vs-final LF errors.
+- Saved-data conclusion:
+  - trusted rapid references (`260419-4 300/400 rapid`) do show that partial CP-FFT can get into the right rough LF decade (`best prefix ~120 s`, log10 error ~0.12; partial LF ~0.19 Hz vs final ~0.25 Hz), but it never stabilized within the current 0.10-decade criterion.
+  - trusted normal-side references (`semiauto-6 0.0/0.1/0.2 V`) remain far off if only a CP prefix is used (`~0.09-0.13 Hz` partial vs final ~`1.0 Hz`, i.e. about 0.9-1.1 decades low).
+- Practical interpretation:
+  - the user idea is physically reasonable if rephrased as "insert an exploratory CP before PEIS, FFT it, then choose a conservative PEIS LF."
+  - but current saved-data evidence says CP-prefix FFT alone is not yet accurate enough to replace the existing PEIS+CP / offline-informed logic, especially on the normal-side cases.
+  - if implemented later, it should be treated as a coarse prior / bound for PEIS LF, not a fully trusted replacement.
+## 2026-04-21 - Codex (GPT-5) - Replayed a current-run-only exploratory-CP LF seed policy for future adaptive runtime design
+- No Microprobe runtime code changed in this follow-up, but a new Convert replay showed something useful for future adaptive/full-auto design.
+- Saved-data result:
+  - if we use only the *current run's* exploratory CP prefix to choose the first PEIS LF seed, the seed stays conservative on both trusted rapid and trusted normal references.
+  - rapid references (`260419-4 300/400 rapid`) land near the final trusted LF (`0.19 Hz` vs `0.25 Hz`), so this looks plausible as a future hybrid-side first seed.
+  - normal references (`semiauto-6`) still land almost 1 decade too deep (`~0.1 Hz` vs `~1 Hz`), so this should not replace the existing PEIS-based normal LF logic.
+- Runtime implication:
+  - a future Microprobe policy could safely use exploratory CP as a *first LF seed* without relying on previous measurements, then hand off to the normal-PEIS LF logic once the PEIS itself indicates `normal`.
+  - this supports the user's idea that current-run information is safer under changing conditions, while still keeping the existing normal/hybrid split intact.
+- Cross-project evidence file: `C:\Users\mmq8658\Desktop\Microprobe\Convert_CP_to_EIS 1\result\current_run_lf_seed_policy\current_run_lf_seed_policy_summary.json`.
+## 2026-04-21 - Codex (GPT-5) - Replayed the broader current-run LF-seed policy set for future Microprobe adaptive design
+- Cross-project follow-up from the user request to test the exploratory-CP/current-run-only LF-seed idea on the saved datasets we already have.
+- Re-read both project logs, reran the broadened Convert replay, and expanded its regression lock.
+- Broadened saved-data result:
+  - `16` cases total (`4` rapid references + `12` semiauto normal-side references)
+  - all `16` exploratory seeds remained `conservative_or_equal`
+  - rapid references stayed close to their final trusted LF (`max gap ~0.12 decades`)
+  - normal-side references still stayed about `0.88 ~ 1.07` decades deeper than the final trusted normal LF
+- Practical implication for future Microprobe runtime design:
+  - a current-run-only exploratory CP seed still looks safe and useful as a first LF on the rapid/hybrid side
+  - but it is still too deep on the normal side, so any future runtime implementation must switch to the PEIS-based normal-LF logic once the PEIS indicates `normal`
+- Validation executed on the Convert side:
+  - broadened replay script rerun successfully
+  - expanded `test_current_run_lf_seed_policy.py` passed (`4` tests)
+  - trusted split baseline still passed (`2` tests)
+- Root-cause / side-effect check:
+  - this strengthens the existing design conclusion instead of changing it: the exploratory seed idea is now backed by a broader saved-data set, but it is still not a standalone normal-LF selector
+  - no side effect observed on the trusted Convert baselines after expanding replay coverage
+- Next step:
+  - if prioritized, prototype the two-stage runtime policy in Microprobe summaries first (`exploratory LF seed` + `normal-LF handoff`) before wiring it into the real adaptive executor
+## 2026-04-21 - Codex (GPT-5) - Added a practical OpenCV probe/viewer path for the Swift Easy View microscope camera and tested it on the lab PC
+- User asked whether the Swift Easy View microscope camera can be used directly from Python so OM/live-camera-assisted automation can move beyond static design/OM planning.
+- Implemented two concrete Microprobe-side utilities:
+  - [tools/probe_swift_camera.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tools/probe_swift_camera.py)
+    - scans common OpenCV camera backends on Windows (`CAP_ANY`, `CAP_DSHOW`, `CAP_MSMF`)
+    - tries bounded indices
+    - saves JSON + snapshots
+    - now flags blank/black frames explicitly (`frame_looks_blank`, `nonzero_fraction`)
+  - [tools/live_swift_camera_view.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tools/live_swift_camera_view.py)
+    - lightweight OpenCV live preview tool for manual verification after a successful probe
+- Lab-PC validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tools\probe_swift_camera.py --max-index 2`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile ...probe_swift_camera.py ...live_swift_camera_view.py`
+- Result:
+  - Python/OpenCV *can* open camera index `0`
+    - `CAP_ANY` index `0`: opened + returned frames
+    - `CAP_DSHOW` index `0`: opened + returned frames
+  - `CAP_MSMF` did not open
+  - however, both successful paths returned a completely black frame (`mean_bgr = 0`, `std_bgr = 0`, `nonzero_fraction = 0`, `frame_looks_blank = true`)
+  - summary saved to [results/camera_probe_20260421_172203/camera_probe_summary.json](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/results/camera_probe_20260421_172203/camera_probe_summary.json)
+- Interpretation:
+  - this is stronger than "Python cannot see the camera"; Python/OpenCV *does* reach the device path/backend.
+  - but the current lab-PC state is not yet giving a usable microscope image to Python. Possible causes still include:
+    - Swift Easy View / another process already owning the camera graph,
+    - the device streaming a blank frame until the vendor app initializes it,
+    - or the opened device index being the right USB camera path but not yet delivering meaningful image data.
+- Root-cause / side-effect check:
+  - root cause covered for the immediate OM question: we now know the Python access path is real, but the image is blank, so the next decision is not about general feasibility but about stream validity/ownership.
+  - no regression risk to measurement logic; this is a new standalone OM utility path only.
+- Next step:
+  - close Swift Easy View and run `tools/live_swift_camera_view.py --backend dshow --index 0` to see whether the stream becomes non-black when Python owns the camera directly.
+  - if it still stays black, treat the current Swift camera/software combo as "Python-addressable but not yet practically usable" and consider a camera with a cleaner UVC/OpenCV path for future fully automated live ROI verification.
+## 2026-04-21 - Codex (GPT-5) - Re-ran the Swift/OpenCV camera probe after illumination was restored and confirmed valid frames
+- Follow-up from the OM/camera feasibility work: the user pointed out the previous black-frame result may simply have been due to missing illumination.
+- Re-executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tools\probe_swift_camera.py --max-index 2`
+- New result:
+  - `CAP_ANY`, index `0`: opened and returned non-blank frames
+  - `CAP_DSHOW`, index `0`: opened and returned non-blank frames
+  - `CAP_MSMF`: still failed to open
+- Evidence from the new summary [camera_probe_summary.json](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/results/camera_probe_20260421_172326/camera_probe_summary.json):
+  - `frame_looks_blank = false`
+  - `nonzero_fraction = 1.0`
+  - nonzero per-channel mean/std values on both successful backends
+- Practical conclusion:
+  - the Swift/1.3MP USB2.0 microscope camera is now confirmed to be directly usable from Python/OpenCV on this lab PC
+  - the previous all-black result was environmental (illumination / scene state), not a fundamental API/driver incompatibility
+  - OM-guided automation can now proceed on the assumption that Python live frames are available from backend/index `0` (preferably `CAP_DSHOW`)
+- Root-cause / side-effect check:
+  - root cause clarified: the earlier black-frame diagnosis is superseded by the illuminated re-test; Python camera access is viable
+  - no side effects on measurement/adaptive code; this remains a standalone OM utility path
+- Next step:
+  - build the next OM prototype on top of `CAP_DSHOW` index `0`: live preview + snapshot + electrode/tip ROI detection, then use that feed for move-after ROI verification
+## 2026-04-21 - Codex (GPT-5) - Added Image Monitor tab groundwork and ROI revisit verification for microscope-guided automation
+- User asked to move beyond static OM planning and start wiring the Swift microscope feed into the GUI in a way that can later support electrode setup / move-after-image verification.
+- Concrete GUI/runtime changes in [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py):
+  - renamed the old `Live Monitor` tab label to `EIS Monitor`
+  - inserted a new `Image Monitor` tab between `Run / Monitor` and `EIS Monitor`
+  - the new tab now exposes backend/index/detector controls plus `Start Camera` / `Stop Camera`
+  - the tab renders a live Swift/OpenCV preview inside the GUI and can overlay live electrode candidates using the new Swift-tuned detector preset (`live`) or the old generic detector for comparison
+- Added a new microscope ROI-revisit primitive in [vision/roi_verifier.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/vision/roi_verifier.py):
+  - `extract_square_roi(...)`
+  - `verify_roi_revisit(...)`
+  - the matcher now uses CLAHE + Laplacian/edge emphasis before template matching so repeated microscope texture does not immediately collapse into false matches
+- Added GUI / vision regression coverage:
+  - [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py): locks the new `tab_image` / image-monitor status variables into the GUI contract
+  - [tests/test_vision_electrode_mapper.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_vision_electrode_mapper.py): locks that the live microscope preset finds candidates on the saved Swift snapshot
+  - [tests/test_roi_verifier.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_roi_verifier.py): verifies self-match and a synthetic small stage-like shift (`+8 px, -6 px`) recover correctly on the microscope monitoring image
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_vision_electrode_mapper.py C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_roi_verifier.py`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\vision\roi_verifier.py C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tools\live_electrode_overlay_view.py`
+- Evidence artifacts written:
+  - [results/vision_live_overlay_probe/swift_snapshot_live_detector_summary.json](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/results/vision_live_overlay_probe/swift_snapshot_live_detector_summary.json)
+    - generic detector on the saved Swift snapshot: `1` candidate
+    - live microscope preset on the same snapshot: `20` candidates across `4` rows
+  - [results/vision_live_overlay_probe/roi_verifier_demo_summary.json](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/results/vision_live_overlay_probe/roi_verifier_demo_summary.json)
+    - self-match: perfect zero-offset recovery
+    - shifted image: recovered the injected `(+8 px, -6 px)` offset with score ~`0.994`
+- Root-cause / side-effect check:
+  - root cause covered for the OM question: Python live camera access is not only possible, but now GUI-visible and paired with a reusable ROI verifier for future stage confirmation logic
+  - GUI/vision tests all passed after the tab and live-camera changes; no regression observed in the EIS/adaptive baseline tests run in this session
+- Next step:
+  - use the new `Image Monitor` tab as the home for electrode setup / target selection, then wire `verify_roi_revisit(...)` into a conservative move-after-image-check loop once motor recovery and stage-safe-move policies are stable
+## 2026-04-21 - Codex (GPT-5) - Refined Image Monitor assumptions so live electrode count is no longer hard-coded
+- User correctly pointed out that even if the current view looks like ~12 visible electrodes, future camera/stage positioning changes mean the GUI must not hard-code a `12 electrodes` assumption.
+- Adjusted the OM/live-image logic accordingly:
+  - `filter_live_overlay_detections(...)` no longer hard-caps the overlay to `12`
+  - it now performs only conservative structure-based filtering (`supported candidates` + `dominant vertical band`) and leaves the actual remaining count dynamic per frame
+  - the GUI continues to show `primary candidates` rather than claiming that the total visible electrode count is known
+- Also added the first design-assisted setup hook to the `Image Monitor` tab:
+  - design path entry
+  - `Browse`
+  - `Load Design`
+  - design-load status line
+  This is groundwork for the user workflow where a pre-shot microscope image or design image can be supplied whenever the live feed alone is not enough to infer the electrode layout.
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_vision_electrode_mapper.py`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\vision\electrode_mapper.py`
+- Current saved Swift snapshot behavior after the fix:
+  - raw live detector: `20` circles
+  - dynamic overlay subset: `15` primary candidates
+  - importantly, this is now treated as a per-frame heuristic subset rather than an asserted electrode count
+- Root-cause / side-effect check:
+  - root cause covered: the GUI no longer encodes a brittle visible-electrode count assumption
+  - regression tests stayed green after the filter change
+- Next step:
+  - use the newly added design-file setting to let the user anchor a design image when live-only overlay remains ambiguous, then connect that design-assisted path to explicit electrode target selection in the Image Monitor tab
+## 2026-04-21 - Codex (GPT-5) - Exported Swift snapshot into OM for manual electrode markup and probed design-image auto detection
+- User reported that the current live auto overlay is still far from the real visible electrodes and asked for a workflow where they can manually mark the true electrodes on the microscope snapshot.
+- Concrete outcome in the OM workflow:
+  - copied the latest Swift/OpenCV snapshot into the shared OM folder as [Swift_snapshot_for_markup.png](C:/Users/mmq8658/Desktop/Microprobe/OM/Swift_snapshot_for_markup.png) so the user can open it, draw the true electrode centers, and return the annotated image
+  - ran the current design-image detector on [Design.png](C:/Users/mmq8658/Desktop/Microprobe/OM/Design.png) and exported the detected overlay to [Design_detected_overlay.png](C:/Users/mmq8658/Desktop/Microprobe/OM/Design_detected_overlay.png)
+  - exported the raw design detections to [Design_detected_overlay_summary.json](C:/Users/mmq8658/Desktop/Microprobe/OM/Design_detected_overlay_summary.json)
+- Result:
+  - current design-only auto detection found `15` circles on the provided design asset
+  - this still does not line up with the user's visual estimate of `18` visible electrodes in the microscope snapshot, so the current automatic live/design detection is not yet trusted enough for direct target selection
+- Root-cause / side-effect check:
+  - root cause not fully solved: the live/design heuristics are still under-detecting or mis-grouping visible electrodes
+  - however the workflow is now in a recoverable state because the user can mark the true electrodes on a shared snapshot and we can use that to calibrate the next manual-click / design-assisted selection step
+- Next step:
+  - accept the user's manually annotated [Swift_snapshot_for_markup.png](C:/Users/mmq8658/Desktop/Microprobe/OM/Swift_snapshot_for_markup.png), then implement either (a) click-to-register electrode centers directly in the Image Monitor tab or (b) a design-assisted correspondence tool using the returned markup as supervision
+## 2026-04-21 - Codex (GPT-5) - Added manual markup parser for microscope snapshots and wired markup loading into Image Monitor
+- User provided an externally annotated microscope snapshot [Swift_snapshot_markup.png](C:/Users/mmq8658/Desktop/Microprobe/OM/Swift_snapshot_markup.png) and pointed out that the current automatic live overlay is still too unreliable to trust as-is.
+- Concrete code changes:
+  - added `detect_markup_electrode_map_rgb(...)` to [vision/electrode_mapper.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/vision/electrode_mapper.py)
+    - parses red user-drawn circle markup via HSV red masking + contour/min-enclosing-circle extraction
+    - converts the markup into the same DataFrame shape used by the rest of the electrode-map pipeline
+  - tuned the markup row-grouping tolerance after the first pass merged everything into one row; the final version now reproduces the intended `3` visible rows from the user markup
+  - added markup support to [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - `Markup image` path entry in the `Image Monitor` tab
+    - `Browse` / `Load Markup` buttons
+    - `Markup: ...` status line that reports the loaded visible-electrode layout
+- Concrete artifacts written into OM:
+  - [Swift_snapshot_markup_detected.csv](C:/Users/mmq8658/Desktop/Microprobe/OM/Swift_snapshot_markup_detected.csv)
+  - [Swift_snapshot_markup_detected_overlay.png](C:/Users/mmq8658/Desktop/Microprobe/OM/Swift_snapshot_markup_detected_overlay.png)
+  - [Swift_snapshot_markup_detected_summary.json](C:/Users/mmq8658/Desktop/Microprobe/OM/Swift_snapshot_markup_detected_summary.json)
+- Validated result on the user markup:
+  - parsed `18` visible electrodes
+  - grouped into `3` rows with up to `6` columns
+  - generated a green-on-red overlay that aligns with the user markup image
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_vision_electrode_mapper.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\vision\electrode_mapper.py"`
+- Root-cause / side-effect check:
+  - root cause addressed for the current visible-layout problem: we no longer have to trust the noisy auto detector when the user can provide a markup image
+  - one bounded follow-up refinement was required: the first markup parser pass found all `18` circles but merged them into one row; the row-tolerance fix corrected that and the full GUI/vision suite now passes again (`38 tests OK`)
+- Next step:
+  - use the loaded markup layout as the trusted visible-electrode scaffold for the next GUI feature: click/select a target visible electrode and connect it to stage/design coordinates instead of relying on raw auto circles
+## 2026-04-21 - Codex (GPT-5) - Added markup-seed live tracking path for Image Monitor and validated drift-following from a trusted visible layout
+- User clarified that the critical requirement is not just one-time manual markup parsing but a practical path where an initial trusted visible-electrode seed can continue to follow small frame/stage drift during live monitoring.
+- Concrete code changes:
+  - added `strip_red_markup_from_rgb(...)` to [vision/electrode_mapper.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/vision/electrode_mapper.py) so a user-marked microscope image can serve as both (a) a trusted layout source and (b) a cleaner registration reference for later frame alignment
+  - added `scale_detection_table(...)` to [vision/electrode_mapper.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/vision/electrode_mapper.py) so saved-markup detections can be resized safely to the current live-frame resolution before tracking
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py) so the `Image Monitor` now prefers a loaded markup layout as the initial live-tracking seed when `Detector=live`
+    - the first live frame now runs ECC affine registration from the cleaned markup reference to the current frame
+    - the projected seed is then refined locally with the existing circular tracker instead of re-running the noisy raw auto detector
+    - later frames continue from `_image_tracking_map` as before
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_vision_electrode_mapper.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - synthetic drift demo written to:
+    - [markup_seed_tracking_shift_demo.png](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/results/vision_live_overlay_probe/markup_seed_tracking_shift_demo.png)
+    - [markup_seed_tracking_shift_demo_summary.json](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/results/vision_live_overlay_probe/markup_seed_tracking_shift_demo_summary.json)
+- Result:
+  - GUI/vision suite now passes (`41 tests OK`)
+  - markup load now also prepares a cleaned tracking reference (`_image_markup_reference_rgb`)
+  - synthetic shift validation keeps all `18` electrodes and recovers the applied drift nearly exactly (`dx ~ +10 px`, `dy ~ -7 px`, ECC `~0.9999`)
+- Root-cause / side-effect check:
+  - root cause addressed for the practical use case the user described: once a trusted visible layout exists, the GUI no longer depends on a fresh unreliable auto detect every cycle; it can follow drift from that seed
+  - no regression observed in GUI/adaptive tests after the tracker integration
+- Next step:
+  - add a user-facing way to freeze the current live frame as the initial seed (without needing an offline markup file), then compare that seed-tracking path against the current raw auto detector on a few real live microscope moves
+## 2026-04-21 - Codex (GPT-5) - Added a GUI action to freeze the current live frame/overlay as a tracking seed in Image Monitor
+- User wanted the OM/image-monitor workflow to be practical even without an offline markup file, because initial designation may be possible directly from the live microscope view and later drift is the more important problem.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py) to add `Freeze Current as Seed` and `Clear Seed` buttons in the `Image Monitor` control row
+  - added `_image_seed_reference_rgb`, `_image_seed_map`, and `_image_monitor_last_frame_rgb` state so the GUI can lock the current live frame + current overlay as a reusable tracking seed
+  - when a frozen seed is present and `Detector=live`, the GUI now prefers that seed over both raw auto detection and markup-seed registration
+    - first aligns the frozen seed frame to the current frame with ECC affine registration
+    - projects the frozen seed layout into the current frame
+    - refines the projected circles locally with `refine_circular_electrode_map_rgb(...)`
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_vision_electrode_mapper.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\vision\electrode_mapper.py"`
+- Result:
+  - GUI/vision suite now passes (`43 tests OK`)
+  - new GUI tests confirm:
+    - the current overlay can be frozen into a seed
+    - the next `Image Monitor` tick prefers frozen-seed tracking when available
+- Root-cause / side-effect check:
+  - root cause addressed for the live-use case the user described: initial target designation no longer has to depend on an offline markup file if the current live frame already shows a reasonable overlay
+  - no regression observed in GUI/vision tests after adding the seed-freeze path
+- Next step:
+  - add a click/select action on top of the frozen seed so a specific visible electrode can be chosen as the tracking/target electrode, then connect that selected visible electrode to design/stage coordinates
+## 2026-04-21 - Codex (GPT-5) - Added a structure-driven `reference` microscope detector preset using the `monitoring during measurement` image as a quality benchmark
+- User pointed out that the detector must not quietly optimize toward a fixed visible-electrode count because each microscope frame can show a different subset of the full cell.
+- Concrete code changes:
+  - added `_filter_structured_circle_rows(...)` to [vision/electrode_mapper.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/vision/electrode_mapper.py)
+    - keeps only circles that belong to rows with consistent intra-row spacing
+    - does **not** assume a fixed electrode count
+  - added `detect_reference_microscope_electrode_map_rgb(...)` to [vision/electrode_mapper.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/vision/electrode_mapper.py)
+    - intended for cleaner OM images such as [monitoring during measurement.png](C:/Users/mmq8658/Desktop/Microprobe/OM/monitoring%20during%20measurement.png)
+    - uses a stricter Hough preset and the new structural row/spacing filter instead of the noisier live-only path
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py) so the `Image Monitor` detector combobox now includes `reference`
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_vision_electrode_mapper.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe "C:\Users\mmq8658\Desktop\Microprobe\Convert_CP_to_EIS 1\test_trusted_lf_split_cases.py"`
+  - comparison summary written to [monitoring_measurement_reference_comparison.json](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/results/vision_live_overlay_probe/monitoring_measurement_reference_comparison.json)
+- Result on the `monitoring during measurement` image:
+  - old `live` preset: `393` candidates
+  - new `reference` preset: `24` structured candidates
+  - overlays written to:
+    - [monitoring_measurement_live_overlay_after_reference.png](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/results/vision_live_overlay_probe/monitoring_measurement_live_overlay_after_reference.png)
+    - [monitoring_measurement_reference_overlay_after_reference.png](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/results/vision_live_overlay_probe/monitoring_measurement_reference_overlay_after_reference.png)
+- Root-cause / side-effect check:
+  - root cause partly addressed: the cleaner OM case now has a detector path that is much less dominated by raw over-detection and is driven by circular row/spacing structure rather than a hard-coded count
+  - still uncertain: `24` is much better than `393`, but it is not yet a guaranteed fully correct visible-electrode layout; this is why `reference` is exposed as a separate detector mode rather than silently replacing `live`
+  - no regression observed in GUI/vision tests (`44 tests OK`) or Convert trusted baseline (`2 tests OK`)
+- Next step:
+  - use the current `reference` preset plus either `Freeze Current as Seed` or `Markup` as the practical initial-acquisition path, then keep improving automatic initial acquisition using the same structure score rather than any fixed expected count
+## 2026-04-21 - Codex (GPT-5) - Audited copied analysis-backend drift against the main Convert project and resynced critical shared files
+- Confirmed that this project's automatic-measurement bridge depends on the copied backend folder:
+  - `G:\My Drive\research\2. Northwestern\1-2. LSF-LSC (breakthrough project)\Microprobe Python\Analysis_Convert_CP_to_EIS`
+- Cross-project hash audit against the main Convert project showed:
+  - `compare_full_vs_optimized_fit.py`, `Convert_CP_to_EIS.py`, `EIS_Fitting.py`, `Load_CP_Data.py`, `export_origin_friendly.py`, and several other files were already aligned
+  - `export_dict_to_excel.py` and `Plotting_Functions.py` had drifted behind the main project's newer Spyder-safe / non-interactive plotting fixes
+  - `adaptive_measurement_policy.py` on the Microprobe copied-backend side was newer than the main Convert copy because it already included PEIS-only aware policy handling
+- Concrete sync actions:
+  - updated copied-backend [export_dict_to_excel.py](G:\My Drive\research\2. Northwestern\1-2. LSF-LSC (breakthrough project)\Microprobe Python\Analysis_Convert_CP_to_EIS\export_dict_to_excel.py) from the main Convert project
+  - updated copied-backend [Plotting_Functions.py](G:\My Drive\research\2. Northwestern\1-2. LSF-LSC (breakthrough project)\Microprobe Python\Analysis_Convert_CP_to_EIS\Plotting_Functions.py) from the main Convert project
+  - pushed this copied-backend's newer [adaptive_measurement_policy.py](G:\My Drive\research\2. Northwestern\1-2. LSF-LSC (breakthrough project)\Microprobe Python\Analysis_Convert_CP_to_EIS\adaptive_measurement_policy.py) back into the main Convert project so both sides now share the same PEIS-only aware policy
+- Small cleanup:
+  - fixed the `log(|Z|)\Ohm` escape warning in the plotting module and kept the copied-backend version in sync
+- Validation:
+  - SHA256 hashes now match for the three resynced files across both projects
+  - `python -m py_compile` passes for those files in both projects
+- Remaining architectural note:
+  - this project still carries a copied analysis backend rather than importing a single shared package, so future changes can drift again unless the copy-based boundary is reduced.
+## 2026-04-22 - Codex (GPT-5) - Updated the `reference` OM detector to ignore the upper zoomed region and use only the lower repeated electrode field
+- User pointed out that the upper portion of [monitoring during measurement.png](C:/Users/mmq8658/Desktop/Microprobe/OM/monitoring%20during%20measurement.png) is a zoomed/partial view and should not be used for electrode-array localization.
+- Concrete code change:
+  - updated [detect_reference_microscope_electrode_map_rgb(...)](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/vision/electrode_mapper.py) so the `reference` preset now crops away the upper band (`~22%` of the image height) before circular detection and row/spacing filtering
+  - this keeps the detector focused on the lower repeated electrode field instead of mixing in the non-array upper region
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_vision_electrode_mapper.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe "C:\Users\mmq8658\Desktop\Microprobe\Convert_CP_to_EIS 1\test_trusted_lf_split_cases.py"`
+  - updated comparison saved to [monitoring_measurement_reference_comparison_after_lowerband.json](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/results/vision_live_overlay_probe/monitoring_measurement_reference_comparison_after_lowerband.json)
+- Result:
+  - `live` preset still over-detects heavily (`393` candidates spanning the full frame)
+  - `reference` preset now only returns lower-band structured candidates (`7`, all with `y ~ 453-541 px`), so the clearly wrong upper-region detections are gone
+- Root-cause / side-effect check:
+  - root cause addressed for the specific failure the user called out: the detector no longer counts the upper zoomed region as part of the repeated electrode array
+  - remaining limitation: the new crop is probably too conservative (`7` candidates), so the next step is to relax the lower-band structure filter without reintroducing upper-region junk
+  - no regression observed in GUI/vision tests (`44 tests OK`) or Convert trusted baseline (`2 tests OK`)
+- Next step:
+  - keep the upper-band exclusion, but retune the lower-band structure filter so `reference` can recover more of the actual lower-field electrodes without falling back into the old gross over-detection behavior
+## 2026-04-22 - Codex (GPT-5) - Relaxed the lower-band `reference` OM detector by clustering near-duplicate row candidates before spacing checks
+- Continued the `reference` detector follow-up for [monitoring during measurement.png](C:/Users/mmq8658/Desktop/Microprobe/OM/monitoring%20during%20measurement.png), where the upper zoomed region was already excluded but the lower-band structure filter had become too conservative (`7` candidates).
+- Concrete code change:
+  - updated [_filter_structured_circle_rows(...)](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/vision/electrode_mapper.py) so each row now clusters near-duplicate x candidates **before** spacing support is computed, then applies a slightly looser neighbor-spacing gate on the clustered row
+  - added a row-span guard so short local clutter groups are still rejected even after the looser clustering
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_vision_electrode_mapper.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe "C:\Users\mmq8658\Desktop\Microprobe\Convert_CP_to_EIS 1\test_trusted_lf_split_cases.py"`
+  - `py_compile` on [vision/electrode_mapper.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/vision/electrode_mapper.py)
+  - fresh comparison JSON + overlays written to:
+    - [monitoring_measurement_reference_comparison_after_rowclustering.json](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/results/vision_live_overlay_probe/monitoring_measurement_reference_comparison_after_rowclustering.json)
+    - [monitoring_measurement_reference_overlay_after_rowclustering.png](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/results/vision_live_overlay_probe/monitoring_measurement_reference_overlay_after_rowclustering.png)
+- Result:
+  - `live` preset remains noisy at `393` candidates
+  - `reference` preset improved from the previous overly strict `7` to `20` lower-band structured candidates on the saved reference image
+  - `reference` still ignores the upper zoomed region (`y_min ~ 464 px`), so the fix improved recall without reintroducing the top-region false positives the user explicitly called out
+- Root-cause / side-effect check:
+  - root cause addressed: lower-band duplicate/nearby circle clutter was suppressing real repeated structure by distorting row spacing; clustering those candidates first restores much more of the repeated field
+  - side effects checked: the top non-array region remains excluded, Microprobe GUI/vision tests still pass (`44` tests OK), and the Convert trusted LF baseline still passes (`2` tests OK)
+  - remaining uncertainty: `20` candidates is clearly more realistic than `7`, but it is still a heuristic overlay rather than a guaranteed true visible-electrode count
+- Next step:
+  - use this improved `reference` preset as the practical seed-acquisition path for cleaner OM images, then add click-to-select / target-locking on top of the frozen seed instead of trying to infer an exact electrode count from the raw overlay alone
+## 2026-04-22 - Codex (GPT-5) - Added click-to-lock target selection on top of the Image Monitor overlay
+- Continued the OM/image-monitor path after improving the `reference` detector recall. The next practical need was to stop treating the overlay as just a cloud of candidates and let the user lock one visible electrode as the target directly from the GUI.
+- Concrete code changes in [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py):
+  - added `_image_target_status_var` plus a new `Target:` status line in the `Image Monitor` tab
+  - added a `Clear Target` button
+  - bound a left-click handler on the live preview so the nearest current overlay candidate can be selected from the displayed image
+  - added `_image_select_target_from_frame_xy(...)`, `_image_update_selected_target_from_overlay(...)`, and `_image_draw_selected_target(...)`
+  - the selected target now persists across live overlay refreshes by nearest-neighbor tracking within the updated overlay, and the preview draws a yellow ring + cyan cross marker on the locked target
+- Validation executed:
+  - `py_compile` on [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_vision_electrode_mapper.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe "C:\Users\mmq8658\Desktop\Microprobe\Convert_CP_to_EIS 1\test_trusted_lf_split_cases.py"`
+- New regression coverage:
+  - added GUI tests that lock a target from the current overlay and then update that locked target from a later overlay instead of losing it
+- Root-cause / side-effect check:
+  - root cause addressed: the OM overlay is no longer only an approximate candidate cloud; the user can now turn it into a concrete target electrode without needing markup for every frame
+  - side effects checked: GUI/vision suite now passes at `46` tests, Convert trusted LF baseline still passes at `2` tests, and `py_compile` on `gui.py` passes
+  - remaining uncertainty: the target currently follows by nearest-neighbor in image space; the next refinement is to connect that target-lock state to stage/design coordinates and future move-after-ROI verification
+- Next step:
+  - use the improved `reference`/`frozen seed` overlay plus click-to-lock as the initial acquisition path, then add target-to-design / target-to-stage correspondence rather than trying to infer an exact electrode count automatically
+## 2026-04-22 - Codex (GPT-5) - Revalidated OM target-lock baseline while adding the first saved-data two-stage current-run LF policy artifact on the Convert side
+- No new Microprobe source files changed in this wakeup; the concrete implementation work went into the Convert/data-analysis side to close the long-carried two-stage adaptive TODO.
+- Microprobe validation still executed to guard the current OM acquisition path while the Convert prototype was added:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+- Result:
+  - the current Image Monitor / target-lock baseline still passes (`36` tests OK), so the Convert-side simulation artifact did not regress the live GUI workflow built around `reference`, `Freeze Current as Seed`, and click-to-lock target selection
+- Next Microprobe-side action remains:
+  - connect the clicked target-lock state to design/stage correspondence so a visible electrode becomes a real motion target rather than only an image-space highlight.
+## 2026-04-22 - Codex (GPT-5) - Added a Microprobe-side two-stage current-run LF planner helper and replay artifact
+- Closed the matching Microprobe-side TODO after the Convert saved-data artifact existed: Microprobe now has its own planner helper for the same two-stage policy instead of only relying on the Convert-side replay script.
+- Concrete code changes:
+  - added [CurrentRunPolicyDecision](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/adaptive_types.py) so the current-run handoff can be represented explicitly
+  - added [AdaptiveMeasurementEngine.plan_two_stage_current_run_policy(...)](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/adaptive_engine.py) to model:
+    - `keep_exploratory_seed_for_hybrid`
+    - `handoff_to_normal_lf`
+  - added [simulate_two_stage_current_run_policy.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/simulate_two_stage_current_run_policy.py), which reads the saved Convert artifact and verifies the Microprobe helper reproduces the same runtime LF decisions
+  - added [tests/test_two_stage_current_run_policy.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_two_stage_current_run_policy.py)
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\adaptive_types.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\simulate_two_stage_current_run_policy.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_two_stage_current_run_policy.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\simulate_two_stage_current_run_policy.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_two_stage_current_run_policy.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+- Saved artifact:
+  - [Microprobe two-stage summary](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/results/two_stage_current_run_policy/two_stage_current_run_policy_summary.json)
+- Result:
+  - the Microprobe helper reproduces the Convert artifact exactly across all `16` saved references:
+    - `all_actions_match = true`
+    - `all_runtime_lf_match = true`
+    - `max_runtime_gap_abs_diff = 0.0`
+- Root-cause / side-effect check:
+  - root cause addressed: the current-run two-stage LF handoff is no longer only a Convert-side concept; Microprobe now has a planner helper and artifact the runtime can consume later
+  - side effects checked: GUI Image Monitor baseline still passes (`39` tests OK when combined with the new Microprobe policy tests)
+  - remaining uncertainty: the helper is not yet wired into the live measurement loop, so the next step is a runtime integration plan rather than another saved-data prototype
+- Next step:
+  - feed this helper into the adaptive runtime/planner path that currently chooses next-point LF/mode so Microprobe can consume the same two-stage logic without inventing it again inside the GUI loop
+## 2026-04-22 - Codex (GPT-5) - Wired the Microprobe two-stage current-run policy into runtime-facing finalize/export payloads
+- Continued the previous two-stage LF work so it is no longer only a standalone helper/artifact. Completed-point analysis now stores the current-run policy decision directly on each `PointStateRecord`, and `finalize_completed_point(...)` exposes that same decision in the returned payload.
+- Concrete code changes:
+  - extended [PointStateRecord](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/adaptive_types.py) with `current_run_policy_decision`
+  - updated [_finalize_analysis(...)](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/adaptive_engine.py) to compute/store the two-stage decision as soon as analysis is ready
+  - updated [finalize_completed_point(...)](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/adaptive_engine.py) so GUI/headless adaptive summaries automatically receive the policy decision inside `analysis_finalize`
+  - added regression coverage in [tests/test_adaptive_engine.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_adaptive_engine.py)
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\adaptive_types.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_two_stage_current_run_policy.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\simulate_two_stage_current_run_policy.py"`
+- Result:
+  - Microprobe adaptive/GUI suite still passes (`68` tests OK)
+  - the saved-data Microprobe artifact still matches the Convert artifact exactly after the runtime-facing integration
+  - runtime consumers like GUI adaptive summaries and headless automation finalize payloads can now read the same two-stage policy decision without recomputing it elsewhere
+- Root-cause / side-effect check:
+  - root cause addressed: the two-stage policy is now present in the same payload path the runtime already uses, rather than living only in an offline replay helper
+  - side effects checked: GUI adaptive regressions still pass, and the saved-data Microprobe artifact stayed exact-match with Convert
+  - remaining uncertainty: the next-point planner still does not actively branch on `current_run_policy_decision`; it is now available in the runtime payload, but the recommendation logic has not yet been switched to consume it
+- Next step:
+  - use the stored `current_run_policy_decision` inside the adaptive next-point planner / GUI adaptive runtime so actual planning can react differently after a rapid-vs-normal handoff decision instead of only logging it
+## 2026-04-22 - Codex (GPT-5) - Switched the Microprobe adaptive next-point planner to consume stored two-stage current-run LF handoff decisions
+- Closed the remaining Microprobe-side gap in the two-stage current-run LF work: `recommend_next_point(...)` now actually branches on the completed-point `current_run_policy_decision` instead of only carrying that decision in finalize/export payloads.
+- Concrete code changes:
+  - updated [adaptive_engine.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/adaptive_engine.py)
+    - `recommend_next_point(...)` now calls `_apply_current_run_policy_decision(...)`
+    - added `_apply_current_run_policy_decision(...)` to consume the stored action after runtime guards are known:
+      - `handoff_to_normal_lf` now forces `normal_eis` + the stored PEIS-based normal LF when the PEIS-only signal is still trusted at runtime
+      - `keep_exploratory_seed_for_hybrid` now keeps `rapid_eis` + the stored exploratory CP seed as the next LF source
+      - if runtime guards still block normal mode, the planner keeps rapid mode and records an explicit note rather than silently ignoring the stored decision
+  - updated [tests/test_adaptive_engine.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_adaptive_engine.py)
+    - added planner-level regression for stored normal handoff consumption
+    - added planner-level regression for stored hybrid seed preservation
+  - updated [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - aligned the rapid adaptive-row expectation with the new policy: preserved exploratory seed LF is now the intended behavior rather than further LF deepening
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_two_stage_current_run_policy.py"`
+- Result:
+  - Microprobe suite passes again (`70 tests OK`)
+  - the saved-data Microprobe artifact still exactly matches the Convert artifact after the planner integration
+- Root-cause / side-effect check:
+  - root cause addressed: the two-stage current-run decision is no longer passive metadata; the actual next-point planner now changes LF/mode based on the stored handoff state
+  - side effects checked: GUI adaptive runtime expectations were updated to the intended exploratory-seed-preserving rapid behavior, and the full Microprobe suite still passes
+  - remaining uncertainty: this is planner/runtime logic integration, but the live measurement loop still uses full completed-point analysis before applying the next-point decision; if we later move to mid-point/live handoff, a separate runtime integration will still be needed
+- Next step:
+  - expose the consumed policy action in the saved adaptive runtime summaries/GUI notes more explicitly so run history can show whether a given next-point recommendation came from normal handoff vs exploratory-seed preservation
+## 2026-04-22 - Codex (GPT-5) - Flattened two-stage current-run policy visibility in adaptive runtime summaries
+- Inspected the current Microprobe/Convert logs plus the adaptive summary write paths in [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py) and [run_automation.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/run_automation.py). The consumed two-stage handoff state was present only inside `recommendation_used` / `analysis_finalize`, so run-history readers still had to dig through nested payloads to learn whether a point used `handoff_to_normal_lf` vs `keep_exploratory_seed_for_hybrid`.
+- Concrete code changes:
+  - added `consumed_current_run_policy` and `completed_point_current_run_policy` top-level fields to adaptive summary point entries in [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+  - mirrored the same flattening in [run_automation.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/run_automation.py)
+  - updated the summary backfill path so late `finalize_completed_point(...)` refreshes also refresh the flattened completed-point policy fields
+  - extended [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py) and [tests/test_run_automation_adaptive.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_run_automation_adaptive.py) to assert the flattened fields directly
+  - fixed the run_automation test fixture to stub `full_processor` and to provide `recommended_normal_peis_lowest_freq_hz`, so the regression actually exercises the intended normal-handoff branch instead of falling through to a default full-processing/file-IO path
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\run_automation.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_two_stage_current_run_policy.py"`
+- Result:
+  - Microprobe adaptive/runtime suite passes again (`73 tests OK`)
+  - adaptive runtime summaries now surface both the policy consumed to execute a row and the completed-point policy decision generated by that row without requiring nested dict inspection
+- Root-cause / side-effect check:
+  - root cause addressed: run history can now show the two-stage decision explicitly at the summary point level instead of hiding it inside nested payloads
+  - bounded follow-up after one failed attempt: the first regression run exposed two `run_automation` fixture gaps (unstubbed full processor and missing normal-LF handoff field); both were fixed and the full Microprobe slice went green on rerun
+  - side effects checked: GUI/runtime planner tests and the Microprobe two-stage replay artifact still pass after the summary flattening change
+- Next step:
+  - if we want operators to see the same information in the live GUI without opening JSON, mirror these flattened fields into the visible adaptive/Manual recommendation text or export figure annotations
+## 2026-04-22 - Codex (GPT-5) - Surfaced two-stage current-run policy directly in the visible EIS Monitor recommendation text
+- Inspected the current GUI adaptive flow after the summary-flattening step. The consumed/completed two-stage policy fields were present in `adaptive_runtime_summary.json`, but operators still had to open JSON or logs to understand whether a row used `handoff_to_normal_lf` vs `keep_exploratory_seed_for_hybrid`.
+- Concrete code changes:
+  - added `_set_monitor_recommendation(...)` and `_format_adaptive_policy_text(...)` in [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+  - `_prepare_adaptive_row(...)` now updates the visible `EIS Monitor` recommendation text immediately when the next-point planner consumes a two-stage policy action
+  - `_finalize_adaptive_row(...)` now also mirrors completed-point policy decisions into the same visible recommendation area when a rapid row finishes analysis
+  - extended [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py) with:
+    - a formatting regression for `handoff_to_normal_lf`
+    - a GUI-level regression that `_prepare_adaptive_row(...)` actually writes the exploratory-seed policy text into the monitor recommendation label
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_two_stage_current_run_policy.py"`
+- Result:
+  - Microprobe adaptive/runtime/GUI slice still passes (`75 tests OK`)
+  - operators can now read the current two-stage handoff state directly from the live `EIS Monitor` recommendation line instead of digging through JSON/logs
+- Root-cause / side-effect check:
+  - root cause addressed: the two-stage policy is no longer only machine-readable metadata; the GUI now surfaces the same action/runtime-LF intent in visible operator text
+  - side effects checked: the full Microprobe adaptive slice still passes, including the previously-fixed `run_automation` fixture path
+  - remaining uncertainty: export figures/files still do not show the same policy text, so the next visibility improvement should mirror this wording into saved/exported result annotations
+- Next step:
+  - propagate the same two-stage action/runtime-LF wording into adaptive export artifacts (for example figure annotations or saved summary text) so post-run review sees the same context without opening the GUI
+## 2026-04-22 - Codex (GPT-5) - Added saved/export-ready two-stage policy text fields to adaptive summaries
+- Followed the previous GUI visibility step by closing the export-side gap: adaptive runtime summary points now carry the same human-readable two-stage policy wording that the live `EIS Monitor` recommendation label shows.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - `_adaptive_summary_point_entry(...)` now writes:
+      - `consumed_current_run_policy_text`
+      - `completed_point_current_run_policy_text`
+    - `_backfill_adaptive_summary(...)` now refreshes the completed-point policy text during late finalize/backfill, not only the nested policy dict
+  - updated [run_automation.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/run_automation.py)
+    - mirrored the same `*_policy_text` fields for headless adaptive summaries
+    - added `_format_adaptive_policy_text(...)` so GUI/headless summaries emit the same wording family
+  - extended [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py) and [tests/test_run_automation_adaptive.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_run_automation_adaptive.py) to assert the new summary text fields directly
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\run_automation.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_two_stage_current_run_policy.py"`
+- Result:
+  - Microprobe adaptive/runtime/export slice still passes (`75 tests OK`)
+  - saved adaptive summaries are now directly readable without digging into nested JSON or remembering the GUI wording; both GUI and headless paths export the same two-stage action/runtime-LF text
+- Root-cause / side-effect check:
+  - root cause addressed: post-run/export review no longer loses the operator-facing two-stage policy wording that was previously only visible live in the GUI
+  - side effects checked: GUI + headless adaptive regressions still pass and the saved-data two-stage replay artifact remains exact-match with Convert
+  - remaining uncertainty: figure/image exports still do not render this wording visually; the text now exists in saved summaries, but not yet in plotted figures or operator reports
+- Next step:
+  - mirror the same two-stage wording into any future exported figures/markdown/report text, and then return to the OM target-lock -> design/stage correspondence path
+## 2026-04-22 - Codex (GPT-5) - Added anchor-aware stage XY projection to Image Monitor target-lock
+- Continued the OM/design-stage path by extending `Image Monitor` target-lock from image/design-only status into stage-ready coordinates.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - added `Use Current XY as Anchor` / `Clear Anchor` controls and a `Stage anchor` status line in `Image Monitor`
+    - added `_image_get_current_stage_xy(...)`, `_image_set_stage_anchor_from_current_xy(...)`, `_image_clear_stage_anchor(...)`, and `_image_compute_stage_xy_for_design_target(...)`
+    - target status now distinguishes `sample (~x, y) mm` from projected `Stage (~x, y) mm`
+    - once an operator anchors one visible electrode to the current Motor X/Y readback, later locked targets now immediately show stage XY candidates
+  - updated [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - fixed the old normalized-design fallback fixture so it really exercises fallback rather than accidental exact row/col matching
+    - added regressions for:
+      - creating a stage anchor from current Motor X/Y + locked design target
+      - projecting a different design target into stage XY after the anchor is set
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_two_stage_current_run_policy.py"`
+- Result:
+  - Image Monitor target-lock is no longer limited to image-space/design-space; after one anchor step it provides projected stage XY candidates
+  - Microprobe adaptive/runtime/GUI slice still passes (`79 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: clicked target selection previously stopped at `Design R?C?` + sample mm, which was not actionable for motion; the GUI now carries enough state to propose stage coordinates after one anchor
+  - side effects checked: the full Microprobe adaptive/runtime/GUI slice still passes after the OM-stage change
+  - remaining uncertainty: the current anchor assumes design sample axes align with stage X/Y without rotation/flip; a future calibration UI is still needed for arbitrary microscope/sample orientation
+- Next step:
+  - add explicit image/design-to-stage calibration controls (or at least axis/flip calibration) so stage projection remains correct when microscope/sample orientation is not already aligned with stage axes
+## 2026-04-22 - Codex (GPT-5) - Added axis/flip calibration controls to Image Monitor stage projection
+- Closed the next OM calibration gap by making the anchor-based stage projection configurable for common microscope/sample orientations instead of assuming design/sample axes always align with stage X/Y.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - added `Swap XY`, `Invert X`, and `Invert Y` controls to the `Image Monitor` stage-mapping row
+    - added `_image_transform_sample_delta_to_stage_delta(...)` and `_image_refresh_stage_projection_status(...)`
+    - stage anchor status now shows the active mapping mode (for example `[swap xy, invert x]`)
+    - projected `Stage (~x, y) mm` for locked targets now honors swap/invert mapping before adding the delta to the anchor stage coordinate
+  - extended [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - added a regression proving `Swap XY` + `Invert X` changes the projected stage candidate as expected
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_two_stage_current_run_policy.py"`
+- Result:
+  - Image Monitor target-lock can now compensate for common orientation mismatches without code edits
+  - Microprobe adaptive/runtime/GUI slice still passes (`80 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: the previous anchor-based stage projection silently assumed aligned axes, which would be wrong for mirrored/swapped microscope views; operators can now explicitly correct those cases
+  - side effects checked: the full Microprobe adaptive/runtime/GUI slice still passes after the calibration-control change
+  - remaining uncertainty: this is still a discrete swap/invert model; arbitrary rotation/shear still requires a fuller affine calibration UI built on `vision_stage_mapper.py`
+- Next step:
+  - add a proper affine/image-to-stage calibration path (or at minimum a 2-point/3-point calibration wizard) so arbitrary microscope/sample orientations no longer rely on manual swap/invert choices
+## 2026-04-22 - Codex (GPT-5) - Added 3-point affine sample-to-stage calibration to Image Monitor
+- Upgraded the OM calibration path from manual swap/invert corrections to an actual affine solve driven by locked design targets and current Motor X/Y readback.
+- Concrete code changes:
+  - updated [vision_stage_mapper.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/vision_stage_mapper.py)
+    - added `SampleStageReference`
+    - added `solve_sample_to_stage_affine_calibration(...)`
+    - added `sample_to_stage_xy(...)`
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - added `Add Cal Point`, `Solve Affine`, and `Clear Cal` controls to `Image Monitor`
+    - added affine-calibration state and `Stage calibration` status line
+    - target stage projection now prefers the solved affine calibration when available, falling back to anchor + swap/invert only when no affine solve exists
+    - one operator can now lock design-linked targets, add three stage references from the current Motor X/Y readback, solve an affine map, and immediately get affine-projected stage XY candidates for later targets
+  - extended [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - added a regression that accumulates three calibration points, solves the affine map, and verifies a fourth target projects to the expected stage XY
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\vision_stage_mapper.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_two_stage_current_run_policy.py"`
+- Result:
+  - Image Monitor now supports actual affine sample-to-stage calibration from three operator-provided references instead of relying only on swap/invert assumptions
+  - Microprobe adaptive/runtime/GUI slice still passes (`81 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: the previous target projection path still depended on aligned axes or manual swap/invert heuristics; the GUI can now solve a proper affine calibration from explicit references
+  - side effects checked: the full Microprobe adaptive/runtime/GUI slice still passes after the affine-calibration addition
+  - remaining uncertainty: the UI can solve/store an affine map, but it still does not drive an actual move command or persist/reload calibration across sessions
+- Next step:
+  - connect the calibrated target stage XY candidate to an explicit `Move Target` workflow and add save/load persistence for the calibration so the operator does not need to rebuild it every session
+## 2026-04-22 - Codex (GPT-5) - Let Image Monitor copy projected stage XY into Manual Control target fields
+- Closed the first real operator workflow after target-lock + anchor/affine calibration: the projected target stage XY can now be pushed straight into `Manual Control -> Target State` without retyping coordinates.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - added `Projected XY -> Target` button to `Image Monitor`
+    - added `_image_apply_projected_stage_xy_to_manual_target()`
+    - when a locked target has either an affine-calibrated or anchor-projected stage candidate, the button now copies that XY into `Target State / Motor X (mm)` and `Motor Y (mm)`
+    - manual status and image-target status now confirm that the projected XY was copied
+  - extended [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - added anchor-based copy regression
+    - added affine-based copy regression
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_two_stage_current_run_policy.py"`
+- Result:
+  - Image Monitor can now hand off a locked electrode's projected stage XY to the existing manual move workflow instead of stopping at a status-line suggestion
+  - Microprobe adaptive/runtime/GUI slice still passes (`83 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: target-lock previously showed projected stage coordinates but left the operator to manually re-enter them before a move; that handoff is now explicit and repeatable
+  - side effects checked: both anchor-based and affine-based projections still resolve correctly, and the full Microprobe adaptive/runtime/GUI slice stayed green
+  - remaining uncertainty: this still fills target fields rather than issuing a guarded move directly, and solved affine calibrations are not yet persisted across sessions
+- Next step:
+  - add save/load persistence for the solved affine calibration and then decide whether `Image Monitor` should offer a guarded `Move Target` action on top of the existing safe stage move path
+## 2026-04-22 - Codex (GPT-5) - Added save/load persistence for Image Monitor stage calibration
+- Closed the next OM workflow gap after projected-XY handoff: affine/anchor calibration state can now survive across sessions instead of being rebuilt from scratch every time.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - added `Save Cal` and `Load Cal` buttons to `Image Monitor`
+    - added `_image_stage_calibration_payload()`
+    - added `_image_save_stage_affine_calibration(...)`
+    - added `_image_load_stage_affine_calibration(...)`
+    - persisted calibration refs, swap/invert flags, and the current anchor into JSON
+    - load now reconstructs `SampleStageReference` rows, re-solves affine when 3+ refs exist, restores anchor/mapping toggles, and keeps the loaded-status message visible after refresh
+  - extended [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - added a roundtrip regression proving saved calibration JSON restores affine projection and calibration-related state
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_two_stage_current_run_policy.py"`
+- Result:
+  - Image Monitor calibration can now be saved to JSON and later restored with the same affine-projected stage XY behavior
+  - Microprobe adaptive/runtime/GUI slice still passes (`84 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: solved affine calibrations were previously session-local only, making the OM workflow fragile and repetitive; they now persist and reload with the same projection behavior
+  - side effects checked: the new persistence path survived roundtrip testing, and the broader adaptive/runtime/GUI regression slice stayed green after one bounded follow-up fix to preserve the loaded-status message
+  - remaining uncertainty: persistence exists, but the calibration file is still a manual operator artifact and `Image Monitor` still does not issue a guarded stage move directly
+- Next step:
+  - build a guarded `Move Target` action that consumes the saved/loaded affine projection through the existing safe stage move path instead of stopping at target-field population
+## 2026-04-22 - Codex (GPT-5) - Added guarded Image Monitor move path and auto-refreshed the stage anchor after safe move
+- Closed the next OM workflow gap after calibration persistence: `Image Monitor` can now send a locked design target directly through the guarded stage move path, and a successful move automatically promotes that reached target to the new stage anchor for subsequent projections.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - added shared helper `_image_set_stage_anchor(...)`
+    - `Use Current XY as Anchor` now uses that shared helper instead of duplicating anchor construction
+    - `Move Target (Safe)` still preserves current Z and calls `motor.move_xyz_safe(...)`, but now also refreshes `Image Monitor` anchor state to the moved design target/stage XY immediately after the guarded move completes
+    - `Image Monitor` target status now explicitly records `[safe move sent; anchor updated]` so the operator can tell the move also advanced the projection anchor
+  - extended [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - anchor-projected safe move now asserts the new anchor lands on the moved design target (`R2C4`)
+    - affine-projected safe move now asserts the new anchor lands on the moved design target (`R2C2`)
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_two_stage_current_run_policy.py"`
+- Result:
+  - `Image Monitor` can now both issue a guarded target move and immediately continue the operator workflow from the newly reached target without forcing a second manual anchor-reset step
+  - Microprobe adaptive/runtime/GUI slice still passes (`86 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: the first guarded target move still left the old anchor in place, so follow-up image-to-stage projections were anchored to the previous electrode instead of the newly reached one
+  - side effects checked: both anchor-based and affine-based safe moves now update anchor state to the reached target while preserving the same guarded-move behavior and keeping the broader adaptive/runtime/GUI slice green
+  - remaining uncertainty: the logic is regression-validated with mocked motors only; it still needs real motor hardware validation to confirm safe-move timing and ROI stability on the instrument PC
+- Next step:
+  - lab-validate `Move Target (Safe)` on the real motor path and then add a post-move image ROI verification hook so `Image Monitor` can confirm the reached target still matches the locked electrode after motion
+## 2026-04-22 - Codex (GPT-5) - Added post-move ROI verification hook to Image Monitor safe move workflow
+- Closed the next OM workflow gap after guarded move + anchor refresh: `Image Monitor` now arms a one-shot ROI revisit check whenever `Move Target (Safe)` is used while live camera frames are available.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - imported `verify_roi_revisit` from [vision/roi_verifier.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/vision/roi_verifier.py)
+    - added `ROI verify` status line to the `Image Monitor` GUI
+    - added `_image_pending_roi_verification` state
+    - added `_image_arm_post_move_roi_verification(...)`
+    - added `_image_process_pending_roi_verification(...)`
+    - `Move Target (Safe)` now captures the pre-move live frame + locked target as a verification reference, then the next live frame performs a bounded ROI revisit check and reports `OK` / `weak` with score and dx/dy in pixels
+    - live monitor hint text now updates after ROI verification to reflect whether the post-move neighborhood match looked strong or weak
+  - extended [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - safe move regressions now assert that post-move ROI verification is armed for both anchor-based and affine-based safe moves
+    - added a direct regression for `_image_process_pending_roi_verification(...)` that verifies the GUI status/hint update path
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_two_stage_current_run_policy.py"`
+- Result:
+  - `Image Monitor` safe move now leaves a first-pass visual confirmation trail instead of stopping at motor completion only
+  - Microprobe adaptive/runtime/GUI slice still passes (`87 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: after guarded move + anchor refresh, the workflow still lacked any image-side signal about whether the locked electrode neighborhood remained visually consistent on the next live frame
+  - side effects checked: the new ROI hook is bounded and one-shot, and the broader adaptive/runtime/GUI slice stayed green after adding the extra live-loop state and status line
+  - remaining uncertainty: this is still a conservative continuity check against the expected pixel neighborhood, not a full “target reached under tip” guarantee; real hardware validation is still needed
+- Next step:
+  - lab-validate the ROI verification behavior on the real instrument PC after `Move Target (Safe)` and, if it proves useful, feed the result into a stricter move-success / reacquire-seed decision
+## 2026-04-22 - Codex (GPT-5) - Auto-promoted ROI-verified safe-move result into the new frozen tracking seed
+- Closed the next `Image Monitor` safe-move gap after ROI verification: when the one-shot post-move ROI revisit check returns `OK`, the current live frame plus current overlay/tracking map are now promoted into the frozen seed automatically instead of only reporting status to the operator.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - added `_image_pending_roi_seed_promotion` state and reset handling in `_image_monitor_stop`
+    - refactored `Freeze Current as Seed` through a shared `_image_promote_current_overlay_to_seed(...)` helper
+    - added `_image_apply_pending_roi_seed_promotion(...)` so a successful ROI verify can promote the current frame/overlay on the next monitor tick
+    - `_image_process_pending_roi_verification(...)` now arms seed promotion after an `OK` ROI verify instead of stopping at status text only
+  - extended [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - safe-move regressions now assert ROI verification is armed when a live frame exists
+    - ROI verify regression now asserts the `OK` path sets the pending promotion flag
+    - added a direct regression for `_image_apply_pending_roi_seed_promotion(...)` so the current frame/tracking map must become the new frozen seed
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py" "C:\Users\\mmq8658\\Desktop\\Microprobe\\Microprobe Python\\tests\\test_two_stage_current_run_policy.py"`
+- Result:
+  - a visually successful guarded move can now immediately strengthen future tracking instead of forcing the operator to manually re-freeze the overlay
+  - Microprobe adaptive/runtime/GUI slice still passes (`88 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: post-move ROI verification previously only informed the operator, but did not update downstream tracking state, so the next move still depended on an older frozen seed
+  - side effects checked: the new promotion path only triggers after an `OK` ROI verify and the broader adaptive/runtime/GUI regression slice remained green
+  - remaining uncertainty: the auto-promotion policy is regression-validated only; real hardware use still needs to decide whether borderline/weak ROI results should ever trigger promotion or instead force manual review
+- Next step:
+  - lab-validate whether successful ROI verify should always auto-promote and whether weak ROI verify should block the next projected move or request reacquisition
+## 2026-04-22 - Codex (GPT-5) - Blocked further safe moves after weak ROI verification until the seed is refreshed
+- Closed the next safety gap after ROI-verified seed auto-promotion: `Image Monitor` no longer allows another `Move Target (Safe)` immediately after a `ROI verify: weak` result.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - added `_image_move_requires_review_after_weak_roi` state
+    - `_image_process_pending_roi_verification(...)` now marks weak ROI results as review-required and updates the hint text to explicitly say further safe moves are blocked
+    - `_image_move_target_safe(...)` now refuses to send the next safe move while that review-required flag is set
+    - `_image_promote_current_overlay_to_seed(...)` now clears the weak-ROI block so `Freeze Current as Seed` and successful ROI-promoted auto-freeze both act as explicit reacquisition
+    - `_image_monitor_stop(...)` resets the weak-ROI block state as part of camera/session reset
+  - extended [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - added a direct weak-ROI regression that requires the block flag + operator-facing hint text
+    - added a regression that proves ROI-promoted seed refresh clears the block
+    - added a guarded-move regression that ensures `motor.move_xyz_safe(...)` is not called while the block is active
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_two_stage_current_run_policy.py"`
+- Result:
+  - a weak post-move ROI continuity check now forces a visible review/reacquire step before another guarded move can be sent
+  - Microprobe adaptive/runtime/GUI slice still passes (`90 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: `ROI verify: weak` previously warned the operator but still allowed the next safe move, which meant a shaky post-move visual lock could compound into the next projection
+  - side effects checked: the block is local to guarded moves only and is explicitly cleared by a seed refresh path, while the broader adaptive/runtime/GUI regression slice stayed green
+  - remaining uncertainty: this policy is intentionally conservative; instrument-PC use still needs to confirm whether all weak ROI cases should block or whether some should merely warn
+- Next step:
+  - lab-validate weak-ROI blocking on the real instrument PC and decide whether to add an explicit operator override or keep seed refresh as the only unblock path
+## 2026-04-22 - Codex (GPT-5) - Added an explicit operator override for weak-ROI move blocking
+- Closed the workflow gap left by the new weak-ROI block: `Image Monitor` now has an explicit `Override Weak ROI Block` action so operators can continue with the next guarded move after visually reviewing the overlay, without being forced to refresh the seed first every time.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - added `Override Weak ROI Block` button to the `Image Monitor` control row
+    - added `_image_override_weak_roi_block(...)`
+    - override now clears `_image_move_requires_review_after_weak_roi` and writes an operator-facing caution message before the next safe move
+  - extended [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - added regression showing override clears the weak-ROI block and allows the next safe move
+    - added regression showing override is a no-op when no block is active
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_two_stage_current_run_policy.py"`
+- Result:
+  - weak ROI still blocks by default, but there is now a bounded, explicit operator override path instead of a hard dead-end
+  - Microprobe adaptive/runtime/GUI slice still passes (`92 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: blocking every weak ROI without override was safer but too rigid for real operator workflow; now the block remains default while a visible manual override exists
+  - side effects checked: override is explicit and local to the Image Monitor move block only, and the broader adaptive/runtime/GUI regression slice stayed green
+  - remaining uncertainty: real hardware use still needs to decide whether this manual override is acceptable as-is or should require an additional confirmation/limited-use latch
+- Next step:
+  - lab-validate whether the weak-ROI override feels appropriate on the instrument PC or whether it should become a stronger confirmation flow instead of a single-click release
+## 2026-04-22 - Codex (GPT-5) - Tightened the weak-ROI override into a one-shot latch
+- Refined the new weak-ROI override so it no longer clears the block permanently. `Override Weak ROI Block` now permits exactly one guarded move, then the conservative weak-ROI block reasserts itself unless a fresh seed/ROI-success path clears it.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - added `_image_allow_one_safe_move_after_weak_roi_override` latch
+    - `Override Weak ROI Block` now arms that one-shot latch instead of clearing `_image_move_requires_review_after_weak_roi`
+    - `Move Target (Safe)` now consumes the latch exactly once and then returns to the default weak-ROI blocking behavior
+    - seed refresh and successful ROI verification both clear the weak-ROI block and the override latch together
+  - extended [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - updated weak-ROI override regression to expect one-shot behavior
+    - added regression proving the second move is blocked again after the one-shot override is consumed
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_two_stage_current_run_policy.py"`
+- Result:
+  - the weak-ROI override is still available for operator workflow, but is now bounded to a single next safe move instead of silently turning off the conservative guard
+  - Microprobe adaptive/runtime/GUI slice still passes (`93 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: the previous one-click override fully removed the weak-ROI block, which made it too easy to continue indefinitely after one manual release
+  - side effects checked: the override is now self-resetting after one move and the broader adaptive/runtime/GUI slice remained green
+  - remaining uncertainty: real hardware use still needs to decide whether one-shot override is sufficient or whether a stronger confirmation dialog/pattern is warranted
+- Next step:
+  - lab-validate the one-shot override ergonomics on the instrument PC and decide whether the operator should see additional confirmation text before that single permitted move
+## 2026-04-22 - Codex (GPT-5) - Added a visible Image Monitor move-gate status line for weak-ROI move control
+- Inspected the recent weak-ROI guard/override flow in [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py) and the corresponding GUI regressions in [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py).
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - added `_image_move_gate_status_var` plus `_image_refresh_move_gate_status()`
+    - added a visible `Move gate: ...` status label in `Image Monitor`
+    - wired the status refresh into weak-ROI block activation, one-shot override arming, one-shot override consumption, seed promotion, and camera/session reset
+  - updated [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - added assertions that weak ROI shows `Move gate: weak ROI blocked`
+    - added assertions that one-shot override shows `Move gate: weak ROI blocked (one-shot override armed)`
+    - added assertions that seed promotion and monitor stop return the gate to `Move gate: clear`
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_two_stage_current_run_policy.py"`
+- Result:
+  - operators can now see at a glance whether guarded moves are clear, weak-ROI blocked, or armed for a one-shot override instead of inferring it from hint text alone
+  - Microprobe adaptive/runtime/GUI slice still passes (`94 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: weak-ROI move control already existed but had no dedicated status line, so operators had to infer gate state from hints/status text after the fact
+  - side effects checked: the new label is read-only UI state wired to the same underlying guard flags, and the broader adaptive/runtime/GUI regression slice stayed green
+  - remaining uncertainty: real instrument-PC use still needs to confirm whether the wording is sufficient or whether the move gate should be color-coded in addition to text
+- Next step:
+  - lab-validate whether the new move-gate wording plus one-shot override is clear enough during real safe-move sequences, and if not, add stronger color/visual emphasis without changing the guard semantics
+## 2026-04-22 - Codex (GPT-5) - Added color-coded visual emphasis to the Image Monitor move-gate line
+- Inspected the newly added weak-ROI move-gate status line in [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py) and the recent GUI regressions in [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py).
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - kept the existing `Move gate` status semantics but turned the label into a stored widget (`_image_move_gate_label`)
+    - extended `_image_refresh_move_gate_status()` so it now drives both the text and the widget colors
+    - `clear` now renders green, `weak ROI blocked` renders red, and `weak ROI blocked (one-shot override armed)` renders orange
+  - updated [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - added assertions that weak ROI drives the gate label to `CLR_RED`
+    - added assertions that one-shot override drives the gate label to `CLR_ORANGE`
+    - added assertions that seed promotion / monitor stop return the gate label to `CLR_GREEN`
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_two_stage_current_run_policy.py"`
+- Result:
+  - the weak-ROI move gate is now both textual and color-coded, making `blocked / one-shot override armed / clear` states much easier to distinguish at a glance during guarded-move workflow
+  - Microprobe adaptive/runtime/GUI slice still passes (`94 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: the move gate previously existed only as text, which still required more reading than is ideal during operator-driven motion workflow
+  - side effects checked: only the display widget changed; the underlying guard semantics are unchanged and the broader adaptive/runtime/GUI regression slice stayed green
+  - remaining uncertainty: real instrument-PC use still needs to confirm whether the chosen red/orange/green emphasis is sufficiently visible under the actual microscope/lighting workflow
+- Next step:
+  - lab-validate the color-coded move gate on the instrument PC and decide whether it is enough or whether guarded move actions should also be button-disabled/enabled directly off the same state
+## 2026-04-22 - Codex (GPT-5) - Bound Image Monitor move-control buttons directly to the weak-ROI move gate
+- Inspected the recent color-coded `Move gate` flow in [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py) and the matching GUI regressions in [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py).
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - stored `Move Target (Safe)` and `Override Weak ROI Block` button widgets as `_image_move_target_button` and `_image_override_weak_roi_button`
+    - extended `_image_refresh_move_gate_status()` so it now drives button enabled/disabled state in addition to text and color
+    - `Move Target (Safe)` is now disabled while the weak-ROI block is active with no override armed, and re-enabled once the one-shot override is armed or the gate returns to clear
+    - `Override Weak ROI Block` is now enabled only when the weak-ROI block is active and not already armed
+  - updated [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - added assertions that weak ROI drives `Move Target (Safe)` to `disabled` and `Override Weak ROI Block` to `normal`
+    - added assertions that the one-shot override flips those button states (`move=normal`, `override=disabled`)
+    - added assertions that seed promotion and monitor stop restore the default `move=normal`, `override=disabled` state
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_two_stage_current_run_policy.py"`
+- Result:
+  - weak-ROI guard state is now reflected not only in text/color but in the actual availability of the guarded move controls, reducing the chance of an operator clicking into a blocked path and only then reading an error message
+  - Microprobe adaptive/runtime/GUI slice still passes (`94 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: the move gate had become visually readable, but the guarded move buttons still looked always available, which left a mismatch between visible affordance and actual policy state
+  - side effects checked: button state is now driven from the same underlying weak-ROI gate state, and the broader adaptive/runtime/GUI regression slice stayed green
+  - remaining uncertainty: real instrument-PC use still needs to confirm whether disabling the button is enough or whether additional operator confirmation should be required when re-enabling via one-shot override
+- Next step:
+  - lab-validate whether the new disabled/enabled button behavior plus the color-coded move gate is sufficient, or whether the one-shot override path should still require an extra confirmation dialog before the move button re-enables
+## 2026-04-22 - Codex (GPT-5) - Added an explicit confirmation dialog before arming the one-shot weak-ROI override
+- Inspected the current weak-ROI gate/button flow in [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py) and the GUI regressions in [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py).
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - `Override Weak ROI Block` now shows a `messagebox.askyesno(...)` confirmation before arming the one-shot override latch
+    - canceling the dialog leaves the weak-ROI block in place and records `Weak ROI block override cancelled` in manual status
+  - updated [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - patched existing override regressions to confirm via mocked `askyesno(...)=True`
+    - added a new regression proving `askyesno(...)=False` leaves the block/gate state unchanged and records the cancelled status
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_two_stage_current_run_policy.py"`
+- Result:
+  - a one-shot weak-ROI override now requires an explicit confirmation step instead of arming immediately on a single click
+  - Microprobe adaptive/runtime/GUI slice still passes (`95 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: even with color/state gating, the one-shot override still armed immediately on click; now the operator must explicitly acknowledge the risk before re-enabling the guarded move path
+  - side effects checked: cancel leaves the block intact, confirm still arms the exact same one-shot latch as before, and the broader adaptive/runtime/GUI regression slice stayed green
+  - remaining uncertainty: only real instrument-PC use can answer whether this extra confirmation is appropriately cautious or annoyingly redundant now that buttons and gate colors already reflect the state
+- Next step:
+  - lab-validate whether the new confirmation dialog plus disabled/enabled button flow is the right balance, or whether the dialog should include more context (for example the last ROI score/dx/dy) before arming the one-shot override
+## 2026-04-22 - Codex (GPT-5) - Added last weak-ROI score/dx/dy context to the one-shot override confirmation dialog
+- Inspected the weak-ROI override flow in [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py) and the guarded move/ROI regressions in [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py).
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - stored the latest ROI verification payload (`state`, `row/col`, `score`, `dx_px`, `dy_px`) in `_image_last_roi_verify_result`
+    - reset that payload when the Image Monitor stops or ROI verification fails
+    - extended `Override Weak ROI Block` confirmation text so the latest weak ROI context is shown directly in the dialog before arming the one-shot override
+  - updated [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - asserted that weak ROI verification populates `_image_last_roi_verify_result`
+    - asserted that both confirm/cancel override dialogs include the latest weak ROI `R?C?`, `score`, and `dx/dy` context
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_two_stage_current_run_policy.py"`
+- Result:
+  - one-shot weak-ROI override still requires explicit confirmation, but the operator now sees the latest weak ROI score and pixel drift in the dialog instead of a generic warning only
+  - Microprobe adaptive/runtime/GUI slice still passes (`95 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: the confirmation dialog existed, but it still lacked the actual ROI evidence that an operator would want before deciding to override a weak visual lock
+  - side effects checked: the same one-shot latch semantics remain unchanged, cancel still leaves the block intact, and the broader adaptive/runtime/GUI regression slice stayed green
+  - remaining uncertainty: only real instrument-PC use can answer whether the existing `score/dx/dy` is enough context or whether the dialog should also mention the weak-move gate state / target label more explicitly
+- Next step:
+  - lab-validate whether the new ROI-context dialog is sufficient as-is, or whether the override prompt should also surface the currently locked target / projected stage XY before arming the one-shot weak-move release
+## 2026-04-22 - Codex (GPT-5) - Added locked-target and projected-stage context to the weak-ROI override confirmation dialog
+- Inspected the existing weak-ROI override dialog path in [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py), especially `_image_override_weak_roi_block(...)`, `_image_match_target_to_design()`, `_image_compute_stage_xy_for_design_target(...)`, and the related GUI regressions in [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py).
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - extended the one-shot weak-ROI override confirmation dialog to include the currently locked target (`R?C?`, px position), matched design sample coordinates, and projected stage XY when available
+    - reused the existing target/design/projection helpers instead of introducing separate duplicate formatting logic
+  - updated [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - asserted that the confirm-path override dialog includes locked-target, design-sample, projected-stage, and weak-ROI score/dx/dy context
+    - upgraded the cancel-path fixture so it reflects a real selected target/design/anchor state and asserted the same dialog context is present there too
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_two_stage_current_run_policy.py"`
+- Result:
+  - one-shot weak-ROI override now shows not just the last weak ROI quality, but also which electrode is currently locked and where that move is projected to land in stage space
+  - Microprobe adaptive/runtime/GUI slice still passes (`95 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: the override dialog had recent weak-ROI evidence, but still lacked the target/move context needed to decide whether that one risky move is actually acceptable
+  - side effects checked: override semantics remain unchanged, confirm/cancel continue to behave the same, and the broader adaptive/runtime/GUI regression slice stayed green after fixing the cancel-path fixture to represent a real target-selection state
+  - remaining uncertainty: only instrument-PC use can answer whether this dialog now has enough context, or whether the operator would still benefit from also seeing the current move-gate state / anchor mode in the prompt
+- Next step:
+  - lab-validate whether the expanded dialog now gives enough context to safely decide on one-shot override, or whether the prompt should additionally surface affine/anchor provenance (for example whether the projected XY came from anchor mapping or full affine calibration)
+## 2026-04-22 - Codex (GPT-5) - Added projection provenance to the weak-ROI override confirmation dialog
+- Inspected the same weak-ROI override flow in [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py), focusing on `_image_compute_stage_xy_for_design_target(...)`, anchor-vs-affine stage projection state, and the surrounding confirmation-dialog regressions in [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py).
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - added `_image_stage_projection_provenance_label()` so the UI can tell whether projected stage XY came from `stage anchor mapping` or `affine calibration`
+    - extended `Override Weak ROI Block` confirmation text so projected stage XY is now accompanied by `Projection source: ...`
+  - updated [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - upgraded the existing anchor-path confirm/cancel dialog assertions to require `Projection source: stage anchor mapping`
+    - added a new affine-path regression that solves a simple stage calibration and asserts the dialog shows `Projection source: affine calibration`
+    - fixed one bounded regression in that new affine-path test by replacing dict fixtures with `SimpleNamespace` refs so `solve_sample_to_stage_affine_calibration(...)` receives the shape it expects
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\gui.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_two_stage_current_run_policy.py"`
+- Result:
+  - the one-shot weak-ROI override confirmation dialog now shows not just where the move is projected to land, but also whether that projection came from the simpler anchor model or the full affine calibration path
+  - Microprobe adaptive/runtime/GUI slice still passes (`96 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: target/sample/stage context was present, but the operator still could not tell how trustworthy the projected stage XY was because the dialog omitted whether it came from anchor mapping or affine calibration
+  - side effects checked: both anchor and affine dialog paths are now covered, the one-shot override semantics remain unchanged, and the broader adaptive/runtime/GUI regression slice stayed green after fixing the affine test fixture shape
+  - remaining uncertainty: only lab use can answer whether provenance text is enough, or whether the dialog should also surface the current move-gate state / ROI-verify recency
+- Next step:
+  - lab-validate whether the new projection-provenance wording is sufficient for safe one-shot override decisions or whether the dialog should also surface move-gate state / ROI-verify timestamping
+## 2026-04-22 - Codex (GPT-5) - Added current move-gate context to the weak-ROI override confirmation dialog
+- Inspected the same weak-ROI override path in [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py) and the existing override-dialog regressions in [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py), this time focusing on whether the confirmation prompt was actually showing the live move-gate state or a stale status string.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - added `Current move gate: ...` to the one-shot weak-ROI override confirmation dialog so the operator can see the current guarded-move state directly in the same prompt
+    - fixed the real root cause by refreshing `_image_move_gate_status_var` at the start of `_image_override_weak_roi_block(...)`, so the dialog now reflects the current blocked state instead of a stale earlier `clear` string
+  - updated [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - upgraded anchor-path confirm/cancel dialog assertions to require `Current move gate: Move gate: weak ROI blocked.`
+    - upgraded the affine-path override regression to require the same current move-gate context
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_two_stage_current_run_policy.py"`
+- Result:
+  - the one-shot weak-ROI override confirmation dialog now shows the current weak-move gate alongside locked target, projected stage XY, projection provenance, and weak ROI score/dx/dy
+  - the previous stale-dialog bug is gone: the prompt now reports `Move gate: weak ROI blocked` when override is actually being requested
+  - Microprobe adaptive/runtime/GUI slice still passes (`96 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: the confirmation dialog could show a stale `clear` gate state because the move-gate status string was not refreshed before the dialog text was assembled
+  - side effects checked: both anchor and affine dialog paths still work, one-shot override semantics remain unchanged, and the broader adaptive/runtime/GUI regression slice stayed green
+  - remaining uncertainty: only lab use can answer whether current gate + target/provenance/ROI context is enough, or whether the operator still needs ROI-verify recency / timestamp context
+- Next step:
+  - lab-validate whether the expanded dialog is now sufficiently self-contained, or whether weak-ROI override should additionally surface ROI-verify recency/timestamping
+## 2026-04-22 - Codex (GPT-5) - Added ROI-verify recency to the weak-ROI override confirmation dialog
+- Inspected the same weak-ROI override path in [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py) and the surrounding override-dialog regressions in [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py), this time focusing on whether the prompt still lacked freshness context for the latest weak ROI verification.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - stored `verify_time_s` in the post-move ROI-verify payload so later UI flows can tell how fresh that weak ROI evidence is
+    - extended the one-shot weak-ROI override confirmation text so the weak ROI context line now includes recency wording such as `12.5 s ago`
+  - updated [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - upgraded the anchor confirm/cancel dialog assertions to require the recency wording
+    - upgraded the affine-path override regression to require the same recency wording
+    - patched `time.time()` in the dialog tests so the recency assertions remain deterministic
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_two_stage_current_run_policy.py"`
+- Result:
+  - the one-shot weak-ROI override confirmation dialog now shows how many seconds ago the last weak ROI verification happened, alongside current move gate, locked target, projected stage XY, projection provenance, and weak ROI score/dx/dy
+  - Microprobe adaptive/runtime/GUI slice still passes (`96 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: the operator could already see weak ROI quality and move context, but still could not tell whether that evidence was fresh or stale relative to the upcoming override decision
+  - side effects checked: both anchor and affine dialog paths still work, one-shot override semantics remain unchanged, and the broader adaptive/runtime/GUI regression slice stayed green
+  - remaining uncertainty: only lab use can answer whether relative recency is enough, or whether the dialog should also show an absolute wall-clock timestamp in addition to `N s ago`
+- Next step:
+  - lab-validate whether relative recency is sufficient for safe one-shot override decisions or whether the prompt should additionally surface an absolute timestamp
+## 2026-04-22 - Codex (GPT-5) - Added absolute UTC timestamp to the weak-ROI override confirmation dialog
+- Inspected the same weak-ROI override path in [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py) and the dialog regressions in [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py), this time focusing on the remaining ambiguity after recency-only wording.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - extended the weak ROI context line so it now includes both relative recency and a stable absolute UTC timestamp derived from `verify_time_s`
+    - kept the timestamp rendering UTC-based so the override dialog stays deterministic across machine-local timezone differences
+  - updated [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - upgraded the anchor confirm/cancel dialog assertions to require the absolute UTC timestamp strings
+    - upgraded the affine-path override regression to require the same absolute UTC timestamp
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_two_stage_current_run_policy.py"`
+- Result:
+  - the one-shot weak-ROI override confirmation dialog now shows both `N s ago` and the absolute UTC verify timestamp for the latest weak ROI, alongside gate/target/stage/provenance/ROI-quality context
+  - Microprobe adaptive/runtime/GUI slice still passes (`96 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: recency alone still left an operator guessing when the weak ROI evidence was actually recorded, especially after pauses or delayed review; the dialog now shows the precise verify time as well
+  - side effects checked: both anchor and affine dialog paths still work, the one-shot override semantics remain unchanged, and the broader adaptive/runtime/GUI regression slice stayed green after adding the new timestamp wording
+  - remaining uncertainty: only lab use can answer whether the combined recency + UTC timestamp is enough, or whether the dialog would benefit from also surfacing the current live frame timestamp for comparison
+- Next step:
+  - lab-validate whether the new recency + UTC timestamp prompt is sufficiently self-contained for override decisions or whether the UI should also expose a live-frame capture timestamp nearby
+## 2026-04-22 - Codex (GPT-5) - Added current live-frame UTC timestamp to the weak-ROI override confirmation dialog
+- Inspected the same weak-ROI override path in [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py) and the related override-dialog regressions in [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py), this time focusing on the remaining comparison gap between the last weak ROI verify time and the current image being shown to the operator.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - added `_image_monitor_last_frame_time_s` so Image Monitor stores the UTC capture time of the latest live frame
+    - reset that timestamp on camera start/stop together with the stored live frame
+    - extended the one-shot weak-ROI override confirmation dialog so it now shows `Current live frame: ... UTC` before the target/ROI context
+  - updated [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - upgraded the anchor confirm/cancel dialog assertions to require the current live-frame UTC timestamp
+    - upgraded the affine-path override regression to require the same live-frame timestamp
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_two_stage_current_run_policy.py"`
+- Result:
+  - the one-shot weak-ROI override confirmation dialog now shows the current live frame UTC time in addition to current move gate, locked target, projected stage XY, projection provenance, weak ROI quality, recency, and weak ROI verify UTC time
+  - Microprobe adaptive/runtime/GUI slice still passes (`96 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: even with weak ROI recency and verify UTC time, the operator still had to infer what “now” meant; the dialog now gives both sides of that comparison explicitly by surfacing the current live frame timestamp too
+  - side effects checked: Image Monitor now tracks the latest frame timestamp without changing move/override semantics, anchor and affine dialog paths still work, and the broader adaptive/runtime/GUI regression slice stayed green
+  - remaining uncertainty: only lab use can answer whether current-live-frame UTC plus weak-ROI verify UTC is enough, or whether the operator would benefit from an explicit derived `frame-vs-verify gap` line in the dialog
+- Next step:
+  - lab-validate whether the dialog is now self-contained enough or whether it should also compute and surface the direct time gap between the current live frame and the last weak ROI verify
+## 2026-04-22 - Codex (GPT-5) - Added explicit frame-vs-verify gap to the weak-ROI override confirmation dialog
+- Inspected the same weak-ROI override path in [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py) and the related override-dialog regressions in [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py), this time focusing on whether the operator still had to mentally subtract the current live-frame timestamp from the weak ROI verify timestamp.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - added `Frame vs weak ROI verify gap: ... s` to the one-shot weak-ROI override confirmation dialog whenever both timestamps are available
+    - initialized the new `frame_gap_text` even when no weak ROI payload exists, after the first attempt exposed an `UnboundLocalError` on a one-shot path without stored ROI context
+  - updated [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - upgraded the anchor confirm/cancel dialog assertions to require the derived frame-gap line
+    - upgraded the affine-path override regression to require the same derived frame-gap line
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"` -> initial run failed with `UnboundLocalError: frame_gap_text` in the one-shot path
+  - bounded follow-up fix: initialized `frame_gap_text = ''` before the weak-ROI payload branch in [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py"`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_gui_adaptive_runtime.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py" "C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_two_stage_current_run_policy.py"`
+- Result:
+  - the one-shot weak-ROI override confirmation dialog now shows the direct gap between the current live frame and the last weak ROI verify, so the operator no longer has to compute freshness drift mentally
+  - the bounded fix removed the `frame_gap_text` regression on one-shot/no-ROI paths, and the broader adaptive/runtime/GUI slice still passes (`96 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: even with both UTC times visible, the operator still had to mentally subtract them; the prompt now shows the exact gap directly
+  - side effects checked: both anchor and affine dialog paths still work, no-ROI override paths no longer crash after initializing the new text field unconditionally, and the broader adaptive/runtime/GUI regression slice stayed green
+- remaining uncertainty: only lab use can answer whether the dialog is now sufficiently self-contained, or whether the UI should further classify the gap (for example fresh/stale thresholds) instead of just reporting the raw seconds
+- Next step:
+  - lab-validate whether the raw frame-vs-verify gap is enough, or whether the override dialog should also classify that gap into operator-facing freshness buckets
+## 2026-04-22 - Codex (GPT-5) - Classified the weak-ROI frame-vs-verify gap into freshness buckets
+- Inspected the weak-ROI one-shot override confirmation dialog in [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py) and the dialog regressions in [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py), this time focusing on the remaining operator burden after surfacing only the raw numeric frame-vs-verify gap.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - classified the derived frame-vs-verify gap into operator-facing freshness buckets using `<=10 s = fresh`, `<=30 s = aging`, and `>30 s = stale`
+    - added a second dialog line so the weak-ROI override prompt now shows `Frame freshness bucket: ...` with a short hint (`good for visual comparison`, `review with caution`, `visual lock may be too old`)
+  - updated [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - upgraded the anchor confirm/cancel dialog assertions to require the new `aging` bucket wording
+    - upgraded the affine-path regression to require the `fresh` bucket wording
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime tests.test_run_automation_adaptive tests.test_two_stage_current_run_policy`
+- Result:
+  - the one-shot weak-ROI override confirmation dialog now shows both the raw `Frame vs weak ROI verify gap: ... s` and an immediately readable freshness bucket
+  - GUI slice still passes (`60 tests OK`) and the broader adaptive/runtime/GUI slice still passes (`96 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: raw seconds still required the operator to interpret whether a given gap was comfortably recent or already questionable; the dialog now performs that first-pass classification directly
+  - side effects checked: existing anchor and affine dialog paths remained stable, one-shot override semantics did not change, and the broader adaptive/runtime/GUI regression slice stayed green after the wording expansion
+- remaining uncertainty: only lab use can answer whether the initial `fresh/aging/stale` thresholds are the right ergonomics or whether the bucket boundaries need tuning for real microscope drift
+- Next step:
+  - lab-validate whether the new freshness buckets feel sensible during real weak-ROI override decisions or whether the `10 s / 30 s` boundaries should be tuned
+## 2026-04-22 - Codex (GPT-5) - Added explicit override-risk wording on top of the weak-ROI freshness buckets
+- Inspected the same weak-ROI one-shot override confirmation dialog in [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py) and the associated GUI regressions in [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py), this time focusing on the remaining gap between seeing a freshness bucket and deciding whether overriding the block is actually low/moderate/high risk.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - added `Override risk: low|moderate|high (...)` directly beneath the existing `Frame freshness bucket: ...` line
+    - mapped the current freshness thresholds to risk guidance so `fresh -> low`, `aging -> moderate`, and `stale -> high`
+  - updated [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - upgraded the anchor confirm/cancel dialog assertions to require the new moderate-risk wording
+    - upgraded the affine-path override regression to require the new low-risk wording
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime tests.test_run_automation_adaptive tests.test_two_stage_current_run_policy`
+- Result:
+  - the one-shot weak-ROI override dialog now tells the operator both how fresh the evidence is and how risky the override currently looks without another mental translation step
+  - GUI slice still passes (`60 tests OK`) and the broader adaptive/runtime/GUI slice still passes (`96 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: even after adding freshness buckets, the operator still had to convert bucket labels into an action judgment; the dialog now states override risk directly
+  - side effects checked: existing anchor and affine dialog paths stayed stable, one-shot override semantics did not change, and the broader adaptive/runtime/GUI slice remained green after the extra wording
+- remaining uncertainty: only lab use can answer whether the current risk mapping is intuitive enough or whether the dialog needs stronger action verbs when risk is `high`
+- Next step:
+  - lab-validate whether `Override risk: low|moderate|high` is enough guidance or whether the dialog should add an explicit high-risk recommendation such as “refresh the seed first”
+## 2026-04-22 - Codex (GPT-5) - Added explicit recommended-action guidance to the weak-ROI override dialog
+- Inspected the weak-ROI one-shot override confirmation dialog in [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py) and the GUI regressions in [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py), this time focusing on the remaining operator work after surfacing `Override risk: low|moderate|high`.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - added `Recommended action: ...` directly beneath the existing `Override risk: ...` line
+    - mapped `fresh/low` to “override is reasonable if the locked target still looks right by eye”
+    - mapped `aging/moderate` to “inspect the overlay carefully before overriding”
+    - mapped `stale/high` to “refresh the seed first unless the current overlay is obviously correct”
+  - updated [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - upgraded the existing anchor confirm/cancel assertions to require the moderate-risk recommendation line
+    - upgraded the affine-path regression to require the low-risk recommendation line
+    - added a new stale/high regression that verifies the `40.0 s` gap path produces `stale`, `high`, and the explicit refresh-the-seed recommendation
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime tests.test_run_automation_adaptive tests.test_two_stage_current_run_policy`
+- Result:
+  - the weak-ROI override dialog now not only classifies the evidence but also tells the operator what to do next at low/moderate/high risk
+  - GUI slice passes with the new stale/high regression (`61 tests OK`) and the broader adaptive/runtime/GUI slice still passes (`97 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: even after adding `Override risk`, the operator still had to convert that risk label into an action; the dialog now states the recommended action directly
+  - side effects checked: anchor and affine paths remained stable, one-shot override semantics did not change, and the broader adaptive/runtime/GUI slice stayed green after adding the extra recommendation line
+- remaining uncertainty: only lab use can answer whether the current wording is strong enough for `high` risk or whether the dialog should escalate further (for example with a stronger warning tone)
+- Next step:
+  - lab-validate whether the new recommended-action wording is clear enough in real use or whether the `high`-risk path should become even more forceful
+## 2026-04-22 - Codex (GPT-5) - Added a dedicated high-risk warning banner to the weak-ROI override dialog
+- Inspected the same weak-ROI one-shot override confirmation dialog in [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py) and its regressions in [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py), this time focusing on the remaining concern from the last run: whether the stale/high path still needed a stronger warning tone than the regular recommendation line.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - added a dedicated `WARNING: ... refreshing the seed is strongly preferred ...` banner that appears only when the derived override risk is `high`
+    - left low/moderate paths unchanged so only stale evidence gets the stronger warning tone
+  - updated [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - strengthened the stale/high override-dialog regression so it now requires the new warning banner in addition to the existing gap/freshness/risk/recommendation lines
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime tests.test_run_automation_adaptive tests.test_two_stage_current_run_policy`
+- Result:
+  - the stale/high weak-ROI override path now explicitly escalates with a warning banner instead of relying only on the generic recommendation sentence
+  - GUI slice still passes (`61 tests OK`) and the broader adaptive/runtime/GUI slice still passes (`97 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: the last run already told the operator what to do, but did not visually distinguish the truly stale/high-risk path strongly enough from moderate cases; the high-risk warning banner now makes that escalation explicit
+  - side effects checked: low/moderate dialog wording remains unchanged, one-shot override semantics do not change, and the broader adaptive/runtime/GUI regression slice stayed green
+- remaining uncertainty: only lab use can answer whether the new high-risk banner is enough, or whether the stale path should ultimately disable override altogether without a separate operator setting
+- Next step:
+  - lab-validate whether the new high-risk warning is sufficient or whether the stale path should become even more conservative in real use
+## 2026-04-22 - Codex (GPT-5) - Required a second confirmation before arming stale/high weak-ROI overrides
+- Re-read the active Microprobe/Convert logs first, then inspected the same weak-ROI one-shot override flow in [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py) and the GUI regressions in [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py), this time focusing on the remaining risk after the new high-risk warning banner: a stale/high operator could still arm the one-shot override with a single yes-click.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - added a dedicated second confirmation step when the derived weak-ROI override risk is `high`
+    - left low/moderate paths unchanged so only the stale/high path requires the extra deliberate confirmation
+    - made the second dialog explicitly state that the latest weak ROI evidence is still stale/high risk and that the operator is about to spend the one-shot override anyway
+  - updated [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - added a stale/high regression that confirms the first confirmation alone no longer arms the override
+    - required the new second dialog to mention the stale/high-risk state and the one-shot override context
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime tests.test_run_automation_adaptive tests.test_two_stage_current_run_policy`
+- Result:
+  - stale/high weak-ROI overrides now require two deliberate confirmations before the one-shot override is armed
+  - GUI slice passes with the new regression (`62 tests OK`) and the broader adaptive/runtime/GUI slice still passes (`98 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: the stale/high path now has a stronger confirmation barrier instead of relying on a single yes-click after reading the warning text
+  - side effects checked: low/moderate dialog paths remain unchanged, one-shot override semantics remain intact, and the broader adaptive/runtime/GUI regression slice stayed green after the extra stale/high confirmation step
+- remaining uncertainty: only lab use can answer whether stale/high should remain overrideable after two deliberate confirmations or whether the stale path should ultimately become blocked unless a stronger setting enables it
+- Next step:
+  - lab-validate whether the new second confirmation is enough friction for stale/high weak-ROI overrides or whether the stale path should become even more conservative in real use
+## 2026-04-22 - Codex (GPT-5) - Disabled stale/high weak-ROI overrides by default unless the operator explicitly opts in
+- Re-read the active Microprobe/Convert logs first, then inspected the stale/high weak-ROI override flow in [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py) and the surrounding GUI regressions in [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py), this time focusing on the remaining safety gap after the second confirmation: stale/high overrides were still available by default once the operator clicked through enough dialogs.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - added a session-level `Allow stale/high override` checkbutton in `Image Monitor`
+    - disabled `Override Weak ROI Block` automatically when the latest weak ROI evidence is stale/high and that explicit opt-in is still off
+    - blocked stale/high override attempts at the function level as well, setting status/hint text that explains the override is disabled until the operator deliberately enables the opt-in
+    - factored the weak-ROI frame-gap/risk derivation into a shared helper so move-gate button state and dialog content use the same stale/high classification
+  - updated [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - added a regression that requires the override button to stay disabled for stale/high weak ROI when the new opt-in remains off
+    - added a regression that stale/high override attempts become a no-dialog noop until the opt-in is enabled
+    - updated the existing high-risk dialog and second-confirm regressions so they explicitly enable the new opt-in before exercising the stale/high path
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime tests.test_run_automation_adaptive tests.test_two_stage_current_run_policy`
+- Result:
+  - stale/high weak-ROI overrides are now blocked by default and require a deliberate session opt-in before the existing warning + second-confirm flow can even start
+  - GUI slice passes with the new stale/high opt-in regressions (`64 tests OK`) and the broader adaptive/runtime/GUI slice still passes (`100 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: stale/high overrides no longer remain casually available by default after enough warnings; the operator must first make an explicit session-level decision to allow them
+  - side effects checked: moderate/fresh override flows remain unchanged, stale/high still retains the warning + second confirmation once opt-in is enabled, and the broader adaptive/runtime/GUI slice stayed green after the new opt-in gate
+- remaining uncertainty: only lab use can answer whether stale/high should remain session-overrideable at all or whether the opt-in should be removed entirely in favor of a hard block
+- Next step:
+  - lab-validate whether the new stale/high opt-in gate is the right operator friction or whether stale/high should become a permanent hard block outside of a dedicated debug/service mode
+## 2026-04-22 - Codex (GPT-5) - Auto-reset the stale/high override opt-in whenever the monitor or frozen seed is reacquired
+- Re-read the active Microprobe/Convert logs first, then inspected the new stale/high opt-in in [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py) and the GUI regressions in [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py), this time focusing on a remaining session-safety gap: once `Allow stale/high override` was enabled, it could keep lingering across later seed reacquisition or monitor resets.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - reset `Allow stale/high override` automatically when `Stop Camera` tears down the Image Monitor session
+    - reset it when `Clear Seed` is used
+    - reset it whenever `Freeze Current as Seed` / ROI-verified seed promotion promotes a new frozen seed
+  - updated [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - strengthened the existing `Stop Camera` regression to require stale/high opt-in reset
+    - strengthened the ROI-verified seed-promotion regression to require stale/high opt-in reset
+    - added a dedicated `Clear Seed` regression that requires stale/high opt-in reset and confirms the stale/high override button returns to disabled state afterward
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime tests.test_run_automation_adaptive tests.test_two_stage_current_run_policy`
+- Result:
+  - stale/high override opt-in no longer lingers after monitor teardown or seed reacquisition events; those flows now automatically return the UI to the safer default
+  - GUI slice passes with the new reset regressions (`65 tests OK`) and the broader adaptive/runtime/GUI slice still passes (`101 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: operators no longer carry an old stale/high override opt-in forward after freezing a new seed, clearing a seed, or restarting the camera session
+  - side effects checked: existing weak-ROI gating, stale/high dialog paths, ROI-verified promotion, and broader adaptive/runtime/GUI regressions all stayed green after the auto-reset behavior
+- remaining uncertainty: only lab use can answer whether additional actions such as `Clear Target` or `Move Target (Safe)` should also reset stale/high opt-in, or whether the current reset points already match operator expectations
+- Next step:
+  - lab-validate whether the current auto-reset points are sufficient or whether stale/high opt-in should also be cleared on other operator actions such as target changes or completed safe moves
+## 2026-04-22 - Codex (GPT-5) - Auto-reset stale/high override opt-in when the locked target is cleared
+- Re-read the active Microprobe/Convert logs first, then inspected [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py) and [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py) to close the next operator-context gap left in the previous entry: clearing the locked target still left `Allow stale/high override` armed, even though the operator had explicitly discarded the target context that justified the override.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - `_image_clear_target()` now resets `Allow stale/high override`
+    - `_image_clear_target()` now refreshes the weak-ROI move gate immediately so the override button is disabled again for stale/high weak ROI after the target is cleared
+  - updated [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - added a regression that locks a target, arms stale/high override, clears the target, and requires the opt-in plus override-button availability to reset to the safe default
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime tests.test_run_automation_adaptive tests.test_two_stage_current_run_policy`
+- Result:
+  - clearing the locked target now also clears stale/high override opt-in, so the operator cannot carry an old stale/high exception forward after explicitly throwing away the target context
+  - GUI slice passes with the new clear-target regression (`66 tests OK`) and the broader adaptive/runtime/GUI slice still passes (`102 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: `Clear Target` now behaves like the other reacquisition/reset actions and returns stale/high override state to the safer default instead of silently preserving it
+  - side effects checked: weak-ROI gate semantics, stale/high dialog flows, runtime/two-stage planner paths, and broader adaptive/runtime/GUI regressions all stayed green after the new clear-target reset
+- remaining uncertainty: only lab use can answer whether completed `Move Target (Safe)` should also clear stale/high override opt-in, or whether resetting on explicit context-discard actions alone matches operator expectations
+- Next step:
+  - lab-validate whether completed safe moves should also auto-clear stale/high override opt-in or whether the current reset set (`Stop Camera`, `Clear Seed`, seed promotion, `Clear Target`) is the right balance
+## 2026-04-22 - Codex (GPT-5) - Auto-reset stale/high override opt-in after a successful safe move
+- Re-read the active Microprobe/Convert logs first, then inspected [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py) and [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py) to close the last reset-point uncertainty left in the previous entry: after a successful `Move Target (Safe)`, stale/high override opt-in could still linger even though the operator had already consumed the move and the system had transitioned into a new post-move ROI verification context.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - `_image_move_target_safe()` now resets `Allow stale/high override` after a successful safe move is sent
+    - `_image_move_target_safe()` now refreshes the weak-ROI move gate immediately after that reset so stale/high override availability reflects the new post-move context instead of the old pre-move opt-in
+  - updated [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - added a dedicated regression that starts from a consumed one-shot weak-ROI override / stale-high opt-in state, performs a successful safe move, and requires both the opt-in and override-button availability to fall back to the safe default afterward
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime tests.test_run_automation_adaptive tests.test_two_stage_current_run_policy`
+- Result:
+  - successful safe moves now also clear stale/high override opt-in, so a consumed move cannot silently carry an old stale/high exception into the new post-move ROI verification window
+  - GUI slice passes with the new successful-safe-move reset regression (`67 tests OK`) and the broader adaptive/runtime/GUI slice still passes (`103 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: safe-move completion now behaves like the other context transitions and returns stale/high override state to the safer default instead of letting a prior opt-in bleed into the next monitoring cycle
+  - side effects checked: weak-ROI gate semantics, one-shot override consumption, post-move ROI verification arming, runtime/two-stage planner paths, and broader adaptive/runtime/GUI regressions all stayed green after the successful-move reset
+- remaining uncertainty: only lab use can answer whether the current stale/high reset set is now sufficient or whether additional rare operator flows still deserve an explicit reset
+- Next step:
+  - lab-validate whether the current reset set (`Stop Camera`, `Clear Seed`, seed promotion, `Clear Target`, successful `Move Target (Safe)`) now matches operator expectations in real weak-ROI workflows
+## 2026-04-22 - Codex (GPT-5) - Auto-reset stale/high override opt-in when a new target is selected
+- Re-read the active Microprobe/Convert logs first, then inspected [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py) and [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py) to close another operator-context carryover gap: once a stale/high override opt-in was armed, clicking a different electrode target could still leave that old exception active even though the operator had switched to a new target context.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - `_image_select_target_from_frame_xy()` now resets `Allow stale/high override`
+    - `_image_select_target_from_frame_xy()` now refreshes the weak-ROI move gate before updating target status so stale/high override availability reflects the new target context immediately
+  - updated [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - added a regression that arms stale/high override on one target, selects a different target, and requires the opt-in plus override-button availability to fall back to the safe default
+    - bounded-fixed two existing stale/high dialog regressions so they re-enable the opt-in after target selection, matching the actual operator flow after the new reset behavior
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime tests.test_run_automation_adaptive tests.test_two_stage_current_run_policy`
+- Result:
+  - selecting a new target now also clears stale/high override opt-in, so old stale/high exceptions cannot silently follow the operator onto a different electrode target
+  - GUI slice passes with the new selection-reset regression (`68 tests OK`) and the broader adaptive/runtime/GUI slice still passes (`104 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: target reselection now behaves like other context changes and returns stale/high override state to the safer default instead of preserving it across different locked targets
+  - side effects checked: stale/high dialog flows still work when the operator deliberately re-enables opt-in after selecting a target, and broader adaptive/runtime/GUI regressions stayed green after the new selection reset
+- remaining uncertainty: only lab use can answer whether the current stale/high reset set is now sufficient or whether any additional rare operator actions still deserve an explicit reset
+- Next step:
+  - lab-validate whether the current reset set (`Stop Camera`, `Clear Seed`, seed promotion, `Clear Target`, successful `Move Target (Safe)`, new target selection) now matches operator expectations in real weak-ROI workflows
+## 2026-04-22 - Codex (GPT-5) - Auto-reset stale/high override opt-in when stage projection mapping changes
+- Re-read the active Microprobe/Convert logs first, then inspected [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py) and [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py) to close the next operator-context carryover gap: even with the same locked target, stage-projection meaning could change after anchor/calibration/swap-invert edits while an old stale/high override opt-in remained armed.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - added `_image_reset_stale_high_override_for_projection_change()` to centralize the safety reset
+    - added `_image_on_stage_projection_controls_changed()` so `Swap XY`, `Invert X`, and `Invert Y` now reset stale/high opt-in before refreshing projected-stage status
+    - `_image_set_stage_anchor_from_current_xy()` now clears stale/high opt-in after successfully establishing a new anchor
+    - `_image_clear_stage_anchor()`, `_image_clear_stage_affine_calibration()`, `_image_solve_stage_affine_calibration()`, and `_image_load_stage_affine_calibration()` now also reset stale/high opt-in and refresh the move gate because they change the meaning of projected stage XY for the current target
+  - updated [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - added regressions covering stale/high reset on successful stage-anchor creation, clear-anchor, swap/invert projection toggles, and affine solve
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime tests.test_run_automation_adaptive tests.test_two_stage_current_run_policy`
+- Result:
+  - stale/high override opt-in no longer lingers when the operator changes the stage-projection basis itself; projection-context edits now behave like other context changes and immediately fall back to the safer default
+  - GUI slice passes with the new projection-reset regressions (`72 tests OK`) and the broader adaptive/runtime/GUI slice still passes (`108 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: stage anchor/calibration/swap-invert edits could previously preserve a stale/high exception even though the projected move meaning had changed underneath the same target
+  - side effects checked: existing weak-ROI gating, one-shot override flows, target/seed/camera reset points, two-stage adaptive/runtime paths, and broader GUI/runtime regressions all stayed green after the new projection-change reset behavior
+- remaining uncertainty: only lab use can answer whether design/markup reload should also clear stale/high opt-in, or whether restricting the reset to stage-projection changes is the right balance
+- Next step:
+  - lab-validate whether design/markup reload should also count as enough context change to auto-clear stale/high opt-in, or whether the current projection-change reset set already matches operator expectations
+## 2026-04-22 - Codex (GPT-5) - Auto-reset stale/high override opt-in when design or markup context is reloaded
+- Re-read the active Microprobe/Convert logs first, then took the explicit next-step item from the plan/update tails: if stage-projection changes already clear stale/high override opt-in, assisted-layout source changes should be treated the same way so an old stale/high exception does not survive a new design/markup context.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - generalized `_image_reset_stale_high_override_for_projection_change()` into `_image_reset_stale_high_override_for_context_change()` so the same safety reset can be reused for stage mapping and assisted-layout changes
+    - `_image_load_design()` now resets stale/high opt-in both when the design is cleared (`path=''`) and when a new design successfully loads
+    - `_image_load_markup()` now resets stale/high opt-in both when markup is cleared (`path=''`) and when a new markup image successfully loads
+  - updated [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - added regressions covering stale/high reset on design load success, design clear-to-empty, markup load success, and markup clear-to-empty
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime tests.test_run_automation_adaptive tests.test_two_stage_current_run_policy`
+- Result:
+  - stale/high override opt-in now also drops back to the safe default when the assisted design/markup context is reloaded or cleared, so old stale/high exceptions cannot silently carry over onto a different design-assisted target interpretation
+  - GUI slice passes with the new assisted-layout reset regressions (`76 tests OK`) and the broader adaptive/runtime/GUI slice still passes (`112 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: design/markup reload previously changed the operator�s assisted target context without clearing an already armed stale/high exception
+  - side effects checked: weak-ROI gating, one-shot override flows, target/seed/camera resets, stage-projection resets, and broader adaptive/runtime/two-stage planner regressions all stayed green after the new design/markup reset behavior
+- remaining uncertainty: only lab use can answer whether any remaining rare operator flows still deserve an explicit stale/high reset point, or whether the current reset set now matches real usage
+- Next step:
+  - lab-validate whether the current stale/high reset set now feels complete in real weak-ROI workflows, or whether any remaining context changes still surprise the operator
+## 2026-04-22 - Codex (GPT-5) - Also reset stale/high override opt-in on design/markup load failure
+- This session followed up immediately on the prior design/markup reset work to close the remaining failure-path hole: even after design/markup reload success and clear-to-empty were covered, a failed attempt to load a new assisted-layout file could still have left an old stale/high override armed.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - `_image_load_design()` now also resets stale/high opt-in when design loading throws and ends in `Design load failed: ...`
+    - `_image_load_markup()` now also resets stale/high opt-in when markup loading throws and ends in `Markup load failed: ...`
+  - updated [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - added regressions covering stale/high reset on design-load failure and markup-load failure
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime tests.test_run_automation_adaptive tests.test_two_stage_current_run_policy`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest test_two_stage_current_run_policy test_current_run_lf_seed_policy test_trusted_lf_split_cases`
+- Result:
+  - stale/high override opt-in now also falls back to the safe default if a new design/markup load attempt fails, so a failed assisted-layout change cannot leave an old stale/high exception silently armed
+  - GUI slice passes with the new failure-path regressions (`78 tests OK`), broader adaptive/runtime/GUI slice still passes (`112 tests OK`), and the Convert baseline remains green (`8 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: design/markup context change attempts are now handled consistently across success, clear, and failure paths
+  - side effects checked: weak-ROI gating, one-shot override flows, target/seed/camera/projection/design/markup reset points, and broader adaptive/runtime/two-stage planner regressions all stayed green after the failure-path reset behavior
+- remaining uncertainty: only lab use can answer whether the current stale/high reset set now truly feels complete in real operator workflows
+- Next step:
+  - lab-validate whether any remaining rare operator flows still surprise users or whether the stale/high reset set now matches real Image Monitor usage end-to-end
+## 2026-04-22 - Codex (GPT-5) - Clear stale affine projection when affine solve fails
+- This session closed a stage-projection safety hole in `Image Monitor`: if affine calibration solving failed, the GUI could previously leave an older solved affine object alive, which meant a stale projected stage XY could remain visible on the locked target even though the latest solve had failed.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - `_image_solve_stage_affine_calibration()` now explicitly clears `self._image_stage_affine_calibration` when there are fewer than 3 refs
+    - `_image_solve_stage_affine_calibration()` now also clears `self._image_stage_affine_calibration` on solver exceptions before surfacing the failure status
+    - both affine-failure paths now refresh the locked-target status immediately, so any stale projected `Stage (~x, y) mm` text disappears as soon as the solve fails
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime tests.test_run_automation_adaptive tests.test_two_stage_current_run_policy`
+- Result:
+  - affine solve failure can no longer silently leave an older projected stage solution active in the target context
+  - GUI slice passes with the solve-failure regressions (`80 tests OK`) and the broader adaptive/runtime/GUI slice still passes (`116 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: failed affine solves now clear stale projection state instead of only updating the status line
+  - side effects checked: target lock text, stage anchor/affine success paths, weak-ROI gating, two-stage current-run planner/runtime flows, and broader GUI/runtime regressions all stayed green
+- newly added log/plan item status:
+  - no new user-added item appeared in the logs/plans this cycle; the work focused on closing the in-flight affine solve failure safety gap and is now resolved
+- remaining uncertainty: only lab use can answer whether any other stage-projection failure path still leaves operator-facing context that should be cleared more aggressively
+- Next step:
+  - lab-validate whether Image Monitor operator flows ever need stronger clearing when stage-calibration loads or solves fail, beyond the stale affine removal now in place
+## 2026-04-22 - Codex (GPT-5) - Clear stale affine projection when stage calibration load fails
+- This session followed the affine-solve safety hardening with the matching load-failure path: `Image Monitor` could already clear stale affine projections when solving failed, but a failed `Load Cal` attempt could still leave an older solved affine object alive and keep a stale projected stage XY visible on the locked target.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - `_image_load_stage_affine_calibration()` now explicitly clears `self._image_stage_affine_calibration` on load exceptions before surfacing `Stage calibration load failed: ...`
+    - the load-failure path now also refreshes the locked-target status immediately, so stale projected `Stage (~x, y) mm` text disappears as soon as calibration loading fails
+  - updated [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - added a regression covering invalid calibration JSON so load failure clears the old affine object and removes stale projected stage text from the locked-target status
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime tests.test_run_automation_adaptive tests.test_two_stage_current_run_policy`
+- Result:
+  - calibration load failure can no longer silently leave an older projected stage solution active in the target context
+  - GUI slice passes with the new load-failure regression (`81 tests OK`) and the broader adaptive/runtime/GUI slice still passes (`117 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: failed calibration loads now clear stale projection state instead of only updating the load-failure status line
+  - side effects checked: stage anchor/affine success paths, affine solve failure handling, weak-ROI gating, two-stage current-run planner/runtime flows, and broader GUI/runtime regressions all stayed green
+- newly added log/plan item status:
+  - no new user-added item appeared in the logs/plans this cycle; the work focused on closing the matching stage-calibration load-failure safety gap and is now resolved
+- remaining uncertainty: only lab use can answer whether any other rare stage-calibration failure path still leaves operator-facing context that should be cleared just as aggressively
+- Next step:
+  - lab-validate whether Image Monitor operator flows ever need stronger clearing when stage-calibration payloads are malformed or partially stale beyond the new load-failure clearing
+## 2026-04-22 - Codex (GPT-5) - Make stage calibration loading transactional on failure
+- This session followed the calibration-load failure clearing with a bounded follow-up on state consistency: a failed `Load Cal` attempt could still partially mutate refs, anchor, or swap/invert settings before throwing. That left `Image Monitor` vulnerable to mixed old/new calibration context even though the affine projection itself was cleared.
+- Concrete code changes:
+  - updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py)
+    - `_image_load_stage_affine_calibration()` now parses refs, swap/invert flags, anchor payload, and optional affine solution into local variables first
+    - the GUI only commits refs/anchor/swap-invert/affine state after the entire payload parses and any affine solve succeeds
+    - on load failure, stale affine is still cleared immediately, but old refs/anchor/swap-invert remain intact instead of becoming partially overwritten by a broken payload
+  - updated [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py)
+    - added a regression proving malformed anchor content in a calibration JSON does not partially overwrite the existing refs/anchor/swap-invert state while still clearing the old affine solution
+- Validation executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_gui_adaptive_runtime`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest tests.test_adaptive_engine tests.test_gui_adaptive_runtime tests.test_run_automation_adaptive tests.test_two_stage_current_run_policy`
+- Result:
+  - failed calibration loads are now transactional: no stale affine survives, and no half-applied new calibration context leaks into the operator state
+  - GUI slice passes with the new transactional-load regression (`82 tests OK`) and the broader adaptive/runtime/GUI slice still passes (`118 tests OK`)
+- Root-cause / side-effect check:
+  - root cause addressed: `Load Cal` failure can no longer mix old operator context with partially applied new refs/anchor/swap-invert settings
+  - side effects checked: successful anchor/affine load paths, affine solve failure handling, weak-ROI gating, two-stage current-run planner/runtime flows, and broader GUI/runtime regressions all stayed green
+- newly added log/plan item status:
+  - no new user-added item appeared in the logs/plans this cycle; the work focused on closing the transactional calibration-load safety gap and is now resolved
+- remaining uncertainty: only lab use can answer whether any remaining calibration failure path should now fully clear old anchor context instead of preserving it after a failed load
+- Next step:
+  - lab-validate whether preserving the previous anchor/swap-invert context on load failure feels right to operators, or whether failed `Load Cal` should clear even more state in real use
+
+## 2026-04-22 20:38
+- Inspected GUI crash path when EIS sees very large/invalid impedance values.
+- Changed [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py) Nyquist plotting to sanitize non-finite / absurdly large plot points before axis bounds and rendering.
+- Changed [driver_biologic.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/driver_biologic.py) PEIS parsing to skip non-finite / overflow-scale impedance rows before they reach GUI/runtime.
+- Added regressions in [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py) and [tests/test_driver_biologic.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_driver_biologic.py).
+- Executed: test_gui_adaptive_runtime (83 OK), test_driver_biologic + test_run_automation_adaptive (7 OK).
+- Confirmed: high-R / invalid Nyquist points no longer crash the GUI plotting path; remaining next step is MFC % vs calibrated sccm -> % UX/design.
+
+## 2026-04-23 00:45
+- Inspected new safety request: if the microprobe station temperature suddenly collapses toward room/0 C while targeting a hot furnace, treat it as a bad TC/contact read and shut the furnace down.
+- Updated [config.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/config.py) with explicit temperature safety thresholds/poll/shutdown constants.
+- Updated [driver_temp.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/driver_temp.py) with safe_shutdown() so the GUI can drive the Watlow back to a conservative setpoint after a trip.
+- Updated [gui.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/gui.py) to run a background hot-furnace safety monitor during automated runs. When PV falls to implausibly low values or drops too fast, it now stops the run, stops BioLogic, commands furnace safe shutdown, shows a GUI error dialog, and writes 	emperature_safety_trip.json into the active result folder so the next operator can see why the run stopped.
+- Added regressions in [tests/test_gui_adaptive_runtime.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_gui_adaptive_runtime.py) covering low-PV trip detection, sudden-drop trip detection, and trip-side effects (stop flag + safe shutdown + persisted JSON evidence + error dialog).
+- Executed: 	est_gui_adaptive_runtime (86 OK), 	est_driver_biologic + test_run_automation_adaptive (7 OK).
+- Root-cause / side-effect check:
+  - root cause covered: implausible hot-furnace TC/contact failures now create an explicit safety trip instead of silently leaving the operator to infer why the run ended.
+  - side effects checked: existing GUI/runtime/adaptive slices stayed green.
+- newly added item status:
+  - 	emperature safety trip on impossible low read => resolved.
+  - show an error message too => resolved.
+  - MFC direct % / calibrated sccm->% => not started this cycle; left as the next concrete item after the temperature safety work.
+- Next step:
+  - implement the MFC command model so the GUI can accept direct % and, when calibration data is provided, map desired sccm back to % before sending the command.
+
+## 2026-04-23 01:30
+- Inspected: newly added request to prefer current-sample-only optimization/backtesting over blindly trusting previous-sample priors, plus exact-duplicate scan before any cleanup.
+- Changed: no Microprobe source code changed this cycle; instead, Convert gained a new inflight current-run backtest artifact that Microprobe can consume as a planning/compatibility input.
+- Executed:
+  - duplicate-scan manifests: C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\results\duplicate_scan_results.json and C:\Users\mmq8658\Desktop\Microprobe\Convert_CP_to_EIS 1\result\duplicate_scan_input_data.json
+  - C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py (33 OK)
+- Passed / failed:
+  - passed: Microprobe adaptive/runtime slice still green after the new Convert inflight policy artifact.
+  - partial: cleanup request advanced only to exact-duplicate manifests; no deletions were made yet because raw/input duplicates need a safer keeper policy than �same past sample == disposable�.
+- What remains uncertain:
+  - whether exact duplicate raw-input groups should keep the earliest path, the newest path, or a canonical per-sample folder representative.
+- newly added item status:
+  - current-sample-only optimization / backtest emphasis => partially advanced here via new Convert inflight artifact and Microprobe compatibility rerun.
+  - �results / input data� cleanup => partially advanced only to exact-duplicate manifests; deletion deferred pending safer keeper policy.
+- Next step:
+  - wire the new inflight policy findings into Microprobe planning language and add the MFC % / calibrated sccm->% model after a safe duplicate-keeper policy is chosen.
+
+## 2026-04-23 09:25
+- Inspected: the new high-priority request to keep backtesting current-sample-only optimization and to verify whether partial-PEIS fitting can safely hand off to normal earlier.
+- Changed: no Microprobe source edit this cycle; instead, Convert added a stricter saved-data blocker artifact and Microprobe compatibility was rerun against it.
+- Executed:
+  - C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe C:\Users\mmq8658\Desktop\Microprobe\Convert_CP_to_EIS 1\analyze_partial_peis_handoff_thresholds.py
+  - C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest C:\Users\mmq8658\Desktop\Microprobe\Convert_CP_to_EIS 1\test_partial_peis_handoff_thresholds.py C:\Users\mmq8658\Desktop\Microprobe\Convert_CP_to_EIS 1\test_inflight_current_run_policy.py C:\Users\mmq8658\Desktop\Microprobe\Convert_CP_to_EIS 1\test_two_stage_current_run_policy.py C:\Users\mmq8658\Desktop\Microprobe\Convert_CP_to_EIS 1\test_current_run_lf_seed_policy.py (10 OK)
+  - C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py (33 OK)
+- Passed / failed:
+  - passed: Microprobe adaptive/runtime slice stayed green.
+  - passed: the new Convert threshold-search blocker is reproducible and now guarded by regression.
+- Key finding:
+  - partial-PEIS fit thresholds do not rescue early normal handoff; on the current saved-data grid there is no safe threshold that catches normal early without also risking a false normal on rapid references.
+- newly added item status:
+  - current-sample-only optimization / backtest emphasis => advanced again; the saved-data blocker is now stronger.
+  - �results / input data� cleanup => unchanged this cycle; still waiting for a keeper rule before deletion.
+- Next step:
+  - treat early normal handoff as blocked for now and move the next implementation pass to the pending MFC percent/calibration model or the duplicate cleanup keeper policy.
+
+## 2026-04-23 09:55
+- Inspected: new question whether �always do CP+PEIS first, then if the sample is normal just ignore the hybrid tail� might carry little time penalty because CP would saturate quickly anyway.
+- Changed: no Microprobe source edits this cycle; Convert added a saved-data CP saturation-stop replay artifact and Microprobe compatibility stayed untouched.
+- Executed:
+  - C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe C:\Users\mmq8658\Desktop\Microprobe\Convert_CP_to_EIS 1\simulate_current_run_cp_saturation_stop.py
+  - C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest C:\Users\mmq8658\Desktop\Microprobe\Convert_CP_to_EIS 1\test_current_run_cp_saturation_stop.py C:\Users\mmq8658\Desktop\Microprobe\Convert_CP_to_EIS 1\test_partial_peis_handoff_thresholds.py C:\Users\mmq8658\Desktop\Microprobe\Convert_CP_to_EIS 1\test_inflight_current_run_policy.py (6 OK)
+- Key finding:
+  - current saved-data does not show a CP-time advantage for normal cases. In the present semiauto normal references, scalar CP saturation-stop never shortens the exploratory CP window, while rapid references still undershoot the trusted offline CP if allowed to stop that way.
+- newly added item status:
+  - �normal samples might finish CP very quickly anyway� => checked on saved data and currently not supported.
+- Next step:
+  - if we want to revisit this idea, the next try should use a richer CP stop rule than the present scalar saturation criterion.
+## 2026-04-23 11:44
+- Inspected: user request to prepare everything needed before live normal-vs-hybrid sample validation, so future operator prompts can be as simple as connecting a normal candidate sample and a hybrid candidate sample.
+- Changed:
+  - added [live_sample_validation.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/live_sample_validation.py)
+    - defines a reusable live validation suite covering buffered PEIS chunk probing, scalar live-polling benchmark, stop-latency benchmark, paired normal-vs-rapid manual comparison, adaptive bias sweep validation, and future dt sweep / staged-dt checks
+  - added [tools/prepare_live_sample_validation_suite.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tools/prepare_live_sample_validation_suite.py)
+    - writes a ready-to-use JSON manifest + markdown checklist into a timestamped results folder
+  - added [tests/test_live_sample_validation.py](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/tests/test_live_sample_validation.py)
+    - regression coverage for manifest/checklist generation
+- Executed:
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe tools\prepare_live_sample_validation_suite.py`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_live_sample_validation.py C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_driver_biologic.py`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_adaptive_engine.py C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_run_automation_adaptive.py C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_live_sample_validation.py`
+  - `C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m py_compile C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\live_sample_validation.py C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tools\prepare_live_sample_validation_suite.py`
+- Result:
+  - a ready-made lab checklist now exists at [C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\results\live_sample_validation_suite_20260423_114442\live_sample_validation_suite.md](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/results/live_sample_validation_suite_20260423_114442/live_sample_validation_suite.md)
+  - the matching machine-readable manifest exists at [C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\results\live_sample_validation_suite_20260423_114442\live_sample_validation_suite.json](C:/Users/mmq8658/Desktop/Microprobe/Microprobe%20Python/results/live_sample_validation_suite_20260423_114442/live_sample_validation_suite.json)
+  - future operator guidance can now be reduced to: connect the normal candidate sample, connect the hybrid candidate sample, and tell me which is which
+- Root-cause / side-effect check:
+  - root cause addressed: sample-validation work no longer depends on reconstructing the intended experiment order from chat history each time
+  - side effects checked: driver buffered-PEIS regressions and broader adaptive/runtime compatibility slice stayed green (`35 tests OK` in the combined run)
+- newly added item status:
+  - prepare everything needed before live sample work => resolved to a concrete validation suite and checklist
+  - later operator guidance should explicitly ask for normal vs hybrid sample hookup => resolved in the generated checklist wording
+- Next step:
+  - when live measurements are available, run the buffered PEIS probe first on both samples and then the paired normal-vs-rapid manual comparison
+
+## 2026-04-23 12:59
+- Inspected: live normal-favored sample with the new request to actually exercise as many viable sequence/voltage/dt cases as possible while the sample is connected.
+- Changed:
+  - updated tools/probe_variable_dt_ca.py so it now compares three cases instead of stopping on the first one:
+    - single_program_variable_dt
+    - single_program_scalar_dt_0p01
+    - split_programs_variable_dt
+  - added traceback capture on probe failures so EC-Lib parameter rejection can be distinguished from a Python-side parameter-shape bug.
+- Executed:
+  - C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tools\run_sequence_voltage_smoke_matrix.py
+  - C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tools\probe_variable_dt_ca.py
+  - C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe -m unittest C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_driver_biologic.py C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tests\test_live_sample_validation.py
+- Passed / failed:
+  - passed: the full sequence x voltage smoke matrix completed at -0.1 / 0.0 / +0.1 V for normal, rapid, cp_first, and peis_first with no sequence crash.
+  - passed: single_program_scalar_dt_0p01 works and observed median dt about 0.009996 s across both 10 s windows.
+  - passed: split_programs_variable_dt works as a staged-dt fallback and observed first-window median dt about 0.009996 s and second-window median dt about 0.100002 s.
+  - failed as a bounded blocker: single_program_variable_dt is rejected by EC-Lib with ERR_GEN_INVALIDPARAMETERS, so stepwise Record_every_dT inside one CA technique is not supported by this hardware/API path.
+- Evidence:
+  - C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\results\sequence_voltage_smoke_matrix_20260423_125006\matrix_summary.json
+  - C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\results\variable_dt_ca_probe_20260423_125707\variable_dt_ca_probe_summary.json
+  - C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\results\variable_dt_ca_probe_20260423_125707\split_programs_variable_dt.txt
+- Key findings:
+  - all four short architectures are robust to the tested bias sweep on this normal-favored sample.
+  - live PEIS still reports buffered chunks mid-run in these short sweeps, but the chunks were not yet parseable into Nyquist points during the smoke matrix.
+  - the currently connected sample remains normal-friendly enough that none of the short rapid/cp-first variants produced obvious hybrid payoff.
+  - staged dt is feasible only by splitting CA into multiple programs for now, which introduces a program boundary that must be considered later when judging FFT usefulness.
+- Root-cause / side-effect check:
+  - root cause covered: the earlier KeyError in the dt probe was our parameter-shape bug; after fixing that, the remaining blocker is an actual EC-Lib invalid-parameter rejection of list-valued time_interval.
+  - side effects checked: Microprobe driver/live-validation slice stayed green (9 tests OK).
+- newly added item status:
+  - test many live sequence variants on the currently connected normal sample => advanced with a full voltage x sequence smoke matrix.
+  - see whether dt can vary over time/by step => partially resolved: not supported in a single CA technique via this path, but supported operationally as split sequential CA holds.
+- Next step:
+  - keep collecting live runs on this normal sample, but reserve FFT-utility judgment for the later hybrid-needed sample where HF reconstruction quality can actually matter.
+## 2026-04-23 13:11
+- Inspected: user feedback that matrix collection alone is not enough; we must pick an optimized logic from the live normal-sample results and then rerun that exact logic to verify it.
+- Changed:
+  - updated tools/run_normal_optimized_confirmation_matrix.py to accept CLI strategy parameters (--lf, --npts, --amplitude-mv, --tag) so candidate normal-only policies can be confirmed quickly across bias.
+- Executed:
+  - C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tools\run_normal_optimized_confirmation_matrix.py
+  - C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tools\run_normal_optimized_confirmation_matrix.py --lf 1.0 --npts 20 --tag normal_candidate_lf1p0
+- Passed / failed:
+  - failed as a candidate logic: shallow normal-only PEIS at LF 6 Hz was not sufficient at any of -0.1 / 0.0 / +0.1 V; all three biases came back peis_only_sufficient = false and asked for hybrid refresh.
+  - passed as the next candidate logic: normal-only PEIS at LF 1 Hz, 20 pts, 10 mV was sufficient at all three biases with peis_only_sufficient = true and a refreshed recommended normal LF around 6.1613 Hz.
+- Evidence:
+  - failed candidate summary: C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\results\normal_optimized_confirmation_matrix_20260423_130829\confirmation_summary.json
+  - confirmed candidate summary: C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\results\normal_candidate_lf1p0_confirmation_matrix_20260423_130949\confirmation_summary.json
+- Key finding:
+  - for the currently connected normal-favored sample, the best verified runtime logic so far is not �skip down to 6 Hz directly.� It is: normal-only PEIS to 1 Hz with 20 points, then stop. That logic revalidated cleanly at -0.1 / 0.0 / +0.1 V.
+- newly added item status:
+  - use the accumulated results to set a best optimized logic and rerun it => advanced and now has a concrete verified candidate for this sample.
+- Next step:
+  - hold this as the current best normal-sample logic, then keep the remaining open work focused on live CP-driven decisions and staged-dt/FFT utility before switching to the hybrid-needed sample.
+## 2026-04-23 13:14
+- Inspected: user correction that sample labels are only for post-run grading; runtime logic itself must assume the sample is unknown.
+- Changed:
+  - added tools/run_unknown_sample_policy_probe.py
+    - stage 1: sample-blind normal scout (
+ormal-only PEIS to 1 Hz, 20 pts, 10 mV)
+    - decision rule: if stage-1 PEIS is already sufficient and does not ask for a lower LF than was measured, stop; otherwise continue to a rapid/hybrid follow-up stage
+- Executed:
+  - C:\Users\mmq8658\Desktop\Microprobe\.venv\Scripts\python.exe C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tools\run_unknown_sample_policy_probe.py
+- Result:
+  - on the currently connected sample, the unknown-sample policy stopped after stage 1 without using the hybrid stage
+  - stage 1 runtime was about 13.65 s
+  - stage-1 analysis returned peis_only_sufficient = true and recommended_normal_peis_lowest_freq_hz about 6.1613 Hz
+  - the policy decision was stop_after_stage1_normal
+- Evidence:
+  - C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\results\unknown_sample_policy_probe_20260423_131405\unknown_sample_policy_probe_summary.json
+- What this means:
+  - we now have a first real sample-blind runtime policy candidate, not just a sample-specific best-case summary
+  - for this current sample, an unknown-sample scout of normal-only PEIS to 1 Hz is enough to classify it as normal-friendly and avoid any hybrid follow-up
+- Remaining blocker:
+  - this policy is only verified on a normal-favored sample so far; it still needs the hybrid-needed sample to prove that stage 1 fails safely there and correctly escalates to stage 2
+- Next step:
+  - keep this sample-blind 2-stage policy as the current runtime candidate, then validate its fail-safe behavior on the hybrid-needed sample and continue tuning any CP-driven branch there.
+## 2026-04-23 - Codex � true CP-first live probe + dialog root cause
+- Summary: Implemented reusable `cp_first_policy.py` helpers for chunked Vdc stabilization, chunked dV scout CA, and CP-only FFT LF seeding. Then ran a real `Vdc stabilization -> dV scout CA -> CP-only LF seed -> PEIS` probe on the currently connected normal-leaning sample.
+- Implemented:
+  - `cp_first_policy.py`
+  - `tools/run_true_cp_first_unknown_sample_probe.py`
+- Root cause fixed: CP-only seed estimation originally triggered the old `Select full Impedance data file` dialog because `Convert_CP_to_EIS.FFT_EIS` was called without `eis_data`; patched helper to provide a synthetic reference so no file dialog is needed.
+- Live run results:
+  - stage1 stabilization CA and stage2 dV scout CA completed and were saved under `results/true_cp_first_unknown_sample_probe_20260423_141233/`.
+  - CP-only FFT seed from the scout CA recommended PEIS LF `~0.075 Hz`.
+  - PEIS run to `0.075 Hz` completed in `31.64 s` with 20 points.
+  - Combined CA+PEIS analysis returned `peis_only_sufficient=true` and refreshed recommended normal LF `~0.751 Hz`.
+  - PEIS-only crosscheck also returned `peis_only_sufficient=true` at `~0.751 Hz`.
+- Interpretation: the current normal-leaning sample can survive a true CP-first front-end, but the CP-only seed was much deeper (`0.075 Hz`) than the final normal LF (`~0.75 Hz`), so CP-only LF seeding is conservative here and still needs hybrid-sample validation before it becomes the default runtime rule.
+- Validation: `py_compile` for the new files passed; `python -m unittest tests.test_driver_biologic tests.test_live_sample_validation` -> `9 OK`; Convert regression slice `test_trusted_lf_split_cases test_two_stage_current_run_policy test_inflight_current_run_policy test_partial_peis_handoff_thresholds` -> `8 OK`.
+- Next action: compare this true CP-first result against the earlier pseudo-CP-first/PEIS-first scouts on runtime and decision quality, then carry the same helper to a hybrid-needed sample once connected.
+## 2026-04-23 18:09
+- Summary: shifted from the broad dV sweep to a narrower live campaign that matches the current runtime-policy question: fixed 30 mV perturbation, full +0.3 -> -0.3 V bias ladder, and direct comparison of realtime CA-driven candidate logics.
+- Changed:
+  - added C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\tools\run_live_realtime_protocol_comparison.py
+  - comparison axes now include rapid_static30, rapid_realtime30_raw, rapid_realtime30_detrended, true_ca_first30_raw, true_ca_first30_detrended, true_ca_first30_tiny_raw, true_ca_first30_tiny_detrended
+  - added a lightweight linear-detrend stabilization branch and tiny-PEIS-scout on/off branch for direct live comparison
+  - added optimized_static30_* and optimized_realtime30_* follow-up generation so optimized-parameter extraction is immediately retried in the same campaign
+- Live hardware check before launch:
+  - OCV ~= 0.0777 V
+  - idle Ewe ~= -0.1057 V
+  - BioLogic comms healthy
+- Execution:
+  - launched the new campaign in the background with the project .venv
+  - launch logs:
+    - C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\results\live_realtime_protocol_comparison_launch\stdout.log
+    - C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\results\live_realtime_protocol_comparison_launch\stderr.log
+  - active result root:
+    - C:\Users\mmq8658\Desktop\Microprobe\Microprobe Python\results\live_realtime_protocol_comparison_20260423_180912
+  - first experiment directory rapid_static30_Vp0.300 was created, confirming the campaign has started
+- Next action:
+  - let the ladder run, then compare time / branch decision / fit quality and decide whether detrended stabilization or tiny-PEIS scout deserve promotion into the default runtime logic.
+
+## 2026-04-23 20:05 | Codex
+
+- Session start: reviewed the linked Microprobe Python and Convert_CP_to_EIS 1 logs/plans to establish a shared AI coordination protocol and identify current active ownership. Claimed scope: Microprobe Python/PLAN_LOG.md, Microprobe Python/UPDATE_LOG.md, ../Convert_CP_to_EIS 1/PLAN.md, ../Convert_CP_to_EIS 1/PLAN_LOG.md, ../Convert_CP_to_EIS 1/UPDATE_LOG.md.
+- Session end: added mandatory cross-project rules for session start/scope claims in plan files and session-end release notes in update logs so future AIs declare ownership before editing and release it when done. No runtime/source code changed; released scope was coordination docs only.
+
+## 2026-04-23 20:12 | Codex
+
+- Session start: claimed future-planning scope for `chemical capacitance` / `reaction order` brainstorming across `Microprobe Python/PLAN_LOG.md`, `Microprobe Python/UPDATE_LOG.md`, `../Convert_CP_to_EIS 1/PLAN_LOG.md`, and `../Convert_CP_to_EIS 1/UPDATE_LOG.md`.
+- Session end: refined the long-horizon analysis idea into a staged roadmap discussion: stable runtime and trustworthy LF feature extraction first, `chemical capacitance` analysis next, and `reaction order` / pO2 automation after that. No source/runtime code changed; released scope was planning/notes only.
+
+## 2026-04-23 20:13 | Codex
+
+- Session start: claimed reference-review scope for the `RQ fitting -> chemical capacitance / oxygen nonstoichiometry / oxygen chemical potential / reaction order` workflow across the linked plan/update logs in `Microprobe Python` and `Convert_CP_to_EIS 1`.
+- Session end: reviewed the local capacitance / reaction-order references and identified the main formula chain used in the literature: `RQ/CPE fit -> effective Cchem`, `Cchem -> nonstoichiometry`, `bias + fitted resistances -> overpotential`, `overpotential + pO2 -> oxygen chemical potential / effective pO2`, and `log j` slopes at constant driving force -> reaction orders. No source/runtime code changed; released scope was reference review only.
+
+## 2026-04-24 21:06 | Codex
+
+- Session start: claimed user-specified reference-review scope for `Backup slide.pptx`, `Backup slide for pO2 from inifite to high pO2 reference point.pptx`, `Defect chemistry and hydrogen production capacity of STM_JW260326.pptx`, `STM5050 Thin film Figure set v4.pptx`, and `STM5050 Thin film Manuscript.docx`, with matching plan claims in `Microprobe Python` and `Convert_CP_to_EIS 1`.
+- Session end: extracted the user-documented formula chain from the manuscript/slides, including `RQ/CPE -> Ctot`, thickness deconvolution to `Cchem`, `pO2,eff = pO2_gas * exp(4F eta_WE / RT)`, `mu_O = 2e eta_WE + (kT/2) ln pO2 = (kT/2) ln aO2`, and `Cchem` integration to `delta`. Also confirmed the reaction-order framework must carry both gas-side `n` and solid-state `lambda` rather than `n` alone. No source/runtime code changed; released scope was reference review only.
+
+## 2026-04-24 21:12 | Codex
+
+- Session start: claimed planning scope for the user's reaction-order figure idea across the linked project logs.
+- Session end: recorded a new visualization direction for future mechanism figures: use `mu_O` as the main x-axis, consider composition / `delta` as the y-axis, and encode the `n = 1 -> 2` transition by color so the pathway shift is shown as a state map rather than only as a line plot. No source/runtime code changed; released scope was planning only.
+[2026-04-23 20:50:49] Refocused the live protocol comparison around the user's narrowed 0.2/0.1/0/-0.1/-0.2 V set and restarted it after discovering the previous focused process was still using the old 5 s static pre/post settings. Updated 	ools/run_live_realtime_protocol_comparison.py so static baselines now use pre/post = 60 s, realtime CA/stabilization/scout windows use 120 s max, and each run records a 10 min hard-cap discard flag in experiment_summary.json. New active output root: esults/live_realtime_protocol_comparison_20260423_204932. Next analysis focus remains the bias-hybrid failure mode: audit sign/data-entry handling and whether the FFT input is losing the initial dV transient before merge.
+[2026-04-24 12:00:00] 0 V recheck after temperature rise: ran fresh `rapid_eis_sequence` at `Vdc=0.0 V`, `dV=30 mV`, `pre=60 s`, `PEIS 100 kHz->0.1 Hz (20 pts)`, `post=60 s + 300 s CA`; saved under `results/zeroV_recheck_20260424_114843`. Analysis still returned `hybrid_still_helpful`, `data_sufficient=false`, `cp_saturation_reached=false`, `cp_saturation_selection_reason=tail_not_stabilized`, and recommended `CP/CA ~450 s`, so even the fresh 0 V run still looks tail-limited rather than cleanly saturated. Generated implemented full-arc plot `zeroV_recheck_full_arc.png`; fit quality remained mediocre (`optimized fit quality ~5.03`, `full fit quality ~5.57`), worse than the earlier external 0 V re-measure inputs. Rechecked current OCV separately afterward; repeated reads were stable near `+6 mV`, so the live connection itself looked healthy at the time of the recheck. Next: compare this fresh 0 V live run directly against the external 0 V inputs and then move toward continuous one-shot CA + live stop instead of chunked stabilization heuristics.
+[2026-04-24 13:10:00] Added `tools/run_continuous_prepost_seeded_reference.py` to test the more faithful old-analysis path on the live station: `continuous preCA -> continuous dV scout -> stable pre-tail + post-step FFT seed -> PEIS`, with `CA dt=0.1 s` and a direct `PEIS floor=0.5 Hz`. Ran it at `0 V`; output root `results/continuous_prepost_seeded_reference_20260424_124726`. The measurement itself completed, but the first script pass lost the final JSON because `get_ocv()` was called after the BioLogic session had already dropped; patched the script so future runs tolerate missing `ocv_after`.
+[2026-04-24 13:10:00] Post-processed the completed `continuous_prepost_seeded_reference_20260424_124726` run. Key result: using the stable pre-tail + post-step input still improved the station-side logic path conceptually, but this live cell remained tail-limited even with the longer continuous run. `recommend_peis_lf_from_cp_txt()` on the trimmed combined CA wanted `raw LF ~8.9e-4 Hz`, but the applied PEIS floor was held at `0.5 Hz` per the new policy. Final backend analysis still returned `hybrid_still_helpful`, `recommended_peis_lowest_freq_hz ~0.954 Hz`, `recommended_normal_peis_lowest_freq_hz ~5.00 Hz`, `recommended_peis_conservative_cp_time_s ~1125 s`, `cp_saturation_reached=false`, and `agreement_rel_err ~0.812`. The merged `RQRQRQ` fit quality improved relative to the worst broken live cases but remained mediocre (`~4.59`), so this cell still does not match external `[7]` quality.
+[2026-04-24 13:10:00] Generated new comparison assets for the user-visible check against the external good case `[7]`: `continuous_prepost_seeded_full_fit.png`, `live_vs_case7_ca_curves.png`, and `live_vs_case7_full_fit.png` under `results/continuous_prepost_seeded_reference_20260424_124726`. The CA comparison again showed the live cell tail is noisier / less settled than `[7]`, supporting the interpretation that the live cell state is still the limiting factor even after switching from chunked CA logic to a continuous pre/post path.

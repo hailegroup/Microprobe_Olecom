@@ -1,0 +1,86 @@
+; Custom local test INF for the Microprobe motor cable on this PC only.
+; Based on Silicon Labs CP210x VCP driver package 6.7.6.2130, with the
+; project cable's custom PID (USB\VID_10C4&PID_806F) added for amd64.
+; This invalidates the original catalog signature, so installation requires
+; temporary driver-signature enforcement disable / test mode.
+
+[Version]
+Signature="$WINDOWS NT$"
+Class=Ports
+ClassGuid={4D36E978-E325-11CE-BFC1-08002BE10318}
+Provider=%Provider%
+DriverVer = 05/23/2018,6.7.6.2130
+
+[Manufacturer]
+%ManufacturerName%=SiLabsModelsSection, NTamd64.6.1
+
+[SiLabsModelsSection.NTamd64.6.1]
+%USB\VID_10C4&PID_806F.DeviceDesc%      =SiLabsDDInstallSection, USB\VID_10C4&PID_806F
+
+[SiLabsDDInstallSection]
+AddReg=silabser.AddReg
+CopyFiles=Silabser_CopyFiles_FileListSection
+FeatureScore=0x40
+
+[SiLabsDDInstallSection.Services]
+AddService = silabser,0x00000002,silabser.AddService
+
+[silabser.AddService]
+DisplayName    = %silabser.SvcDesc%
+ServiceType    = 1
+StartType      = 3
+ErrorControl   = 1
+ServiceBinary  = %12%\silabser.sys
+
+[silabser.AddReg]
+HKR,,NTMPDriver,,silabser.sys
+HKR,,RateLimitPurgeMS, 0x10001, 0x64, 0x00, 0x00, 0x00
+HKR,,OverrideDefaultPortSettings, 0x10001, 01,00,00,00
+HKR,,InitialBaudRate, 0x10001, 00,C2,01,00
+HKR,,InitialLineControl,, "8N1"
+HKR,,PortSubClass,1,01
+HKR,,EnumPropPages32,,"MsPorts.dll,SerialPortPropPageProvider"
+
+[SiLabsDDInstallSection.HW]
+AddReg=SiLabsDDInstallSection.HW.AddReg
+
+[SiLabsDDInstallSection.HW.AddReg]
+HKR,,"SelectiveSuspendTimeout",0x00010001,10000
+HKR,,"DisableHwAccessInModemStatusIoctls",0x00010001,1
+
+[Silabser_CopyFiles_FileListSection]
+silabser.sys
+
+[SourceDisksNames]
+1=%Disk_Description%
+
+[SourceDisksFiles.amd64]
+silabser.sys = 1
+WdfCoinstaller01009.dll=1
+
+[DestinationDirs]
+Silabser_CopyFiles_FileListSection = 12
+CoInstaller_CopyFiles.KMDF.1.09 = 11
+
+[SiLabsDDInstallSection.NTamd64.CoInstallers]
+AddReg=CoInstaller_AddReg.KMDF.1.09
+CopyFiles=CoInstaller_CopyFiles.KMDF.1.09
+
+[CoInstaller_CopyFiles.KMDF.1.09]
+WdfCoinstaller01009.dll
+
+[CoInstaller_AddReg.KMDF.1.09]
+HKR,,CoInstallers32,0x00010000, "WdfCoinstaller01009.dll,WdfCoInstaller"
+
+[SiLabsDDInstallSection.NTamd64.Wdf]
+KmdfService = silabser, SiLabs_wdfsect.1.09
+
+[SiLabs_wdfsect.1.09]
+KmdfLibraryVersion = 1.09
+
+[Strings]
+Provider="Silicon Laboratories Inc."
+ManufacturerName="Silicon Labs"
+Disk_Description="Silicon Labs CP210x USB to UART Bridge Installation Disk"
+USB\VID_10C4&PID_806F.DeviceDesc="Silicon Labs CP210x USB to UART Bridge"
+silabser.SvcDesc="Silicon Labs CP210x USB to UART Bridge Driver"

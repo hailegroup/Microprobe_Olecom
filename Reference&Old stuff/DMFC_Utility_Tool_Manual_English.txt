@@ -1,0 +1,1636 @@
+
+--- PAGE 1 ---
+DMFC Utility Tool Manual 5312-001S EFR0  Hitachi Metal Ltd. 
+ 
+ 
+Reference No. 5312-001S Edit F 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Instruction Manual for 
+DMFC Utility Tool 
+ 
+ 
+ 
+ 
+ 
+Issued: Jan, 2012 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Hitachi Metals Ltd. 
+ 
+ 
+ 
+
+--- PAGE 2 ---
+DMFC Utility Tool Manual 5312-001S EFR0  Hitachi Metal Ltd. 
+ 
+ 
+Table of Contents 
+ 
+1 OVERVIEW ..................................................................................................................................2  
+2 FEATURES...................................................................................................................................2  
+3 PC SYSTEM REQUIREMENTS ..................................................................................................3  
+3.1 COMPUTER .......................................................................................................................................................3  
+3.2 RS-232C/RS-485 COMMUNICATION CONVERTER ................................................................................3  
+3.3 RS232C COMMUNICATION CABLE ..............................................................................................................3  
+3.4 MODULAR CABLE ............................................................................................................................................3  
+4 PREPARATION ............................................................................................................................4  
+4.1 INSTALLATION ..................................................................................................................................................4  
+4.2 PROGRAM START AND EXIT ..........................................................................................................................4  
+4.3 CONNECTION DIAGRAM (EXAMPLES)...........................................................................................................4  
+4.3.1 When the modular connector has a single port in DMFC (FC-DN Series MFC)......................... 4 
+4.3.2 When the modular connector has 2 ports in DMFC (FC-PA Series MFC).................................... 4 
+4.4 OTHER NOTES .................................................................................................................................................5  
+5 OPERATION SCREENS .............................................................................................................. 6 
+5.1 SCREEN IMMEDIATELY AFTER PROGRAM START........................................................................................6  
+5.2 SELECT MFC SCREEN ...................................................................................................................................7  
+5.2.1 Communication start/stop.................................................................................................................................. 7 
+5.2.2 Polling Function........................................................................................................................................................ 9 
+5.2.3 Zero-point adjustment during polling............................................................................................................10 
+5.2.4 MFC setting function...........................................................................................................................................12 
+5.2.5 Data logging function...........................................................................................................................................16 
+5.3 RESPONSE CHECK SCREEN........................................................................................................................ 17  
+5.4 CERTIFICATION DATA SCREEN................................................................................................................... 21  
+5.5 ZERO SCREEN............................................................................................................................................... 23  
+6 OTHERS ......................................................................................................................... ............25  
+6.1 SETTING OF SAMPLING TIME...................................................................................................................... 25  
+6.2 SETTING OF FLOW RATE DISPLAY UNIT................................................................................................... 25  
+6.3 SETTING OF COM PORT ............................................................................................................................ 25  
+6.4 SETTING OF BAUD RATE............................................................................................................................. 2 6 
+6.5 HELP............................................................................................................................................................... 26  
+6.6 PASSWORD CHANGE.................................................................................................................................... 27  
+6.7 SOFTWARE VERSION.................................................................................................................................... 27  
+7 TROUBLE SHOOTING..............................................................................................................2 8 
+ 
+
+--- PAGE 3 ---
+DMFC Utility Tool Manual 5312-001S EFR0  Hitachi Metal Ltd. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+◆Notes◆ 
+1. Unauthorized copy and reproduction of this manual or any portion thereof is prohibited. 
+2. The contents of this manual are subject to change without notice for modification. 
+3. This manual provides the accurate contents.  If you have any concerns or findings in the 
+contents, however, contact our office or Service Center. 
+4. The screen design and functions of this software take precedence if different from those 
+described in this manual. 
+
+--- PAGE 4 ---
+License Agreement 
+ 
+This software is solely for use by end users according to the terms of the License Agreement which is 
+stated below. 
+ 
+Limited Use License 
+Hitachi Metals Ltd. hereby grants, and by installing this software you thereby accept the right to install, 
+reproduce and use one (1) copy of the Program for your use. 
+ 
+Copyright 
+©2006-2007 Hitachi Metals Ltd.  All rights reserved.  
+ 
+Limitations 
+No part of this software may be modified, altered, reverse-engineered, or disassembled in whole or in 
+part. The Program is only available for Hitachi Metals Digital Mass Flow Controllers, not applied to 
+others. 
+ 
+Exclusions of Warranty 
+Hitachi Metals Ltd. and Hitachi Metals Group shall have no liability for any errors caused by misuse 
+and under abnormal condition, and errors contained herein for any consequential damages in connection 
+with the use of this software. Hitachi Metals Ltd. and Hitachi Metals Group shall make no warranty as 
+to any errors attributed to use of other manufacturers’ digital mass flow controllers by this Program. 
+ 
+Limited Warranty 
+The support service provided by Hitachi Metals Ltd. and Hitachi Metals Group covers errors regarding 
+the functions and operation of this software. Any errors attributed to the operating system or other 
+hardware are not covered in our post-sale support. 
+ 
+Others 
+Items, unless otherwise specified, shall be in conformity with copyright and relative related laws and 
+regulations. 
+ 
+Trademarks 
+Other company names and product names mentioned in this manual may be trademarks or registered 
+trademarked of their respective companies and are hereby acknowledged. 
+ 
+DMFC Utility Tool Manual 5312-001S EER0                 Advanced Energy Japan K.K. - 1 -
+
+--- PAGE 5 ---
+1 Overview 
+This application, which is designed for Hitachi Metals digital mass flow controllers (hereafter called 
+DMFC), enables the following functions via RS-485 serial communication manipulated from computer: 
+Changing of setpoint (at digital control only), response waveform monitoring, valve control 
+(opening/closing), comment entry on individual DMFC, changing of MFC ID and baud rate, zero 
+adjustment, and alarm setting. Some DMFCs are capable of checking delivery inspection data in DMFC 
+and acquiring information through the zero-point record control function.  
+If a DMFC-laden process controller  exercises analog or DeviceNet control of MFC, this application 
+allows saving of acquired data in files as well as simultaneous monitoring of DMFC control information, 
+including setpoints, outputs and valve voltages, of multiple DMFCs, assuring no effect on process. With 
+the system in digital control mode, this application enables the control of DMFC flow rate and the 
+acquisition of corresponding response waveform data, which ensures easy DMFC operation check. The 
+reading and control of zero-point record data stored in DMFC are available if DMFC is endowed with the 
+zero-point record control function, which is of use for MFC preventive maintenance. 
+ 
+ 
+ 
+2 Features 
+Key features of this application include: 
+▣ Monitoring of the items as follows as to all the connected DMFCs: DMFC ID number, serial number, 
+process gas name, full-scale flow rate, conversion factor, control mode (Digital or Analog control), 
+current setpoint, current output, current valve voltage, and status (presence of errors) 
+▣ Setting of DMFC ID number 
+▣ Setting of DMFC serial communication speed (baud rate)  
+▣ DMFC control mode selection (Digital or Analog control) 
+▣ Error/alarm recovery in DMFC 
+▣ Comment entry on individual DMFC (up to 40 characters), comment access 
+▣ Batch auto zero adjustment of individual DMFC or all the connected DMFCs 
+▣ Entry of flow rate setting, monitoring of DMFC output and valve voltage, and data sending to MS 
+Excel™ by this application at Digital control 
+▣ For DMFC outfitted with the calibration data save function, invocation and sending (to MS Excel™) 
+of calibration data containing flow setting data, N2 measured data, response time, factory-shipped 
+zero-point, and pre-shipment inspection data including valve leakage 
+▣ For DMFC outfitted with the zero-point record co ntrol function, reading of zero-point data [%] and 
+cumulative zero-point shift amount [%] relative to the default, and reset of record data  
+DMFC Utility Tool Manual 5312-001S EER0                 Advanced Energy Japan K.K. - 2 -
+
+--- PAGE 6 ---
+3 PC System Requirements 
+This section describes the PC system requirements to use this application. 
+ 
+3.1 Computer 
+▣ Model: PC/AT-compatible computer (RS232C interface-laden computer. A computer with 
+no RS232C port may become available under the condition that a USB serial 
+conversion adapter is used. COM number should be max. COM 10 regardless of 
+computer type.) 
+▣ Display: 848 x 593 pixel resolution 
+1024 x 768 pixel resolution with 256 colors or more is recommended. 
+▣ Operating systems:  Windows 98, Windows 2000, Windows XP, Windows Vista, Windows 7 
+▣ Memory:  This application requires 256MB of RAM or better. 
+▣ Drives:  A hard drive with at least 10MB of free space, and besides another free disk 
+space for data saving. 
+ 
+3.2 RS-232C/RS-485 Communication Converter 
+RS-232C serial communication is capitalized on in this application to establish communication with 
+DMFC. Conversion from RS-232C to RS-485 requires  the use of the RS-232C/RS-485 communication 
+converter because of RS-485 communications protoc ol on DMFC. Our converter CS-485 (COM port 
+connection) or USB485-AE1 (USB port high-speed conn ection) is available. USB485-AE1 comes with a 
+USB cable (1.5m) and modular cable (1m).  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Caution 
+CS-485 converter supports communication speed, up to 38.4kbps. 
+For communication at higher baud rate, use the signal converters listed below. 
+ 
+Hitachi Metals Ltd BSU485-AE1 (USB port connection type) 
+B&B electronics  485BAT3 (COM port connection type) 
+Bits    BRS-485/Z1 (COM port connection type) 
+ 
+ 
+ 
+3.3 RS232C Communication Cable 
+RS-232C straight type cable is required for connection between the computer and RS232C/RS485 signal 
+converter. The cable is to be connected with all the pins. 
+ 
+3.4 Modular Cable 
+A modular cable is used for connection between RS232C/RS485 signal converter and DMFC.  
+RJ-11 6-pole straight type cable is required, and can be used if connected with Pins 3 and 4. 
+Our cables listed below are available. 
+Model Cable length 
+LC-04D 1 m 
+LC-08D 3 m 
+LC-05D 5 m 
+LC-06D 10 m 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+DMFC Utility Tool Manual 5312-001S EER0                 Advanced Energy Japan K.K. - 3 -
+
+--- PAGE 7 ---
+4 Preparation 
+4.1 Installation 
+Place this CD-ROM into your CD-ROM drive. Double-click on the setup.exe, and follow the on-screen 
+instructions to complete the installation. 
+Note: Be sure to log in with Administrator authority if your system is Windows 2000 or 
+Windows XP Professional. 
+ 
+4.2 Program Start and Exit 
+To start the program: Click on the DMFC utility tool icon 
+from Start menu. 
+ 
+To exit the program: Click on Exit from Tools menu on 
+the main window. (See right) 
+ 
+ 
+ 
+4.3 Connection Diagram (Examples) 
+ 
+4.3.1  When the modular connector has a single port in DMFC (FC-DN Series MFC)  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+4.3.2 When the modular connector has 2 ports in DMFC (FC-PA Series MFC) 
+ 
+ 
+ 
+The following connection cables should conform to the required length: RS-232C cable (or USB cable) 
+between the computer and RS-232C/RS-485 signal converter; Max. 5m, and RS-485 modular cable 
+between RS-232C/RS-485 signal converter and DMFC; Max. 50m. 
+ 
+ 
+ 
+ 
+DMFC Utility Tool Manual 5312-001S EER0                 Advanced Energy Japan K.K. - 4 -
+
+--- PAGE 8 ---
+4.4 Other Notes 
+1. Acceptable Use Policy for Excel 
+This application permits acquired data to be transferred to Microsoft Excel™ via DDE communication. 
+Basic precautions should always be followed for safe use, including the following: 
+・ Do not open more than one Excel file. Otherwise,  this application fails to recognize a desired 
+file. 
+・ A worksheet is to be named “Sheet*” (* is assigned with a digit such as 1, 2, 3). 
+ 
+2. Flow control Mode 
+Non-DeviceNet DMFC 
+Our DMFC allows you to choose the type of flow control, analog control or digital control. Analog 
+control is a default upon power supply to DMFC.  
+ 
+[Analog control mode] 
+Analog control is to control a flow rate through the adoption of 0 to 5VDC analog voltage from 
+the external device. MFC setpoints issued with digital command is overridden if the system is in 
+analog mode. As with digital control mode, this mode is capable of digital communication except 
+for flow control. 
+ 
+[Digital control mode] 
+Digital control executes digital command via serial communication for flow control, which causes 
+analog flow setting to be overridden. 
+ 
+ 
+ Warning 
+Digital control takes effect  only when DMFCs, except  some models, receive the 
+digital control switch command through digital communication, which causes 
+the flow setting from the analog connect or to be overridden and allows flow 
+control with the command th rough digital communication. Note that DMFC 
+operation from the system becomes disabl ed if switching of flow control from 
+Analog to Digital by this application is attempted while DMFC is in process 
+through analog voltage.  If temporary switching of flow control to Digital is 
+performed by this application to acquire data on response waveforms, be sure 
+to place DMFC in a proper control mode such as switching to Analog control. 
+ 
+ 
+DeviceNet DMFC 
+No analog control mode is available in this type of DMFC. DeviceNet DMFC allows flow control in 
+response to DeviceNet communication command or RS485 communication command. Only setting 
+command from DeviceNet is effective for flow control upon power supply to DMFC, which causes 
+serial communication command to be overridden. Once DeviceNet DMFC is connected with this 
+application, flow control through DeviceNet setting command and serial communication command 
+become enabled. 
+ 
+3. MFC ID Overlap 
+This application enables the simultaneous connection of DMFCs, up to 63 if an individual ID number is 
+assigned to each DMFC. ID numbers for all DMFCs ar e factory-configured to “7 ”. Initial use of this 
+application requires single connection to DMFC. Then, network connection is to be established according 
+to section 4.3 Connection with unique MFC ID numbers assigned. 
+ 
+ 
+ Warning 
+Abnormal operation is observed if this application detects an overlap between ID 
+numbers. 
+DMFC Utility Tool Manual 5312-001S EER0                 Advanced Energy Japan K.K. - 5 -
+
+--- PAGE 9 ---
+5 Operation Screens 
+ 
+5.1 Screen Immediately after Program Start  
+The screen displayed immediately after program star t allows you to select not only DMFC model for 
+communication but RS-232C/RS485 signal converter type. The functions in this application and baud rate 
+become selectable if any DMFC model is selected. Once RS-232C/RS485 signal converter type is 
+specified, data is stored in this application that requires no further type selection. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+N
+Neexxtt  >> button at the lower right of the screen becomes available if DMFC model and RS-232C/RS485 
+signal converter type are specified. This button is used to proceed to the following screen. 
+ 
+ 
+ Caution 
+Contact Hitachi Metals Ltd. if DMFC to  connect this application to carries 
+multiple models. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+DMFC Utility Tool Manual 5312-001S EER0                 Advanced Energy Japan K.K. - 6 -
+
+--- PAGE 10 ---
+5.2 Select MFC Screen 
+5.2.1 Communication start/stop 
+From Tools menu, check the following three items prior to commencing communication with DMFC. 
+① Is proper Max serial ID assigned?  The default is 10 that permits DMFCs assigned with ID numbers 1 
+to 10 to be connected with. Connection to DMFCs with ID numbers 11 and higher is disregarded. For 
+communication to DMFCs with ID numbers 11 and up, click on Max serial ID menu and set an ID 
+number larger than the default. 
+② Is proper COM port number assigned? → See 6.3 COM Port Setting. 
+③ Is proper baud rate set? → See 6.4 Baud Rate Setting. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+OFF LINE button, located at the lower right of the sc reen, is used to change the serial communication 
+condition between connected and disconnected. To commence communication with DMFC, click on OFF 
+LINE button. OFF LINE denotes that communication is disconnected (button shown in gray), and ON 
+LINE denotes that it is connected (button shown in green). Communication disconnection is an example 
+given on the above screen. 
+ 
+ Caution 
+This application is capable of storing the control modes of all the DMFCs upon 
+connection. If disconnection is attempted in a switched control mode while this 
+application is in run, the following screen is displayed to pose disconnection choice, 
+either disconnection in the initial control mode or in the current mode.  
+ 
+To return to the initial control mode, click on the “Yes”. To proceed with 
+disconnection in the current mode, click on the “No”. 
+ 
+ON LINE / OFF LINE button 
+MFC List
+DMFC Utility Tool Manual 5312-001S EER0                 Advanced Energy Japan K.K. - 7 -
+
+--- PAGE 11 ---
+Click on ON LINE button to terminate the connection, which switches the screen to one displayed 
+immediately after program start. 
+ 
+Information on the relevant DMFC is listed (MFC List) if DMFC connection completion is assured. 
+ID#   ID number (changeable) 
+Serial No. MFC serial number (non-changeable) 
+Note  Notes recorded  in MFC (Default: No record, changeable) 
+Gas Name Process gas name (non-changeable) 
+FS flow Full-scale flow rate (non-changeable) 
+CF   Process gas conversion factor (non-changeable) 
+Mode  Control mode (changeabl e between analog and digital) 
+Set[%]  Flow setpoint 
+Out[%]  Flow output 
+Valve[%] Valve voltage 
+Status  DMFC status including errors and alarms 
+ 
+The following screen is displayed if DMFCs with ID nu mbers 2 to 3 are connected. In this example, data 
+on DMFC with ID number 003 is highlighted in light green. DMFC highlighted is regarded as a primary, 
+active MFC. Data on the current active MFC is also provided on the title bar on this screen. A multitude of 
+functions, such as acquiring response waveform data and zero-point adjustment and control, are available 
+in the active MFC. DMFC with the largest ID number is considered an active MFC if multiple DMFCs 
+are recognized at the time of the initial connection. With the click of the name of any desired DMFC in 
+MFC List, the intended DMFC is assigned for active MFC. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+MFC List
+Polling ON / OFF button 
+ 
+See chapter 7 “Troubleshooting” if the desired DMFC fails to be recognized. 
+ 
+ 
+ 
+ 
+ 
+DMFC Utility Tool Manual 5312-001S EER0                 Advanced Energy Japan K.K. - 8 -
+
+--- PAGE 12 ---
+5.2.2 Polling Function 
+This function is to ensure continuous monitoring of the following data at established intervals as to all the 
+connected DMFCs: flow setpoint, flow output, valve voltage, and DMFC status. 
+Polling time interval is to be set before performing polling. With the right click of Polling: OFF button 
+located at the lower right of the screen, the following dialog box is displayed. Set arbitrary time intervals 
+with the use of the slider and time unit buttons. Polling time interval setting takes effect with the click of 
+OK button. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+The button is displayed in green when Polling: OFF button at the lower right of the screen is clicked, 
+which prompts continuous monitoring of the current flow setpoint, flow output, valve voltage, and status 
+of the intended. An actual polling time interval is shown on Polling button. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+In the example given above, the two connected DMFC s control the flow rate through the adoption of 
+analog voltage (set at 80% in O2 MFC and 20% in Ar  MFC). The above screen indicates that an error has 
+been raised in Ar MFC. Access to details on errors and alarms is available on the MFC setting window for 
+checking. 
+ 
+ 
+ Caution 
+If DMFC 7 or earlier version is polled in analog control mode, the setpoint and 
+valve voltage are expressed only in the unit of 1% (MFC control assured with 
+0.006-%FS resolution (14 bits)). The va lve voltage is to be updated once every 
+second. DMFC version is presented in “Version” on the MFC setting window. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+DMFC Utility Tool Manual 5312-001S EER0                 Advanced Energy Japan K.K. - 9 -
+
+--- PAGE 13 ---
+5.2.3 Zero-point adjustment during polling 
+ 
+ Caution 
+The following requirements should always be satisfied before performing 
+zero-point adjustment. 
+ 
+1. DMFC flow setpoint is set at 0%. 
+2. Complete shutoff of the gas is assured. 
+The valve provided in DMFC is not a full shutoff valve. Ensure that the 
+shutoff valve located at the DMFC upstream or downstream shuts off gas 
+flow completely. 
+3. Adequate warming up of DMFC is provided.  
+Refer to the relevant DMFC specification for warming-up time. 
+ 
+ 
+With the click of Auto zero button while DMFC is being polled, the Zero Adjust window shown below is 
+displayed. The window enables you to make zero adjustment of the active MFC. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+The method of zero adjustment falls into the following two types: 
+ 
+1. Manual zero adjustment 
+The Manual Adjust function enables manual adjustment of zero point of the active MFC to any desired 
+value. This function is of use in zero-point offset adjustment if the process controller fails to read a 
+negative voltage. 
+・Slider : This bar is used to change a zero adjustment value. 
+・Read button : This button is used to read the current zero adjustment value of the active 
+DMFC. As DMFC Ver8 or earlier, the slider is reset to the center with the click of 
+Read button in Fine setting.  
+・Write button : This button is used to send a zero adjustment value changed with the slider to 
+DMFC.  
+DMFC Utility Tool Manual 5312-001S EER0                 Advanced Energy Japan K.K. - 10 -
+
+--- PAGE 14 ---
+2. Automatic zero adjustment 
+This button is used to conduct auto zero-point adjustment of DMFC. With the checkbox of an intended 
+DMFC marked in the list, “Zeroing” is displayed in Status with the click of Auto zero button. Auto 
+adjustment requires approx. 10 to 30 seconds, and “Complete” is displayed upon completion of 
+adjustment. “Error” denotes adjustment error due to some reason. Auto zero-point adjustment is 
+performed to DMFCs with ID numbers 2 and 4 in the example provided in the previous page. If DMFC is 
+endowed with the zero-point record control function, DMFC energization accumulated time, 
+pre-adjustment zero-point data and cumulative zero-point shift amount relative to the default are to be 
+stored in DMFC. 
+ 
+DMFC Utility Tool Manual 5312-001S EER0                 Advanced Energy Japan K.K. - 11 -
+
+--- PAGE 15 ---
+5.2.4 MFC setting function 
+With the click of the MFC Setting button, the current  values of the active MFC specification and alarm 
+function are displayed.  
+ 
+I n f o r m a t i o n  t a b          
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+・Serial No MFC serial number 
+・Model name Model name (DMFC 7 or later version) 
+・Valve Valve type, normally-closed (NC) or normally-open (NO) 
+・Gas name Process gas name 
+・Full scale  Full-scale flow rate 
+・CF    Process gas conversion factor 
+・Comment Entry of two types of 20-character comment (1-byte alphanumeric) can be stored 
+ in DMFC EEPROM. 
+・Current control mode  This button is used to select the DMFC control mode between analog 
+ and digital. Available in non-DeviceNet DMFCs.  
+ 
+ 
+ 
+In case of MGMR(multi) MFC, flow range BIN size will be displayed at right side of Gas name 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+DMFC Utility Tool Manual 5312-001S EER0                 Advanced Energy Japan K.K. - 12 -
+
+--- PAGE 16 ---
+Alarm ｓetting tab                                                
+Non-DeviceNet DMFC permits programming of 3 types of  alarms as follows: Flow alarm, Valve alarm, 
+and External alarm.  
+Refer to the relevant DMFC Instruction Manual for details. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+・Alarm Clear button This button is used to clear an alarm occurred. 
+・Error Clear button This button is used to clear an error occurred. 
+ 
+ 
+Others… tab                                                 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+・MFC ID#  This is the current MFC ID number. After setting a new MFC ID number, 
+changes take effect with the click of the Change button. 
+ 
+・Ramping  The default ramping time is 0. Changes take effect with the click of the Apply 
+button if ramping time is altered. The Ramping function is disabled if set to “0” 
+Ramping time is to be set in the 0- to 999-second range. If ramping time is set at 
+5sec, ramping control takes place allo wing 5-second shift from the current 
+setpoint to the next setpoint. This is effective to avoid abrupt change in gas flow. 
+ 
+DMFC Utility Tool Manual 5312-001S EER0                 Advanced Energy Japan K.K. - 13 -
+
+--- PAGE 17 ---
+・Flow adjust function 
+This function is used to adjust flow gain value. The flow rate can be increased / decreased 
+with this function. Also, it is possible to return to original gain value (except PrimAera 
+series, FC-D98*CU, FC-PN98*, FM-PN88*).  
+Normally, this function is not available and password-protected since this function effects 
+flow rate directly. Please ask our sales section when you use this function. 
+ 
+With the click of Flow adjust function  button, the following 
+dialog box is displayed. Please ask our sales section and 
+we’ll show the password. 
+ 
+ 
+ 
+ 
+ 
+With correct password, the following dialog box is displayed. Flow rate adjustment can be done by 
+inputting “Gain adjust” value then clicking the Apply button. The range of “Gain adjust” value that you 
+can apply is 0.920 to 1.080 (=1.000+/-0.080).  
+For example, the initial value is “0.952” as following window. 
+To obtain -1.5% lower flow, the new gain adjust value is 
+calculated as follows. 
+0.952-1.5/100=0.952-0.015=0.937 
+To obtain +2.9% higher flow, 
+0.952+2.9/100=0.952+0.029=0.981 
+The new value is available after clicking the Apply button. 
+ 
+ 
+The Reset button is displayed as following figure when 
+the initial value is changed. It is possible to return to 
+the original value with the button clicking. 
+ 
+ 
+ 
+ 
+ 
+In case of PrimAera series(FC-D98*CU, FC-PN98*, 
+FM-PN88*）, the following message is displayed in the 
+dialog box. 
+The function that can return to the original value is 
+not available in this case. The original value will be 
+overwrote by new value after clicking the Apply button. 
+When you use this function first time, please record original 
+value in order to return to original value. 
+ 
+ 
+DMFC Utility Tool Manual 5312-001S EER0                 Advanced Energy Japan K.K. - 14 -
+
+--- PAGE 18 ---
+Special setting tab                                         
+ 
+In case of connected MFC is FC-D780CU or FC-D780CUY, Special setting tab is appeared as 
+below. MAC ID value and/or default control mode can be set. Click Apply button to send 
+setting value to the MFC after changing. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+In case of connected MFC is DeviceNet MFC, Special setting tab is appeared as below. 
+Input/Output instance value can be set. Clic k Apply button to send setting value to the 
+MFC after changing. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+DMFC Utility Tool Manual 5312-001S EER0                 Advanced Energy Japan K.K. - 15 -
+
+--- PAGE 19 ---
+5.2.5 Data logging function 
+The DMFC flow setpoint, flow output, and valve voltage can be saved as a log file while DMFC is being 
+polled. Log files are a text file with the setpoints, outputs and voltages separated by commas (“,”), which can 
+be derived in Excel format. 
+ 
+Data logging 
+The following window is displayed with the click of Logging: OFF button. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Folder and name The names of the folder and file in which a log file is stored 
+MFC selection list DMFC whose checkbox is marked is to be logged. 
+File configuration 
+Separation file A DMFC-to-DMFC log file is created if this checkbox is marked. The file is 
+recorded under a filename that is designated in “Folder and name” with “_DMFC 
+serial number” tacked to its end. As the designated filename is “Run1.log” in the 
+above example, the file is record ed under the filename of “Run1_ 
+C050604653.log” if DMFC is assigned with serial number C050604653. 
+Merged file Data on DMFC that is selected in MFC Selection List is saved in one log file if 
+this checkbox is marked. A filename, whic h is designated in “Folder and name”, 
+is to be allocated to the file. 
+Browse button This button is used to display the dialog box shown below.  
+Enter a folder name to save a log file in and log file name. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Cancel button This button is used to cancel data logging. 
+OK button This button is used to start data logging, and it is changed to Logging: ON button 
+upon initiation of data logging. The instant when OK button is pressed is deemed 
+as the starting point of data logging. 
+ 
+The polling function enables log data containing DMFC data to be saved. The log files, which are 
+insusceptible to the cancellation of polling, remain open and stand ready to allow data acquisition. To end 
+data logging, click on Logging: ON button and close the log file. 
+DMFC Utility Tool Manual 5312-001S EER0                 Advanced Energy Japan K.K. - 16 -
+
+--- PAGE 20 ---
+5.3 Response Check Screen 
+This screen enables checking of response waveforms of the active MFC. A desired DMFC needs to be 
+designated as an active MFC on the Select MFC screen prior to calling up this screen.  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+⑧ Y-scale max slider
+⑤ Analog meter 
+⑪ Send to Excel button
+⑫ Pop-up menu 
+⑦ Y-scale unzoom button 
+④ Zoom button 
+⑥ Scale slider ⑩ Valve forced open/close 
+③ Valve voltage check box
+① Polling button 
+② Set point button
+⑨ Y-scale min slider 
+① Polling button 
+This button is used to not only conduct continuous acquisition of active MFC data containing setpoint 
+and outputs but also present it in graphical waveform. To cancel polling, re-click on this button. 
+Actual polling intervals are presented on Polling button during waveform acquisition. With 
+waveform acquisition in process, the right click of a mouse causes scrolling on the graph to pause. 
+See “6.1 Setting of Sampling Time” for sampling time setting. 
+ 
+② Set point button 
+This button is available only when the active MFC is under Digital control. With click of any of the 
+buttons, the relevant setpoint is sent to DMFC. To assign a desired setpoint, enter the intended 
+setpoint in the textbox provided on the right of “0%” button and click on Send button. The entered 
+setpoint is to be sent to DMFC upon click of Send button. 
+ 
+DMFC Utility Tool Manual 5312-001S EER0                 Advanced Energy Japan K.K. - 17 -
+
+--- PAGE 21 ---
+③ Valve voltage check box 
+The initial settings of graphical waveforms include a flow setpoint (green line) and flow output (red 
+line) only. If this checkbox is marked, an obtained valve voltage is presented in yellow line on the 
+screen.  
+ 
+④ Zoom button 
+The 100% Zoom button is used to establish a range of the graph screen specified with the analog 
+meter (⑤) centering on a 100% basis. The 0% Zoom button is used to establish the range specified 
+with the analog meter centering on a 0% basis. 
+ 
+⑤ Analog meter 
+This meter reads the outputs of the active MFC. 
+ 
+⑥ Scale slider 
+This bar is used to change the upper/lower limit of the analog meter (⑤) scale. 
+ 
+⑦ Y-scale unzoom button 
+This button is used to reset the vertical axis scale on the graph to the minimum value (-10%) and 
+maximum value (+110%). 
+ 
+⑧ Y-scale max slider 
+This slider is used to change the maximum value of the vertical axis on the graph. The Y-axis 
+maximum value increases with the upward shift of the slider, and it decreases with the downward 
+shift. 
+ 
+⑨ Y-scale min slider 
+This slider is used to change the minimum value of the vertical axis on the graph. The Y-axis 
+minimum value increases with the upward shift of the slider, and it  decreases with the downward 
+shift. 
+ 
+⑩ Valve forced open/close 
+This button is used to permit the forced opening and closing of valves. 
+ 
+⑪ Send to Excel button 
+This button is used to send waveform data to MS Excel™. With the click of this button, the dialog 
+box shown below is displayed. Enter any work sheet number and click on the OK button. 
+ 
+ 
+The following message is displayed if MS Excel™ is not activated. In the event that the message 
+appears, launch MS Excel™ and re-click on the Send to Excel button. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+DMFC Utility Tool Manual 5312-001S EER0                 Advanced Energy Japan K.K. - 18 -
+
+--- PAGE 22 ---
+Example: When waveform data is sent to MS Excel™ 
+ 
+ 
+(From Column A) Time [sec], setpoint [%] and output [%] 
+Enter any item names in the first row that is blank. 
+ 
+⑭ Pop-up menu 
+The pop-up menu appears with the right-click of the graph, which offers you the option of the four 
+functions listed below: 
+ 
+Graph clear: This is used to erase the graph. 
+Cursor: Cursor 
+Zoom: Screen zooming 
+Pan: Screen panning 
+ 
+Cursor 
+The two cursors, in cyan (Cursor1) and in white (Cursor2), and window are displayed as shown 
+below if “Cursor” is selected from the menu. Time and MFC output are displayed on the window as 
+the two cursors dragged with a mouse-click, which provides the difference between two cursors.  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+DMFC Utility Tool Manual 5312-001S EER0                 Advanced Energy Japan K.K. - 19 -
+
+--- PAGE 23 ---
+ 
+Zoom 
+With “Zoom” selected from the menu, a waveform is scaled up through dragging and dropping on 
+the graph. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Pan 
+With “ Pan” selected from the menu, a waveform is panned from right to left or up and down, 
+through dragging and dropping on the graph. 
+ 
+ 
+ Caution 
+ 
+If DMFC 7 or earlier version is polled in analog control mode, the setpoint and 
+valve voltage are expressed only in the unit of 1% (MFC control assured with 
+0.006-%FS resolution (14 bits)). The va lve voltage is to be updated once every 
+second. DMFC version is presented in “Version” on the MFC setting window. 
+ 
+DMFC Utility Tool Manual 5312-001S EER0                 Advanced Energy Japan K.K. - 20 -
+
+--- PAGE 24 ---
+5.4 Certification Data Screen 
+This screen is displayed only if FC-PA78*Z(C) Series MFC is selected. 
+ 
+ 
+ 
+ ④ Response 
+ 
+ 
+ ③ Flow accuracy
+[CF Error]  ① Flow accuracy [Calibration Gas] ⑧ Read data button  
+ 
+② Flow accuracy [CF Test Gas] ⑥ Write to Excel button ⑤ Zero Output 
+  Valve sheet leak
+ 
+ 
+ 
+ 
+① Flow accuracy [Calibration Gas] 
+This lists the record of results of calibration gas-applied calibration. 
+ 
+② Flow accuracy [CF Test Gas] 
+This lists the record of results of CF test gas-applied calibration. 
+ 
+③ Flow accuracy [CF Error] 
+This lists the CF error between calibration gas and test gas. 
+ 
+④ Response 
+This displays the ultimate time (sec) of flow with factory-default calibration gas as follows: 
+0→100[%]±2[%], 0→25[%]±0.5[%], and 0→10[%]±0.5[%]. 
+ 
+DMFC Utility Tool Manual 5312-001S EER0                 Advanced Energy Japan K.K. - 21 -
+
+--- PAGE 25 ---
+⑤ Zero Output/Valve sheet leak 
+This displays the factory-shipped zero-point output [%] and valve leak [%]. 
+ 
+⑥ Write to Excel button 
+This button is used to send calibration data, which is called up with Read data button, to MS Excel™.  
+Example: When calibration data provided on the previous page is sent to MS Excel™ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+⑦ Read data button 
+This button is used to call up calibration data (① to ⑤) from the active MFC. 
+ 
+ 
+DMFC Utility Tool Manual 5312-001S EER0                 Advanced Energy Japan K.K. - 22 -
+
+--- PAGE 26 ---
+5.5 Zero Screen 
+This screen is displayed only if FC-PA78*(C) Series MFC and FC-PA78*Z(C) Series MFC are selected. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+① Y-scale dial 
+This dial is used to change the vertical axis scale of the graph. 
+Scale range: ±0.5 to ±10 [%], expressed by 1%  
+ 
+④ Read data button 
+② Check Data# button 
+⑤ Erase data button
+③ Send to Excel button 
+① Y-scale dial
+② Check Data# button 
+This button is used to check the number of zero-point records 
+stored in the active MFC. Storage of up to 1250 records is 
+permitted, and the screen shown at right provides an example of 
+two records being stored. 
+ 
+③ Send to Excel button 
+This button is used to send record data, which is read from the active MFC, to MS Excel™. With the 
+click of this button, the dialog box shown below is displayed. Enter any work sheet number and click 
+on the OK button. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+DMFC Utility Tool Manual 5312-001S EER0                 Advanced Energy Japan K.K. - 23 -
+
+--- PAGE 27 ---
+The following message is displayed if MS Excel™ is not activated. In the event that the message 
+appears, launch MS Excel™ and re-click on the Send to Excel button. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+④ Read data button 
+This button is used to call up record data from the active MFC. 
+ 
+⑤ Erase data button 
+This button is used to delete record data from the active MFC. With the click of this button, the dialog 
+box shown below is displayed. Enter a password. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+The following dialog box is displayed if a valid password is presented to the computer. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Click on OK button to delete data, and Cancel button to cancel data deletion.  
+ 
+DMFC Utility Tool Manual 5312-001S EER0                 Advanced Energy Japan K.K. - 24 -
+
+--- PAGE 28 ---
+ 
+6 Others 
+6.1 Setting of Sampling Time 
+This section describes the following settings and function at the time of response waveform acquisition 
+performed from the Response Check screen: setting of sampling time, setting of time-axis scale, and 
+Y-axis automatic centering function. 
+ 
+The following dialog box is displayed with the click of “Tools” in the menu bar and choosing “Plot 
+configuration” or with the double click of any point on the graph.  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+X-axis scale   This allows you to change the time-axis scale via dragging the slider 
+given at right. 
+Polling Period This allows you to set the sampling time in numerical value or time. 
+Y-axis auto centering Automatic calibration of the display range is performed to keep a flow 
+setpoint at the center of the graph on the Response screen if this 
+checkbox is marked. The width of the analog meter is applied to that 
+of display. 
+ 
+6.2 Setting of Flow Rate Display Unit 
+The display unit for the flow setpoint and output falls into 
+three types: percent, sccm, and slm.  
+Click on “Tools” in the menu bar and choose a display unit 
+from Display unit menu.  
+The default is “Percent” upon program start. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+6.3 Setting of COM Port 
+COM ports with port numbers 1 to 10 assigned can be 
+connected. This application enables available COM ports 
+to be searched upon program start, and invalid ports are 
+grayed out. The screen s hown at right provides an 
+example that COM1 is currently selected out of available 
+ports, COM1, COM2 and COM4. 
+COM port setting is available only when communication 
+with DMFC is disconnected. 
+ 
+ 
+ 
+ 
+ 
+ 
+DMFC Utility Tool Manual 5312-001S EER0                 Advanced Energy Japan K.K. - 25 -
+
+--- PAGE 29 ---
+6.4 Setting of Baud Rate 
+9600-bps communication permits sampling to be executed at speeds 80 to 100 msec, and some of 
+FC-PA780ZC Series DMFCs are capable of supporting 115.2-Kbps communication that enables 15-msec 
+sampling. This section describes the procedure for changing a baud rate. 
+①Click on “Tools” in the menu bar and choose “Serial port” and 
+“BPS rate setting” to designate “Fast (115.2Kbps)” for a baud rate. 
+②This application automatically brings serial 
+communication to tentative disconnection 
+and allows it to be reconnected. 
+③Make sure of no false information on MFC 
+being provided in the list. 
+④ Click on the Serial-Connect button to 
+disconnect serial communication. 
+ 
+For communication at 115.2 Kbps, see “3.2 RS-232C/RS-485 Communication Converter” for converter 
+types. 
+ Note: 
+This application runs at 9600 bps of baud rate. If this application is connected 
+to MFC with 115.2 Kbps predetermined for the baud rate, an error message is 
+displayed that disables further connection. For sidestepping this error, click on 
+“Tools” in the menu bar and choose “Serial port” and “BPS rate setting”. 
+Designate “Fast (115.2Kbps)”, and then click on the Serial-Disconnect button.
+ 
+ 
+ 
+ 
+ 
+ 
+6.5 Help 
+You can access the on-screen Instruction Manual 
+from Display menu that is opened by clicking on 
+“About” in the menu bar and choosing “Manual”. 
+This function is available only on the computer with 
+Adobe Acrobat Reader 5.0 or greater installed. The 
+on-screen Instruction Manual is available in Japanese 
+and English. For language selection, click on 
+“About” in the menu bar and choose “Manual” and 
+“Language” in sequence. (Default: English) 
+The Instruction Manuals are stored under the file names shown below: 
+Japanese version: DMFC_Utility_Tool_Manual_Japanese.pdf 
+English version: DMFC_Utility_Tool_Manual_English.pdf 
+The manuals are retained in the folder that the application runs on.  
+The initial use of this function is to be attempted by the launch of Acrobat Reader from the dialog. 
+Upon installation of Acrobat Reader at the default, information is stored in an executive file (AcroRd32.exe) 
+under the folder of C:¥Program Files¥Adobe¥Acrobat *.*¥Reader.  
+Automatic program start is ensured in further use of this function. 
+To change the folder for Acrobat Reader upgrading, go to “About” in the menu bar and choose “Manual” and 
+“Initialize” in sequence. Initialization takes place, which urges you to restart Acrobat Reader from the dialog.  
+DMFC Utility Tool Manual 5312-001S EER0                 Advanced Energy Japan K.K. - 26 -
+
+--- PAGE 30 ---
+ 
+6.6 Password Change 
+This application is password-protected. Password change is enabled from 
+Password change menu in “About” in the menu bar. Password entry is 
+required for deleting zero-point data that has been stored in DMFC through 
+the use of the zero-point record control function. 
+ 
+Enter the current password on the following dialog box when displayed. 
+Default: Password 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+The following dialog box is displayed if agreement between input data and the current password is assured.  
+Enter a new password upon display of the following dialog box, and re-enter the new password in response to the 
+prompts. The new password takes effect if the re-entered password agrees.  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+6.7 Software Version 
+Software version can be checked from Version menu in “About” in 
+the menu bar. 
+ 
+The Registry initialize button is used to reset software setting to its 
+condition immediately after installation. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+DMFC Utility Tool Manual 5312-001S EER0                 Advanced Energy Japan K.K. - 27 -
+
+--- PAGE 31 ---
+7 Trouble shooting 
+ 
+・ No recognition of DMFC at communication start 
+ 
+Cause 1 : Overlap between DMFC ID numbers 
+Remedy 1 : Assign a unique ID number to individual DMFC to avoid overlaps. (see section 6.2) 
+ 
+Cause 2 : Improper COM port number 
+Remedy 2 : This application is capable of detecting an available communication port number upon its 
+launch, which enables you to select a port from “Tool” – “COM Port setting”. Not all the 
+available ports are regarded as  a RS232C communication port to capitalize on. A proper port 
+number must be selected. If USB port connecting type USB485-AE1 is used, a COM port 
+number is displayed in “BITS RS-485/USB Converter BSU-485/US1 (COM*)” layered under 
+Port (COM and LPT) in Device Manager of Control Panel. In the example given below, a 
+COM port number is set to 2. 
+ 
+      
+  
+ 
+For changing the port number, go to Property to open Port settings tab. The following window is 
+displayed with the click of Advanced button, which allows changing the COM port number. 
+ 
+      
+  
+ 
+ 
+Cause 3 : Disagreement of the baud rates between MFC and software 
+DMFC Utility Tool Manual 5312-001S EER0                 Advanced Energy Japan K.K. - 28 -
+
+--- PAGE 32 ---
+Remedy 3 : Some of MFCs selected on the initial screen permit selection of multiple baud rates.  
+MFC recognition fails if the baud rate of this software disagrees with that of MFC. 
+ 
+Cause 4 : Inadequate Max serial ID number 
+Remedy 4 : DMFC ID number is to be set to 1 to 63. The maximum ID number is required to be specified 
+in “Max serial ID”, which causes an intended  MFC to fail to be detected upon communication 
+start if the MFC ID number surpasses Max serial ID. Increment the number in Max serial ID. 
+ 
+Cause 5 : No communication is established if outdated version of software is used in respect of 
+ FC-D98 Series MFC. 
+Remedy 5 : Contact us for details. 
+ 
+ 
+・Auto zero-point adjustment failed 
+ 
+Cause 1 : The current zero point is out of its adjustable range. 
+Remedy 1 : Factory-shipped zero-point adjustment da ta is stored in DMFC. DMFC is configured to 
+perform auto zero-point adjustment under the condition that comparison between the 
+factory-shipped and the current zero-point adjustment data reveals a cumulative zero-point 
+shift being in ±10%FS. An error is raised if the zero-point shift is out of the adjustable range, 
+which disables zero-point adjustment. Potential deterioration of flow accuracy in MFC may be 
+concerned. Re-calibration of flow rate is required to recover from this error.  
+ 
+Cause 2 : Gas flow is observed. 
+Remedy 2 : Auto zero-point adjustment fails and an error is raised if gas leaks into DMFC due to 
+incomplete shutoff of gas flow. Ensure that gas flow is stemmed completely with the shutoff 
+valve, and retry auto zero-point adjustment. 
+ 
+ 
+Inquiry about Products 
+If you have any questions or concerns with regard to usage of our products, please contact the nearest 
+office or our Customer Service.  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Printed in Japan 
+ 
+ 
+ 
+DMFC Utility Tool Manual 5312-001S EER0                 Advanced Energy Japan K.K. - 29 -

@@ -1,0 +1,4 @@
+Label,Temperature_C,RampRate_C_per_min,GasA_sccm,GasB_sccm,X_mm,Y_mm,Z_mm,V_dc,dV,HoldTime_s,PostPEIS_HoldTime_s,PEIS_fHigh,PEIS_fLow,PEIS_nPts,CA_duration_s,CA_dt,StableTime_s,GasStableTime_s,Skip
+V+0.000,None,None,None,None,None,None,None,0.0,0.03,10,5,100000,0.1,60,10,0.1,None,None,0
+V+0.100,None,None,None,None,None,None,None,0.1,0.03,10,5,100000,0.1,60,10,0.1,None,None,0
+V+0.200,None,None,None,None,None,None,None,0.2,0.03,10,5,100000,0.1,60,10,0.1,None,None,0

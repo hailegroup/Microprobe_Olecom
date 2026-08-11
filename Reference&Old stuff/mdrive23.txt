@@ -1,0 +1,285 @@
+Quick Reference  MDrive® 23                                                              General Specifications
+                 Motion Control
+                                                                                         Electrical Specifications
+
+                                                                                         Input Voltage (+V) *         Single, Double and Triple Length                    +12 to +75 VDC
+                                                                                                                      Quad Length                                         +12 to +60 VDC
+
+                                                                                         Max Power Supply Current Single, Double and Triple Length                                         2A
+                                                                                                                                                                                        3.5 A
+                                                                                         (Per MDrive 23)*             Quad Length                                         +12 to +24 VDC
+                                                                                                                                                                              161 mA Max
+                                                                                         Aux-Logic Input Voltage**
+
+                                                                                         Aux-Logic Input Current**
+
+                                                                                         *Actual Power Supply Current will depend on voltage and load.
+
+                                                                                         **Used to power logic circuitry in the absence of +V.
+
+                                                                                         Environmental Specifications
+
+                                                                                         Operating Temperature        Heat Sink                                            -40°C to +85°C
+                                                                                         (non-condensing)             Motor                                               -40°C to +100°C
+
+Notes and Warnings                                                                       I/O Specifications                                                4 I/O programmable as inputs
+                                                                                         General Purpose I/O - Number and Type                                          (sinking or sourcing)
+   Installation, configuration and maintenance must be carried out by qualified                                                                                          or outputs (sinking)
+   technicians only. You must have detailed information to be able to carry out this     I/O Points 1-4
+   work. This information can be found in the user manuals.                                                                                             8 I/O programmable as inputs or
+                                                                                         I/O Points 1-4, 9-12 (Plus2 expanded feature)                       outputs (sinking or sourcing)
+   · Unexpected dangers may be encountered when working with this product!
+   · Incorrect use may destroy this product and connected components!                    General Purpose I/O - Electrical                                                TTL up to +24 VDC
+                                                                                         Inputs                                                                               Up to +24 VDC
+   The user manuals are not included. You can obtain them from the Internet at:          Sinking Outputs                                                                     +12 to +24 VDC
+   http://www.imshome.com/downloads/manuals.html.                                        Sourcing Outputs (Plus2 expanded feature)
+                                                                                         Output Sink Current                                                  up to 600 mA (one channel)
+Required for Setup*                                                                      Output Sink Current (Plus2 expanded feature)                                            up to 600 mA
+                                                                                         Logic Threshold (Logic 0)
+    · PC running Microsoft® Windows XP Service Pack 2 or greater.                        Logic Threshold (Logic 1)                                        (one channel in each I/O bank)
+                                                                                         Protection (Sinking)                                                                        < 0.8 VDC
+    · IMS Terminal integrated program editor and terminal emulator                       Protection (Sourcing)                                                                       > 2.2 VDC
+            (available online).                                                          Analog Input
+                                                                                         Resolution                                                               Over Temp, Short Circuit
+    · +12 to +75 VDC (+12 to +60 VDC if using a quad length motor) unregu-               Range (Voltage Mode)                                                      Transient Over Voltage,
+            lated linear or switching power supply.RS-422/485 communications             Range (Current Mode)
+            interface (recommended: MD-CC400-001 or MD-CC402-001 Communica-              Clock I/O                                                                           Inductive Clamp
+            tion Converters). Or CANopen communications converter (recommended:          Types
+            MD-CC500-000).                                                                                                                                                                 10 Bit
+                                                                                         Logic Threshold                                                      0 to +5 VDC, 0 to +10 VDC
+    Depending on your MDrive connectors configuration, you may also Power in-            Trip Output/Capture Input
+    terface to 2-pin wire crimp connector (recommended: PD02-2300-FL3 prototype          Logic Threshold                                                             4 to 20 mA, 0 to 20mA
+    development cable).
+                                                                                                                                                                 Step/Direction, Up/Down,
+    · If using the 7-pin pluggable terminal we recommend 22 AWG shielded                                                                                                            Quadrature
+            twisted pairs for logic wiring. Wire gauge for power connection varies with
+            the distance from the MDrive and current. See MDrive product manual.                                                                               +5V TTL Input, TTL Output
+                                                                                                                                                                (with 2 k load to ground)
+    · I/O interface to 14-pin wire crimp connector. (Recommended: PD14-2334-
+            FL3 prototype development cable)                                                                                                                   +5V TTL Input, TTL Output
+                                                                                                                                                                (with 2 k load to ground)
+    * If you purchased your MDrive with a QuickStart Kit, you have received all of
+    the connecting cables needed for initial functional setup and system testing.        Communications Specifications                                                    RS-422/RS-485
+                                                                                                                                                4.8k, 9.6k, 19.2k, 38.4k, 115.2 kbps
+Getting Started                                                                          Protocol
+                                                                                         BAUD Rate                                                                       CAN 2.0B Active
+    All documentation, software and resources are available online at:                   CANopen Option                                                                        CiA DS-301
+    http://www.imshome.com/products/mdrive_motor_driver.html.                            Protocol
+                                                                                         Communications Profile                                        10, 20, 50, 125, 250, 500, 800
+    Connecting Power and I/O                                                             BAUD Rate                                                              kBit/s, 1MBit/s (default)
+    Your MDrive is configured with power and I/O combined on a single connector.         Note: 800 kbps not supported by the MD-CC500-000
+    Please refer to the opposite side of this document for connecting details and        USB to CANopen dongle.
+    available connectivity options including Prototype Development Cables and
+    Mating Connector Kits.                                                               Motion Specifications                                                                          20
+
+    Connecting Communications -- RS-422/485                                              Microstep Resolution - Open Loop                                                         10000
+    1. Connect RS-422/485 communications converter to MDrive and PC.                     Number of Resolutions                                                                    254003
+
+    2. Install the communication converter drivers onto PC (available online).            200     400           800      Available Microsteps Per Revolution   5000        6400
+                                                                                         12800   20000         25000  1000 1600 2000 3200                     360001      216002
+    3. Install and open IMS Terminal.                                                                                 25600 40000 50000 51200
+
+    4. Apply power to MDrive.                                                            1=0.01 deg/step       2=1 arc minute/step 3=0.001 mm/step
+
+    5. Within IMS Terminal, click into the Terminal Window (shown below).                Software Specifications                                                          Flash/6384 Bytes
+                                                                                         Program Storage Type/Size
+    6. Key in CTRL+C. The MDrive sign-on message:
+            "Copyright 2001-2008 by Intelligent Motion Systems, Inc."                    Mechanical Specifications
+            should appear, verifying that communications is active.
+                                                                                         NOTE: For linear actuator products, see manual for screw specifications
+
+                                                                                                          1.90                                                     2.02
+                                                                                                         (48.3)                                                   (51.2)
+                                                                                                 Connector                                                         1.63
+                                                                                                   Option                                                         (41.4)
+
+                                                                                                      P1                    0.81
+                                                                                                                           (20.6)
+                                                                                                                                                                                  Ø 0.197
+                                                                                                                                                                                  (Ø 5.0)
+
+                                                                                          2.96   P2                                                                               1.856 SQ
+                                                                                         (75.2)
+
+                                                                                                 Connector                                                                        (47.1 SQ.
+                                                                                                   Option
+                                                                                                                                         A                    B
+                                                                                                                   LMAX1
+                                                                                                           LMAX2                        0.19                         2.22 SQ.
+                                                                                                                                        (4.9)                       (56.4 SQ.)
+
+                 Terminal Emulator                                                                                                      Dimensions in inches (mm)
+                 Window
+Program Editor                                                                                             Motor Length   LMAX (Single Shaft)   LMAX2 (Control Knob
+Window                                                                                                                                          or External Encoder)
+                                                                                                                Single
+                                                                                                               Double            2.65 (67.31)                 3.36 (85.34)
+                                                                                                                Triple
+                                                                                                                Quad             3.02 (76.71)                 3.73 (94.74)
+
+                                                                                                                                 3.88 (98.55)                 4.59 (116.59)
+
+                 >Copyright 2001-2008 by Intelligent Motion Systems. Inc.
+
+                                                                                                                                 5.28 (134.15)                5.99 (152.19)
+
+Connecting Communications -- CANopen                                                                       A Single, Double & Triple            B Single, Double & Triple
+                                                                                                                  Length Motors:                       Length Motors:
+A "Getting Started" tutorial using the IMS CANopen Tester GUI with the                                            0.230 ±0.004                         Ø 0.2500 +0/-0.0005
+MD-CC500-000 USB to CANopen dongle is located in the CANopen                                                      (5.8 ±0.1)                           (Ø 6.350 +0/-0.013)
+implementation manual, available online.
+                                                                                                                  Quad Length Motor:                   Quad Length Motor:
+                                                                                                                  0.2756 ±0.004                        Ø 0.315 +0/-0.0005
+                                                                                                                  (7.0 ±0.1)                           (Ø 8.0 +0/-0.013)
+
+All documentation, software, program examples and resources are available                                                 MDrive 23 Motion Control Quick Reference R070610
+online at: http://www.imshome.com/products/mdrive_motor_driver.html.
+MDrive 23                                                 P1                                                       Connector Style              Function
+Motion Control                                       P3
+Connectivity Options                                                                                    P1 Pluggable Terminal...................... I/O and Power
+                                                                                                                  Flying Leads................................ I/O and Power
+                                                                                                                  14-pin Wire Crimp....................... I/O
+
+                                                     P2                                                 P2         10-pin Wire Crimp....................... Communications
+                                                                                                        P3         10-pin IDC................................... Communications
+                                                                                                                   DB-9 (male)................................. Communications
+
+                                                                                                                                                                (CANopen version)
+
+                                                                                                                   2-pin Wire Crimp......................... Power
+
+P1 I/O & Power                                                                               P2 Communications -- RS-422/485
+        Pluggable terminal or flying leads                                                            10-pin wire crimp
+
+               Pluggable Terminal                         Flying Lead Colors
+
+                     1     I/O1                          Wire Color    Function                                       TX+       9 10         TX-
+                                                         White/Yellow  I/O1                                           RX+       78           RX-
+                     2     I/O2                          White/Orange  I/O2                                    Aux-Logic        56           RX+
+                                                         White/Violet  I/O3                                            RX-      34           TX-
+                     3     I/O3                          White/Blue    I/O4                                           TX+       12           Comm Gnd
+                                                         Green         Analog In
+                     4     I/O4                          Black         Ground
+                                                         Red           +V
+                     5     Analog In
+
+                     6     GND
+
+                     7     +V
+
+               User Supplied Recommended
+               Wire: 22 AWG Stranded
+
+P1 I/O                                                                                       Communications Converter p/n: MD-CC402-001
+        14-pin wire crimp
+                                                                                             Electrically isolated in-line USB to RS-422/485 converter pre-wired with mating
+                                                                                             connector to conveniently program and set configuration parameters.
+
+                                                                                                                                6.0' (1.8m)                   6.0' (1.8m)
+
+Step Clock                 13 14          Direction      Remote Encoder Option               To MDrive                                                                To computer
+Capture/Trip               11 12          Analog In      Pin Function                        10-pin friction lock                                                     USB port
+I/O11                      9 10           I/O12                                              wire crimp connector
+I/O9                       78             I/O10            7 CH A +                                                                          in-line converter
+I/O3                       56             I/O4             8 CH A-
+I/O1                       34             I/O2             9 CH B+
+I/O Power                  12             I/O GND         10 CH B-
+                                                          13 IDX +
+                                                          14 IDX-
+
+Prototype Development Cable p/n: PD14-2334-FL3
+Speed test and development with pre-wired mating connector.
+
+To MDrive                                            Pair Wire       Function    Encoder     Prototype Development Cable p/n: PD10-1434-FL3
+14-pin wire crimp                                            Colors              Function
+JST connector                                                        Step Clock  IDX-        Speed test and development with pre-wired mating connector. Recommended
+                                          To I/O     1   White       Direction   IDX+        for multi-drop systems, can be used in conjunction with the MD-CC402-001.
+  10.0' (3.0m)                                           Black       Capt/Trip   Capt/Trip
+                                                                     Analog In   Analog In
+                                                     2   Green       I/O11       CH B+
+                                                         Black       I/O12       CH B-
+                                                                     I/O9        CH A +      To MDrive                                          Wire Colors                   Function
+                                                         Blue        I/O10       CH A-       10-pin friction lock
+                                                     3   Black       I/O3        I/O3        wire crimp connector                                                   White/Red Stripe Aux-Logic
+                                                                     I/O4        I/O4
+                                                         Yellow      I/O1        I/O1        10.0' (3.0m)                       To Communications White/Blue Stripe TX+
+                                                         Black       I/O2        I/O2
+                                                     4               I/O Power   I/O Power                                                      Blue/White Stripe TX-
+                                                                     I/O Ground  I/O Ground
+                                                         Brown                                                                                  White/Orange Stripe RX+
+                                                         Black
+                                                     5                                                                                          Orange/White Stripe RX-
+
+                                                          Orange                                                                                Green/White Stripe GND
+                                                     6 Black
+                                                                                                                             Flying leads
+                                                     7   Red                                                       terminated by crimp
+                                                         Black
+                                                                                                                      pins for multidrop
+Mating Connector Kit p/n: CK-09                                                                                        connection (see
+                                                                                                                       product manual)
+Use to make your own cables, kit contains 5 mating connector shells with crimp
+pins. JST crimp tool recommended.                                                            Mating Connector Kit p/n: CK-02
+
+JST Parts               Shell: PADP-14V-1-S                                                  Use to make your own cables, kit contains 5 mating connector shells with crimp
+                        Pins: SPH-001T-P0.5L                                                 pins. Hirose crimp tool recommended.
+
+                                                                                             Hirose Parts          Shell: DF11-10DS-2C
+                                                                                                                   Pins: DF11-2428SC
+P3 Power
+         2-pin wire crimp
+
+                                   2      GND                                                P2 Communications -- RS-422/485
+                                                                                                      10-pin IDC
+                                   1      Power
+
+Prototype Development Cable p/n: PD02-2300-FL3                                                                            TX+   12           TX-
+Function: Power Interface                                                                                                 RX+   34           RX-
+                                                                                                                   Aux-Logic    56           RX+
+To MDrivePlus                      To Power                                                                                RX-  78           TX-
+2-pin wire crimp                                                                                                          TX+   9 10         Comm Gnd
+                                                     Wire Colors       Function
+       10.0' (3.0m)                                  Black             Power Ground
+                                                     Red               +V
+
+Mating Connector Kit p/n: CK-04                                                              Communications Converter p/n: MD-CC400-001
+                                                                                             Electrically isolated in-line USB to RS-422/485 converter pre-wired with mating
+Use to make your own cables, kit contains 5 mating connector shells with crimp               connector to conveniently program and set configuration parameters.
+pins. Tyco crimp tool recommended.
+                                                                                                                                                                                6.0' (1.8m)
+Tyco Parts              Shell: 794617-2
+                        Pins: 794610-1
+
+P2 Communications -- CANopen version                                                         To MDrive 10-pin                                                                 To compute
+        DB-9 (male)                                                                          IDC connector                                                                    USB port
+
+Communications Converter p/n: MD-CC500-000
+
+Electrically isolated in-line USB to CANopen converter. USB "A" Type connector
+to DB-9 (Male). An interface cable must be constructed by the user.
+
+Mating Cable Requirements                                                                                                                  in-line converter
+                                                                                                                                6.0' (1.8m)
+The following diagram illustrates the parts and connections for an interface
+cable connecting the MD-CC500-000 to the MDrive. Required Parts: (2) DB-9                    Mating Connector Kit p/n: CK-01
+(female), +7 to +30 VDC power supply, (1) 120 terminating resistor.
+                                                                                             Use to make your own cables, kit contains 5 mating connector shells for making
+     DB-9F                                DB-9F           CAN +V                             interface cables.
+                                                          (+7 to +30 VDC)
+Connector Front View                      CAN +V          CAN -V (Ground)
+                                          CAN -V
+Pin 3: CAN -V                             CAN-H           Power Supply                       IDC Parts             Shell:       SAMTEC TCSD-05-01-N
+Pin 5: CAN-Shield                         CAN-L
+                     Pin 2: CAN-L                                                DB-9F                             Ribbon Cable: AMP 1-57051-9
+
+                                                                                  CAN-H
+                                                                                  CAN-L
+
+Pin 9: CAN +V        Pin 7: CAN-H         MDrive     120                   MD-CC500-000
+
+                                          P2 Termination Resistor
+
+                                                     Required
+
+Copyright © Schneider Electric Motion USA www.schneider-electric-motion.us
+

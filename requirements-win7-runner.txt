@@ -1,0 +1,37 @@
+# Windows 7 measurement-runner environment.
+#
+# Recommended interpreter on the old instrument PC:
+#   Python 3.8.10, 64-bit if the BioLogic/EC-Lab DLL stack is 64-bit.
+#
+# Keep this intentionally lighter than requirements.txt. The Win7 machine should
+# run hardware acquisition; heavy plotting/vision/PowerPoint work can stay on the
+# newer Codex computer.
+
+pip<25
+setuptools<81
+wheel
+
+numpy==1.24.4
+pandas==2.0.3
+pyserial==3.5
+matplotlib==3.7.5
+scipy==1.10.1
+comtypes>=1.1.14
+galvani
+
+# Standalone analysis GUI (analysis_gui.py) — lets the runner re-analyze the
+# .txt CA/PEIS files it exports (CP->EIS recovery, RQRQRQ fit, Excel export).
+# numpy/pandas/scipy/matplotlib above are shared; add only the Excel engine:
+xlsxwriter==3.1.9
+# NOTE: reading raw BioLogic .mpr/.mpt needs `yadg`, which requires Python >=3.10
+# and therefore CANNOT be installed on this Win7 / Python 3.8 box. On the runner
+# the analysis GUI works with the .txt exports it produces (which is all it
+# writes). Native Origin .opju export (originpro) also needs a desktop Origin
+# install and is only available on the newer analysis machine.
+
+# Hardware drivers / wrappers used by the runner.
+# easy-biologic remains listed for legacy/debug only. Production BioLogic
+# communication is OLE-COM via EC-Lab; do not mix both in one instrument session.
+easy-biologic>=0.4,<0.5
+pywatlow
+pymodbus==2.5.3

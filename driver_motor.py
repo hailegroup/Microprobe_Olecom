@@ -13,7 +13,11 @@ Motor echoes every command back before sending the response.
 Key commands (axis prefix omitted for clarity):
   MA {steps}   absolute move
   MR {steps}   relative move
-  SL 0         stop
+  SL 0         stop a slew (velocity) move -- does NOT reliably preempt an
+               in-progress MA/MR position move (confirmed on hardware: the
+               axis just runs the position move to completion and ignores it)
+  STOP         immediate stop -- aborts whatever motion (MA/MR/SL) is
+               currently in progress; this is what stop() actually sends
   HM 1         home
   PR P         read position in steps  (also PR CL works)
   PR MP        1 = moving to position, 0 = stopped
@@ -142,7 +146,13 @@ class MDriveMotor:
         self._send(axis, f"MR {steps}")
 
     def stop(self, axis: str):
-        self._send(axis, "SL 0")
+        """Immediately abort whatever motion (MA/MR/SL) is currently in
+        progress on axis. "SL 0" was tried first (a common shorthand seen
+        in reference material for this command set) but confirmed on
+        hardware to NOT preempt an in-progress MA/MR position move -- the
+        axis just ran the move to completion and ignored it. "STOP" is the
+        command that actually aborts in-progress motion."""
+        self._send(axis, "STOP")
 
     def home(self, axis: str):
         self._send(axis, "HM 1")
@@ -206,10 +216,29 @@ class MDriveMotor:
           1. lift Z to a travel-safe clearance,
           2. move X/Y,
           3. move back to the target Z.
+
+        Independent of that: every X/Y move to a real target position (not
+        the transient Z clearance hop) is preceded by a jog to
+        (target - backlash_overshoot_mm), so the final leg always approaches
+        from the same direction -- see
+        STAGE_SAFE_MOVE['backlash_overshoot_mm']. Z uses its own, separate
+        overshoot ('z_backlash_overshoot_mm', 0 by default) since a Z target
+        can sit right at the sample surface, where forcing every move to
+        retract and then finish with a guaranteed-minimum descent is a real
+        collision risk that X/Y moves don't share.
         """
         safe_cfg = dict(STAGE_SAFE_MOVE)
         if safe_move:
             safe_cfg.update(safe_move)
+
+        xy_overshoot = float(safe_cfg.get("backlash_overshoot_mm", 0.0) or 0.0)
+        z_overshoot = float(safe_cfg.get("z_backlash_overshoot_mm", 0.0) or 0.0)
+
+        def append_target(moves_list, axis, value):
+            overshoot = z_overshoot if axis == "Z" else xy_overshoot
+            if overshoot > 0:
+                moves_list.append((axis, value - overshoot))
+            moves_list.append((axis, value))
 
         current = {
             axis: current_positions.get(axis)
@@ -235,7 +264,7 @@ class MDriveMotor:
         if not safe_cfg.get("enabled", False):
             for axis in ("X", "Y", "Z"):
                 if changed(axis):
-                    moves.append((axis, float(target[axis])))
+                    append_target(moves, axis, float(target[axis]))
             return moves
 
         xy_changed = x_changed or y_changed
@@ -261,12 +290,12 @@ class MDriveMotor:
 
         for axis in ("X", "Y"):
             if changed(axis):
-                moves.append((axis, float(target[axis])))
+                append_target(moves, axis, float(target[axis]))
 
         if cls._is_finite_number(target.get("Z")):
             reference_z = clearance_z if cls._is_finite_number(clearance_z) and xy_changed else current_z
             if (not cls._is_finite_number(reference_z)) or abs(float(reference_z) - float(target["Z"])) > tol_mm:
-                moves.append(("Z", float(target["Z"])))
+                append_target(moves, "Z", float(target["Z"]))
 
         return moves
 

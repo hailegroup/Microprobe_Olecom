@@ -4,9 +4,11 @@ Microprobe Automated Measurement — GUI
 Run: python gui.py
 """
 
+import faulthandler
 import os
 import platform
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -15,6 +17,8 @@ import traceback
 import queue
 import socket
 import json
+import math
+import csv
 
 import numpy as np
 import pandas as pd
@@ -44,6 +48,8 @@ BIOLOGIC_IP = getattr(_config, 'BIOLOGIC_IP', '192.109.209.128')
 BIOLOGIC_BACKEND = getattr(_config, 'BIOLOGIC_BACKEND', 'olecom')
 BIOLOGIC_ALLOW_EASY_FALLBACK = getattr(_config, 'BIOLOGIC_ALLOW_EASY_FALLBACK', False)
 BIOLOGIC_OLECOM_BANDWIDTH = getattr(_config, 'BIOLOGIC_OLECOM_BANDWIDTH', 4)
+BIOLOGIC_OLECOM_CA_BANDWIDTH = getattr(_config, 'BIOLOGIC_OLECOM_CA_BANDWIDTH', 4)
+BIOLOGIC_OLECOM_CA_I_RANGE = getattr(_config, 'BIOLOGIC_OLECOM_CA_I_RANGE', 'Auto')
 BIOLOGIC_OLECOM_MIN_FFT_DURATION_S = getattr(_config, 'BIOLOGIC_OLECOM_MIN_FFT_DURATION_S', 100.0)
 BIOLOGIC_OLECOM_PRE_MAX_S = getattr(_config, 'BIOLOGIC_OLECOM_PRE_MAX_S', 300.0)
 BIOLOGIC_OLECOM_SCOUT_MAX_S = getattr(_config, 'BIOLOGIC_OLECOM_SCOUT_MAX_S', 300.0)
@@ -71,61 +77,157 @@ def _vision_unavailable(*_args, **_kwargs):
 try:
     from vision.electrode_mapper import (
         annotate_detections,
-        compute_ecc_affine_registration,
-        detect_electrode_map,
-        detect_electrode_map_rgb,
         detect_live_microscope_electrode_map_rgb,
-        detect_markup_electrode_map_rgb,
-        detect_reference_microscope_electrode_map_rgb,
         filter_live_overlay_detections,
         refine_circular_electrode_map_rgb,
-        scale_detection_table,
-        strip_red_markup_from_rgb,
-        transform_detection_table,
     )
 except Exception as exc:
     VISION_IMPORT_ERRORS.append(f"vision.electrode_mapper: {exc}")
     annotate_detections = _vision_unavailable
-    compute_ecc_affine_registration = _vision_unavailable
-    detect_electrode_map = _vision_unavailable
-    detect_electrode_map_rgb = _vision_unavailable
     detect_live_microscope_electrode_map_rgb = _vision_unavailable
-    detect_markup_electrode_map_rgb = _vision_unavailable
-    detect_reference_microscope_electrode_map_rgb = _vision_unavailable
     filter_live_overlay_detections = _vision_unavailable
     refine_circular_electrode_map_rgb = _vision_unavailable
-    scale_detection_table = _vision_unavailable
-    strip_red_markup_from_rgb = _vision_unavailable
-    transform_detection_table = _vision_unavailable
 
 try:
-    from vision.roi_verifier import verify_roi_revisit
+    from vision.circle_detector import load_hough_params
 except Exception as exc:
-    VISION_IMPORT_ERRORS.append(f"vision.roi_verifier: {exc}")
-    verify_roi_revisit = _vision_unavailable
+    VISION_IMPORT_ERRORS.append(f"vision.circle_detector: {exc}")
+    load_hough_params = _vision_unavailable
+
+try:
+    from vision.electrode_drift import detect_and_refit_frame
+except Exception as exc:
+    VISION_IMPORT_ERRORS.append(f"vision.electrode_drift: {exc}")
+    detect_and_refit_frame = _vision_unavailable
+
+try:
+    from vision.probe_detector import ProbeDetector, ProbeTip, load_probe_params
+except Exception as exc:
+    VISION_IMPORT_ERRORS.append(f"vision.probe_detector: {exc}")
+
+    class ProbeDetector:
+        def __init__(self, *args, **kwargs):
+            _vision_unavailable(*args, **kwargs)
+
+    class ProbeTip:
+        def __init__(self, *args, **kwargs):
+            _vision_unavailable(*args, **kwargs)
+
+    load_probe_params = _vision_unavailable
+
+try:
+    from vision.tuning_gui.tuning_gui import CircleTuningWindow
+    from vision.tuning_gui.probe_gui import ProbeTuningWindow
+except Exception as exc:
+    VISION_IMPORT_ERRORS.append(f"vision.tuning_gui: {exc}")
+
+    class CircleTuningWindow:
+        def __init__(self, *args, **kwargs):
+            _vision_unavailable(*args, **kwargs)
+
+    class ProbeTuningWindow:
+        def __init__(self, *args, **kwargs):
+            _vision_unavailable(*args, **kwargs)
+
+try:
+    from vision.layout_alignment import (
+        Circle,
+        LayoutModel,
+        apply_manual_nudge,
+        estimate_proj_radius,
+        fit_layout_affine,
+        project_all_circles,
+    )
+except Exception as exc:
+    VISION_IMPORT_ERRORS.append(f"vision.layout_alignment: {exc}")
+
+    class Circle:
+        def __init__(self, *args, **kwargs):
+            _vision_unavailable(*args, **kwargs)
+
+    class LayoutModel:
+        def __init__(self, *args, **kwargs):
+            _vision_unavailable(*args, **kwargs)
+
+    apply_manual_nudge = _vision_unavailable
+    estimate_proj_radius = _vision_unavailable
+    fit_layout_affine = _vision_unavailable
+    project_all_circles = _vision_unavailable
+
+try:
+    from vision.dxf_layout import (
+        extract_circles_from_dxf,
+        shift_to_origin,
+        warn_if_spacing_implausible,
+        write_json as write_layout_json,
+    )
+except Exception as exc:
+    VISION_IMPORT_ERRORS.append(f"vision.dxf_layout: {exc}")
+    extract_circles_from_dxf = _vision_unavailable
+    shift_to_origin = _vision_unavailable
+    warn_if_spacing_implausible = _vision_unavailable
+    write_layout_json = _vision_unavailable
 
 try:
     from vision_stage_mapper import (
-        SampleStageReference,
-        solve_sample_to_stage_affine_calibration,
-        sample_to_stage_xy,
+        PixelStageReference,
+        ProbeXYBiasCalibration,
+        ProbeZParallaxCalibration,
+        correct_pixel_for_xy_bias,
+        correct_pixel_for_z_parallax,
+        parallax_within_trusted_range,
+        solve_stage_affine_calibration,
+        pixel_to_stage_xy,
+        stage_to_pixel_xy,
     )
 except Exception as exc:
     VISION_IMPORT_ERRORS.append(f"vision_stage_mapper: {exc}")
 
-    class SampleStageReference:
+    class PixelStageReference:
         def __init__(self, *args, **kwargs):
             _vision_unavailable(*args, **kwargs)
 
-    solve_sample_to_stage_affine_calibration = _vision_unavailable
-    sample_to_stage_xy = _vision_unavailable
+    class ProbeXYBiasCalibration:
+        def __init__(self, *args, **kwargs):
+            _vision_unavailable(*args, **kwargs)
+
+    class ProbeZParallaxCalibration:
+        def __init__(self, *args, **kwargs):
+            _vision_unavailable(*args, **kwargs)
+
+    correct_pixel_for_xy_bias = _vision_unavailable
+    correct_pixel_for_z_parallax = _vision_unavailable
+    parallax_within_trusted_range = _vision_unavailable
+    solve_stage_affine_calibration = _vision_unavailable
+    pixel_to_stage_xy = _vision_unavailable
+    stage_to_pixel_xy = _vision_unavailable
+
+try:
+    from vision.electrode_z_seed import ElectrodeZCalibrationStore
+except Exception as exc:
+    VISION_IMPORT_ERRORS.append(f"vision.electrode_z_seed: {exc}")
+
+    class ElectrodeZCalibrationStore:
+        def __init__(self, *args, **kwargs):
+            _vision_unavailable(*args, **kwargs)
+
+        @classmethod
+        def load(cls, *args, **kwargs):
+            return cls()
 
 VISION_AVAILABLE = (
     cv2 is not None
     and Image is not None
     and ImageTk is not None
-    and not any(err.startswith("vision.") for err in VISION_IMPORT_ERRORS)
+    # vision.dxf_layout depends on the separate optional `ezdxf` package and
+    # only backs the DXF-layout-alignment workflow; its absence should not
+    # disable core camera/electrode/probe tracking.
+    and not any(
+        err.startswith("vision.") and not err.startswith("vision.dxf_layout")
+        for err in VISION_IMPORT_ERRORS
+    )
 )
+VISION_DXF_LAYOUT_AVAILABLE = not any(err.startswith("vision.dxf_layout") for err in VISION_IMPORT_ERRORS)
 
 # ── 측정 관련 import (연결 실패해도 GUI는 뜨도록) ───────────────────────────
 def _safe_import():
@@ -186,6 +288,9 @@ CLR_ORANGE  = '#e67e22'
 CLR_BLUE    = '#2980b9'
 CLR_LGRAY   = '#ecf0f1'
 CLR_GOLD    = '#f1c40f'
+# Cosmetic-only radius for DXF-layout-alignment click markers -- the affine
+# fit only uses the clicked center, not this radius.
+_IMAGE_LAYOUT_DRAWN_MARKER_RADIUS_PX = 10
 SKIP_TOKENS = {'', 'nan', 'none', 'non', 'skip', '-', 'na', 'n/a'}
 GAS_SETTING_COLUMNS = {
     'A': ('GasA_setting', 'GasA_sccm'),
@@ -202,9 +307,37 @@ MONITOR_QUEUE_BATCH_LIMIT = 120
 MONITOR_REDRAW_INTERVAL_MS = 250
 MONITOR_DROP_LIVE_QUEUE_ABOVE = 200
 MANUAL_OCV_POLL_INTERVAL_MS = 1000
+MANUAL_HISTORY_POLL_INTERVAL_MS = 5000
 ENABLE_BIOLOGIC_LIVE_SCALAR_POLL = False
 CONTACT_CONFIRM_DURATION_S = 10.0
+# Tolerance on the Z-contact search's safety-lock comparison (beyond_seed >
+# max_beyond_seed_mm): the search's own step math can land a step's
+# computed position a few ULPs past an exact mm-scale boundary purely from
+# binary floating-point representation (e.g. 50 * 0.005 != 0.25 exactly),
+# which would otherwise spuriously trip the safety lock on an intended,
+# in-bounds step. 1e-6 mm (1 nm) is far larger than that noise and far
+# smaller than anything that matters mechanically.
+CONTACT_SAFETY_LOCK_EPSILON_MM = 1e-6
+
+
+class ContactNotConfirmedError(RuntimeError):
+    """Raised specifically when a Z-contact search's OCV never came within
+    threshold and held through confirmation -- as opposed to a hardware/
+    safety-lock/stop failure, which stay plain RuntimeError and still
+    abort the run. Carries last_z, the Z the search's final step reached,
+    so a caller that wants to proceed anyway has a usable height."""
+    def __init__(self, message, last_z):
+        super().__init__(message)
+        self.last_z = last_z
+
+
 CONTACT_CONFIRM_POLL_S = 1.0
+# How closely a "Move Tip" move's driven XY must match a locked Image
+# Monitor target's freshly-projected stage XY to count as having moved to
+# that target (Search Z's "moved to" gate). Move Tip is the only move path,
+# used for both generic jogs and driving to a locked target, so this is what
+# tells them apart after the fact.
+IMAGE_TARGET_MOVE_MATCH_TOL_MM = 0.3
 
 
 def _parse_optional_float(value, default=None):
@@ -226,7 +359,16 @@ def _parse_boolish(value, default=False):
     text = str(value).strip().lower()
     if text in SKIP_TOKENS:
         return default
-    return text in {'1', 'true', 'yes', 'y', 'on'}
+    if text in {'1', 'true', 'yes', 'y', 'on'}:
+        return True
+    # A sparse 0/1 column (blank in some rows) gets upcast to float64 by
+    # pandas as soon as any row is NaN, so a genuinely-set value can arrive
+    # here as '1.0' rather than '1' -- fall back to numeric truthiness
+    # before giving up and treating it as false.
+    try:
+        return float(text) != 0.0
+    except ValueError:
+        return False
 
 
 def _row_gas_setting(row, channel, default=None):
@@ -336,9 +478,103 @@ def _detect_md_cc4xx_bridge():
         return False
 
 
+class _ThreadSafeVariableMixin:
+    """
+    Makes a Tkinter Variable's .set() safe to call from any thread.
+
+    Tkinter/Tcl is not thread-safe -- calling .set() on a Variable from a
+    thread other than the Tkinter mainloop thread is undefined behavior:
+    it can corrupt Tcl's internal C interpreter state and crash the whole
+    process with an access violation (0xc0000005), unpredictably and with
+    no Python-catchable traceback. This is not hypothetical -- it is the
+    confirmed root cause of a real, reproducible-independent-of-Python-
+    version crash on this project's Win7 instrument PC (see gui.py's own
+    Manual Control / AutoContactZ code, which historically called .set()
+    on status/target Variables directly from background worker threads
+    throughout _execute_contact_z_search and friends). A single scalar
+    Tcl variable write is small and fast, so the race window is narrow --
+    it corrupts state *rarely* rather than *never*, which is exactly why
+    this went unnoticed for a long time ("the status text still updates
+    fine" was mistaken for evidence of safety, when it was really just a
+    race that hadn't been hit yet).
+
+    self._root is set by Variable.__init__ to the owning Tk root/toplevel
+    (via master._root()), which has .after() like any widget. When called
+    from the mainloop thread this behaves identically to the plain
+    Variable -- zero behavior change for ordinary UI-thread code.
+    """
+
+    def set(self, value):
+        if threading.current_thread() is threading.main_thread():
+            super().set(value)
+        else:
+            self._root.after(0, super().set, value)
+
+
+class _ThreadSafeStringVar(_ThreadSafeVariableMixin, tk.StringVar):
+    pass
+
+
+class _ThreadSafeBooleanVar(_ThreadSafeVariableMixin, tk.BooleanVar):
+    pass
+
+
+class _ThreadSafeIntVar(_ThreadSafeVariableMixin, tk.IntVar):
+    pass
+
+
+class _ThreadSafeDoubleVar(_ThreadSafeVariableMixin, tk.DoubleVar):
+    pass
+
+
 class MicroprobGUI(tk.Tk):
-    def __init__(self, *, enable_background_polls=True):
+    def _enforce_light_theme(self):
+        """
+        Force a light appearance regardless of the OS dark-mode setting.
+        Native ttk themes ('aqua' on macOS, 'vista'/'xpnative' on Windows)
+        actively follow OS dark mode, and even classic (non-ttk) Tk widgets
+        can pick up a dark-mode default text color from some Tk builds --
+        both can leave light-on-light or dark-on-dark text since this file
+        hardcodes light background colors (CLR_BG, CLR_LGRAY, white) but
+        mostly leaves foreground unset. Must run before any widgets are
+        built: the option database (option_add) only applies to widgets
+        created afterward, and ttk styles must be configured before use.
+        """
+        self.option_add('*Background', CLR_BG)
+        self.option_add('*Foreground', 'black')
+        self.option_add('*insertBackground', 'black')
+        self.option_add('*selectBackground', CLR_BLUE)
+        self.option_add('*selectForeground', 'white')
+        self.option_add('*Entry.Background', 'white')
+        self.option_add('*Entry.Foreground', 'black')
+        self.option_add('*Text.Background', 'white')
+        self.option_add('*Text.Foreground', 'black')
+        self.option_add('*Listbox.Background', 'white')
+        self.option_add('*Listbox.Foreground', 'black')
+
+        style = ttk.Style(self)
+        try:
+            style.theme_use('clam')
+        except tk.TclError:
+            pass
+        style.configure('.', background=CLR_BG, foreground='black')
+        style.configure('TFrame', background=CLR_BG)
+        style.configure('TLabel', background=CLR_BG, foreground='black')
+        style.configure('TButton', background=CLR_LGRAY, foreground='black')
+        style.map('TButton', background=[('active', CLR_LGRAY), ('disabled', CLR_BG)])
+        style.configure('TCheckbutton', background=CLR_BG, foreground='black')
+        style.configure('TRadiobutton', background=CLR_BG, foreground='black')
+        style.configure('TCombobox', fieldbackground='white', foreground='black', background=CLR_LGRAY)
+        style.map('TCombobox', fieldbackground=[('readonly', 'white')], foreground=[('readonly', 'black')])
+        style.configure('TNotebook', background=CLR_BG)
+        style.configure('TNotebook.Tab', background=CLR_LGRAY, foreground='black')
+        style.map('TNotebook.Tab', background=[('selected', CLR_BG)], foreground=[('selected', 'black')])
+        style.configure('TScale', background=CLR_BG)
+        style.configure('TProgressbar', background=CLR_BLUE, troughcolor=CLR_LGRAY)
+
+    def __init__(self, *, enable_background_polls=True, enable_file_logging=True, enable_xy_correction_csv_log=True):
         super().__init__()
+        self._enforce_light_theme()
         self.title("Microprobe Automation")
         self.geometry("1100x750")
         self.configure(bg=CLR_BG)
@@ -354,6 +590,18 @@ class MicroprobGUI(tk.Tk):
         self.running      = False
         self.stop_flag    = threading.Event()
         self.log_queue    = queue.Queue()
+        # _log() only ever fed the on-screen log_text widget -- closing the
+        # GUI (or a crash) lost the whole run's log with no way to review it
+        # afterward. Mirror every message to a per-launch file too.
+        self._log_file_lock = threading.Lock()
+        self._log_file = None
+        if enable_file_logging:
+            try:
+                os.makedirs('run_logs', exist_ok=True)
+                log_file_path = os.path.join('run_logs', f'gui_{time.strftime("%Y%m%d_%H%M%S")}.log')
+                self._log_file = open(log_file_path, 'a', encoding='utf-8')
+            except Exception:
+                self._log_file = None
         self.monitor_queue = queue.Queue()
         self.condition_df = pd.DataFrame()
         self._monitor_label = ''
@@ -382,11 +630,11 @@ class MicroprobGUI(tk.Tk):
         self._enable_background_polls = bool(enable_background_polls)
         self._available_ports = []
         self._serial_port_var = {
-            'motor': tk.StringVar(value=COM_PORTS['motor']),
-            'temp': tk.StringVar(value=COM_PORTS['temp']),
-            'mfc': tk.StringVar(value=COM_PORTS['mfc']),
+            'motor': _ThreadSafeStringVar(value=COM_PORTS['motor']),
+            'temp': _ThreadSafeStringVar(value=COM_PORTS['temp']),
+            'mfc': _ThreadSafeStringVar(value=COM_PORTS['mfc']),
         }
-        self._biologic_channel_var = tk.StringVar(value='1')
+        self._biologic_channel_var = _ThreadSafeStringVar(value='1')
         self._biologic_channel_info = []
         self._active_biologic_channel = 1
         self._olecom_postprocess_queue = queue.Queue()
@@ -396,216 +644,304 @@ class MicroprobGUI(tk.Tk):
         self._olecom_pre_learning_factor = 1.30
         self._olecom_pre_learning_min_s = 20.0
         self._olecom_pre_learning_first_default_s = 120.0
-        self._run_gas_mode_var = tk.StringVar(value='require_auto')
-        self._run_contact_fail_policy_var = tk.StringVar(value='stop')
-        self._run_confirm_preflight_var = tk.BooleanVar(value=True)
-        self._run_retract_tip_on_done_var = tk.BooleanVar(value=True)
-        self._run_retract_tip_mm_var = tk.StringVar(value='1.000')
+        self._run_gas_mode_var = _ThreadSafeStringVar(value='require_auto')
+        self._run_contact_fail_policy_var = _ThreadSafeStringVar(value='collect_anyway')
+        self._run_retract_tip_on_done_var = _ThreadSafeBooleanVar(value=True)
+        self._run_retract_tip_mm_var = _ThreadSafeStringVar(value='1.000')
+        self._run_ramp_down_on_done_var = _ThreadSafeBooleanVar(value=True)
+        self._run_ramp_down_end_temp_c_var = _ThreadSafeStringVar(value='25.0')
+        self._run_ramp_down_end_ramp_rate_var = _ThreadSafeStringVar(value='5.0')
         self._tree_active_cell = (None, 0)
         self._manual_target = {
-            'temp': tk.StringVar(value='600'),
-            'temp_ramp': tk.StringVar(value='5.0'),
-            'x': tk.StringVar(value='0.000'),
-            'y': tk.StringVar(value='0.000'),
-            'z': tk.StringVar(value='0.000'),
-            'gas_a': tk.StringVar(value='0'),
-            'gas_b': tk.StringVar(value='0'),
+            'temp': _ThreadSafeStringVar(value='600'),
+            'temp_ramp': _ThreadSafeStringVar(value='5.0'),
+            'x': _ThreadSafeStringVar(value='0.000'),
+            'y': _ThreadSafeStringVar(value='0.000'),
+            'z': _ThreadSafeStringVar(value='0.000'),
+            'gas_a': _ThreadSafeStringVar(value='0'),
+            'gas_b': _ThreadSafeStringVar(value='0'),
         }
         self._quick_eis = {
-            'label': tk.StringVar(value='manual_eis'),
-            'v_dc': tk.StringVar(value='0.300'),
-            'amp_mv': tk.StringVar(value='10'),
-            'n_pts': tk.StringVar(value='60'),
-            'peis_f_high': tk.StringVar(value=f'{MANUAL_QUICK_F_HIGH_HZ:.0f}'),
-            'peis_f_low': tk.StringVar(value=f'{MANUAL_QUICK_F_LOW_HZ:.1f}'),
-            'cycles': tk.StringVar(value='1'),
+            'label': _ThreadSafeStringVar(value='manual_eis'),
+            'v_dc': _ThreadSafeStringVar(value='0.300'),
+            'amp_mv': _ThreadSafeStringVar(value='10'),
+            'n_pts': _ThreadSafeStringVar(value='60'),
+            'peis_f_high': _ThreadSafeStringVar(value=f'{MANUAL_QUICK_F_HIGH_HZ:.0f}'),
+            'peis_f_low': _ThreadSafeStringVar(value=f'{MANUAL_QUICK_F_LOW_HZ:.1f}'),
+            'cycles': _ThreadSafeStringVar(value='1'),
         }
         self._quick_rapid = {
-            'label': tk.StringVar(value='manual_rapid'),
-            'v_dc': tk.StringVar(value='0.300'),
-            'dv_mv': tk.StringVar(value='10'),
-            'hold_time': tk.StringVar(value='5'),
-            'post_hold_time': tk.StringVar(value='3'),
-            'ca_duration': tk.StringVar(value='20'),
-            'n_pts': tk.StringVar(value='60'),
-            'peis_f_high': tk.StringVar(value=f'{MANUAL_QUICK_F_HIGH_HZ:.0f}'),
-            'peis_f_low': tk.StringVar(value=f'{MANUAL_QUICK_F_LOW_HZ:.1f}'),
-            'cycles': tk.StringVar(value='1'),
+            'label': _ThreadSafeStringVar(value='manual_rapid'),
+            'v_dc': _ThreadSafeStringVar(value='0.300'),
+            'dv_mv': _ThreadSafeStringVar(value='10'),
+            'hold_time': _ThreadSafeStringVar(value='5'),
+            'post_hold_time': _ThreadSafeStringVar(value='3'),
+            'ca_duration': _ThreadSafeStringVar(value='20'),
+            'ca_dt': _ThreadSafeStringVar(value=str(MANUAL_QUICK_CA_DT_S)),
+            'ca_i_range': _ThreadSafeStringVar(value=str(BIOLOGIC_OLECOM_CA_I_RANGE)),
+            'ca_bandwidth': _ThreadSafeStringVar(value=str(BIOLOGIC_OLECOM_CA_BANDWIDTH)),
+            'n_pts': _ThreadSafeStringVar(value='60'),
+            'peis_f_high': _ThreadSafeStringVar(value=f'{MANUAL_QUICK_F_HIGH_HZ:.0f}'),
+            'peis_f_low': _ThreadSafeStringVar(value=f'{MANUAL_QUICK_F_LOW_HZ:.1f}'),
+            'cycles': _ThreadSafeStringVar(value='1'),
         }
         self._contact_search = {
-            'start_offset': tk.StringVar(value='0.200'),
-            'step_mm': tk.StringVar(value='0.010'),
-            'max_drop_mm': tk.StringVar(value='0.400'),
-            'max_beyond_seed_mm': tk.StringVar(value='0.200'),
-            'ocv_threshold': tk.StringVar(value='0.100'),
-            'settle_s': tk.StringVar(value='1.00'),
-            'engage_mm': tk.StringVar(value='0.050'),
+            'start_offset': _ThreadSafeStringVar(value='0.200'),
+            'step_mm': _ThreadSafeStringVar(value='0.010'),
+            'max_beyond_seed_mm': _ThreadSafeStringVar(value='0.20'),
+            'ocv_threshold': _ThreadSafeStringVar(value='0.010'),
+            'settle_s': _ThreadSafeStringVar(value='0.30'),
+            'engage_mm': _ThreadSafeStringVar(value='0.00'),
+            'target_xy_tolerance_mm': _ThreadSafeStringVar(value=f'{IMAGE_TARGET_MOVE_MATCH_TOL_MM:.3f}'),
         }
-        self._full_auto = {
-            'temperatures': tk.StringVar(value='600, 550, 500'),
-            'gas_pairs': tk.StringVar(value='10:30; 30:10'),
-            'voltages': tk.StringVar(value='0.0, 0.1, 0.2'),
-            'electrode_start': tk.StringVar(value='1'),
-            'electrode_end': tk.StringVar(value='8'),
-            'x1': tk.StringVar(value='0.000'),
-            'y1': tk.StringVar(value='0.000'),
-            'xn': tk.StringVar(value='7.000'),
-            'yn': tk.StringVar(value='0.000'),
-            'z1': tk.StringVar(value='0.000'),
-            'zn': tk.StringVar(value='0.000'),
-            'auto_contact_z': tk.StringVar(value='1'),
-            'contact_start_offset': tk.StringVar(value='0.200'),
-            'contact_step': tk.StringVar(value='0.010'),
-            'contact_max_drop': tk.StringVar(value='0.400'),
-            'contact_max_beyond_seed': tk.StringVar(value='0.200'),
-            'contact_ocv_threshold': tk.StringVar(value='0.100'),
-            'contact_settle': tk.StringVar(value='1.00'),
-            'contact_engage': tk.StringVar(value='0.050'),
-            'dv': tk.StringVar(value='0.03'),
-            'hold_time': tk.StringVar(value='120'),
-            'post_peis_hold_time': tk.StringVar(value='10'),
-            'peis_f_high': tk.StringVar(value='100'),
-            'peis_f_low': tk.StringVar(value='0.1'),
-            'peis_n_pts': tk.StringVar(value='60'),
-            'ca_duration': tk.StringVar(value=str(int(BIOLOGIC_OLECOM_SCOUT_MAX_S))),
-            'ca_dt': tk.StringVar(value='0.1'),
-            'temp_ramp_rate': tk.StringVar(value='5.0'),
-            'stable_time': tk.StringVar(value='120'),
-            'gas_stable_time': tk.StringVar(value='600'),
+        self._semi_auto = {
+            'temperatures': _ThreadSafeStringVar(value='600, 550, 500'),
+            'gas_pairs': _ThreadSafeStringVar(value='10:30; 30:10'),
+            'voltages': _ThreadSafeStringVar(value='0.0, 0.1, 0.2'),
+            'electrode_start': _ThreadSafeStringVar(value='1'),
+            'electrode_end': _ThreadSafeStringVar(value='8'),
+            'x1': _ThreadSafeStringVar(value='0.000'),
+            'y1': _ThreadSafeStringVar(value='0.000'),
+            'xn': _ThreadSafeStringVar(value='7.000'),
+            'yn': _ThreadSafeStringVar(value='0.000'),
+            'z1': _ThreadSafeStringVar(value='0.000'),
+            'zn': _ThreadSafeStringVar(value='0.000'),
+            'auto_contact_z': _ThreadSafeStringVar(value='1'),
+            'contact_start_offset': _ThreadSafeStringVar(value='0.200'),
+            'contact_step': _ThreadSafeStringVar(value='0.005'),
+            'contact_max_beyond_seed': _ThreadSafeStringVar(value='0.200'),
+            'contact_ocv_threshold': _ThreadSafeStringVar(value='0.100'),
+            'contact_settle': _ThreadSafeStringVar(value='0.30'),
+            'contact_engage': _ThreadSafeStringVar(value='0.01'),
+            'dv': _ThreadSafeStringVar(value='0.03'),
+            'hold_time': _ThreadSafeStringVar(value='120'),
+            'post_peis_hold_time': _ThreadSafeStringVar(value='10'),
+            'peis_f_high': _ThreadSafeStringVar(value='100'),
+            'peis_f_low': _ThreadSafeStringVar(value='0.1'),
+            'peis_n_pts': _ThreadSafeStringVar(value='60'),
+            'peis_bandwidth': _ThreadSafeStringVar(value='4'),
+            'peis_n_average': _ThreadSafeStringVar(value='1'),
+            'ca_duration': _ThreadSafeStringVar(value=str(int(BIOLOGIC_OLECOM_SCOUT_MAX_S))),
+            'ca_dt': _ThreadSafeStringVar(value='0.1'),
+            'ca_i_range': _ThreadSafeStringVar(value=str(BIOLOGIC_OLECOM_CA_I_RANGE)),
+            'ca_bandwidth': _ThreadSafeStringVar(value=str(BIOLOGIC_OLECOM_CA_BANDWIDTH)),
+            'temp_ramp_rate': _ThreadSafeStringVar(value='5.0'),
+            'stable_time': _ThreadSafeStringVar(value='120'),
+            'gas_stable_time': _ThreadSafeStringVar(value='600'),
         }
-        self._full_auto_use = {
-            'temperature': tk.BooleanVar(value=True),
-            'gas': tk.BooleanVar(value=True),
-            'tip': tk.BooleanVar(value=True),
+        self._semi_auto_use = {
+            'temperature': _ThreadSafeBooleanVar(value=True),
+            'gas': _ThreadSafeBooleanVar(value=True),
+            'tip': _ThreadSafeBooleanVar(value=True),
+            'ca': _ThreadSafeBooleanVar(value=True),
         }
-        self._full_auto_entries = {}
-        self._full_auto_summary = tk.StringVar(
+        # 'manual': the X1/Y1/XN/YN interpolation fields below.
+        # 'image_monitor': every DXF-layout electrode with a Z seed (exact
+        # or Z-plane estimate), sourced from the Image Monitor tab -- see
+        # _image_seeded_electrode_rows_source.
+        self._semi_auto_tip_source_var = _ThreadSafeStringVar(value='manual')
+        # 'image_monitor' mode only: restrict the seeded electrodes used to
+        # this subset (1-based, comma/hyphen-range syntax e.g. "1,3,5-8");
+        # blank means every seeded electrode (unchanged default behavior).
+        self._semi_auto_image_monitor_omit_electrodes_var = _ThreadSafeStringVar(value='')
+        self._semi_auto_entries = {}
+        self._semi_auto_summary = _ThreadSafeStringVar(
             value='Semi-auto generator ready'
         )
-        self._adaptive_full_auto = {
-            'temperatures': tk.StringVar(value='600, 550, 500'),
-            'gas_pairs': tk.StringVar(value='10:30; 30:10'),
-            'voltages': tk.StringVar(value='0.0, 0.1, 0.2'),
-            'electrode_start': tk.StringVar(value='1'),
-            'electrode_end': tk.StringVar(value='8'),
-            'x1': tk.StringVar(value='0.000'),
-            'y1': tk.StringVar(value='0.000'),
-            'xn': tk.StringVar(value='7.000'),
-            'yn': tk.StringVar(value='0.000'),
-            'z1': tk.StringVar(value='0.000'),
-            'zn': tk.StringVar(value='0.000'),
-            'auto_contact_z': tk.StringVar(value='1'),
-            'contact_start_offset': tk.StringVar(value='0.200'),
-            'contact_step': tk.StringVar(value='0.010'),
-            'contact_max_drop': tk.StringVar(value='0.400'),
-            'contact_max_beyond_seed': tk.StringVar(value='0.200'),
-            'contact_ocv_threshold': tk.StringVar(value='0.100'),
-            'contact_settle': tk.StringVar(value='1.00'),
-            'contact_engage': tk.StringVar(value='0.050'),
-            'dv': tk.StringVar(value='0.03'),
-            'hold_time': tk.StringVar(value='60'),
-            'post_peis_hold_time': tk.StringVar(value='10'),
-            'peis_f_high': tk.StringVar(value='100'),
-            'peis_f_low': tk.StringVar(value='0.1'),
-            'peis_n_pts': tk.StringVar(value='60'),
-            'ca_duration': tk.StringVar(value='200'),
-            'ca_dt': tk.StringVar(value='0.1'),
-            'temp_ramp_rate': tk.StringVar(value='5.0'),
-            'stable_time': tk.StringVar(value='120'),
-            'gas_stable_time': tk.StringVar(value='600'),
-            'normal_eis_floor_hz': tk.StringVar(value='0.01'),
+        self._full_auto = {
+            'temperatures': _ThreadSafeStringVar(value='600, 550, 500'),
+            'gas_pairs': _ThreadSafeStringVar(value='10:30; 30:10'),
+            'voltages': _ThreadSafeStringVar(value='0.0, 0.1, 0.2'),
+            'electrode_start': _ThreadSafeStringVar(value='1'),
+            'electrode_end': _ThreadSafeStringVar(value='8'),
+            'x1': _ThreadSafeStringVar(value='0.000'),
+            'y1': _ThreadSafeStringVar(value='0.000'),
+            'xn': _ThreadSafeStringVar(value='7.000'),
+            'yn': _ThreadSafeStringVar(value='0.000'),
+            'z1': _ThreadSafeStringVar(value='0.000'),
+            'zn': _ThreadSafeStringVar(value='0.000'),
+            'auto_contact_z': _ThreadSafeStringVar(value='1'),
+            'contact_start_offset': _ThreadSafeStringVar(value='0.200'),
+            'contact_step': _ThreadSafeStringVar(value='0.005'),
+            'contact_max_beyond_seed': _ThreadSafeStringVar(value='0.200'),
+            'contact_ocv_threshold': _ThreadSafeStringVar(value='0.100'),
+            'contact_settle': _ThreadSafeStringVar(value='0.30'),
+            'contact_engage': _ThreadSafeStringVar(value='0.01'),
+            'dv': _ThreadSafeStringVar(value='0.03'),
+            'hold_time': _ThreadSafeStringVar(value='60'),
+            'post_peis_hold_time': _ThreadSafeStringVar(value='10'),
+            'peis_f_high': _ThreadSafeStringVar(value='100'),
+            'peis_f_low': _ThreadSafeStringVar(value='0.1'),
+            'peis_n_pts': _ThreadSafeStringVar(value='60'),
+            'peis_bandwidth': _ThreadSafeStringVar(value='4'),
+            'peis_n_average': _ThreadSafeStringVar(value='1'),
+            'ca_duration': _ThreadSafeStringVar(value='200'),
+            'ca_dt': _ThreadSafeStringVar(value='0.1'),
+            'ca_i_range': _ThreadSafeStringVar(value=str(BIOLOGIC_OLECOM_CA_I_RANGE)),
+            'ca_bandwidth': _ThreadSafeStringVar(value=str(BIOLOGIC_OLECOM_CA_BANDWIDTH)),
+            'temp_ramp_rate': _ThreadSafeStringVar(value='5.0'),
+            'stable_time': _ThreadSafeStringVar(value='120'),
+            'gas_stable_time': _ThreadSafeStringVar(value='600'),
+            'normal_eis_floor_hz': _ThreadSafeStringVar(value='0.01'),
         }
-        self._adaptive_full_auto_use = {
-            'temperature': tk.BooleanVar(value=True),
-            'gas': tk.BooleanVar(value=True),
-            'tip': tk.BooleanVar(value=True),
+        self._full_auto_use = {
+            'temperature': _ThreadSafeBooleanVar(value=True),
+            'gas': _ThreadSafeBooleanVar(value=True),
+            'tip': _ThreadSafeBooleanVar(value=True),
         }
-        self._adaptive_full_auto_entries = {}
-        self._adaptive_full_auto_summary = tk.StringVar(
+        self._full_auto_tip_source_var = _ThreadSafeStringVar(value='manual')
+        self._full_auto_image_monitor_omit_electrodes_var = _ThreadSafeStringVar(value='')
+        self._full_auto_entries = {}
+        self._full_auto_summary = _ThreadSafeStringVar(
             value='Full-auto adaptive planner ready'
         )
         self._manual_current = {
-            'temp': tk.StringVar(value='-'),
-            'x': tk.StringVar(value='-'),
-            'y': tk.StringVar(value='-'),
-            'z': tk.StringVar(value='-'),
-            'gas_a': tk.StringVar(value='-'),
-            'gas_b': tk.StringVar(value='-'),
-            'gas_a_sp': tk.StringVar(value='-'),
-            'gas_b_sp': tk.StringVar(value='-'),
+            'temp': _ThreadSafeStringVar(value='-'),
+            'x': _ThreadSafeStringVar(value='-'),
+            'y': _ThreadSafeStringVar(value='-'),
+            'z': _ThreadSafeStringVar(value='-'),
+            'gas_a': _ThreadSafeStringVar(value='-'),
+            'gas_b': _ThreadSafeStringVar(value='-'),
+            'gas_a_sp': _ThreadSafeStringVar(value='-'),
+            'gas_b_sp': _ThreadSafeStringVar(value='-'),
         }
-        self._manual_status_var = tk.StringVar(value='Manual control ready')
-        self._manual_ocv_var = tk.StringVar(value='OCV: -')
-        self._manual_recommendation_var = tk.StringVar(value='Recommendation: -')
-        self._monitor_recommendation_var = tk.StringVar(value='Recommendation: -')
+        self._manual_status_var = _ThreadSafeStringVar(value='Manual control ready')
+        self._manual_ocv_var = _ThreadSafeStringVar(value='OCV: -')
+        self._manual_recommendation_var = _ThreadSafeStringVar(value='Recommendation: -')
+        self._monitor_recommendation_var = _ThreadSafeStringVar(value='Recommendation: -')
         self._manual_measurement_running = False
         self._manual_measurement_stop_event = None
         self._manual_gas_seq = 0
         self._manual_gas_seq_lock = threading.Lock()
         self._manual_ocv_poll_shutdown = False
         self._manual_ocv_poll_inflight = False
+        # -- Temperature / gas-flow history graphs (Manual Control tab) --
+        self._manual_history_poll_shutdown = False
+        self._manual_history_poll_inflight = False
+        self._manual_history_start_time = None
+        self._manual_history_points = {'temp': [], 'gas_a': [], 'gas_b': []}
         self._adaptive_engine_factory = None
-        self._image_backend_var = tk.StringVar(value='dshow')
-        self._image_index_var = tk.StringVar(value='0')
-        self._image_detector_var = tk.StringVar(value='live')
-        self._image_expected_count_var = tk.StringVar(value='')
-        self._image_status_var = tk.StringVar(value='Camera idle')
-        self._image_detection_var = tk.StringVar(value='Electrodes: -')
-        self._image_hint_var = tk.StringVar(value='Hint: if the live overlay looks unreliable, use a pre-shot microscope image or attach the design image for assisted setup.')
-        self._image_design_path_var = tk.StringVar(value='')
-        self._image_design_status_var = tk.StringVar(value='Design: not loaded')
-        self._image_markup_path_var = tk.StringVar(value='')
-        self._image_markup_status_var = tk.StringVar(value='Markup: not loaded')
-        self._image_target_status_var = tk.StringVar(value='Target: not locked')
-        self._image_roi_verify_status_var = tk.StringVar(value='ROI verify: idle')
-        self._image_move_gate_status_var = tk.StringVar(value='Move gate: clear')
-        self._image_stage_anchor_status_var = tk.StringVar(value='Stage anchor: not set')
-        self._image_stage_affine_status_var = tk.StringVar(value='Stage calibration: not solved')
-        self._image_stage_swap_xy_var = tk.BooleanVar(value=False)
-        self._image_stage_invert_x_var = tk.BooleanVar(value=False)
-        self._image_stage_invert_y_var = tk.BooleanVar(value=False)
-        self._image_allow_stale_high_override_var = tk.BooleanVar(value=False)
+        self._image_backend_var = _ThreadSafeStringVar(value='any')
+        self._image_index_var = _ThreadSafeStringVar(value='0')
+        self._image_expected_count_var = _ThreadSafeStringVar(value='')
+        self._image_status_var = _ThreadSafeStringVar(value='Camera idle')
+        self._image_detection_var = _ThreadSafeStringVar(value='Electrodes: -')
+        self._image_hint_var = _ThreadSafeStringVar(value='Hint: if the live overlay looks unreliable, align a DXF layout for a trusted tracking seed.')
+        self._image_target_status_var = _ThreadSafeStringVar(value='Target: not locked')
+        self._image_show_circles_var = _ThreadSafeBooleanVar(value=True)
+        # When True (default), locking a new target electrode leaves the
+        # "Move to: Z" field untouched instead of auto-filling it from that
+        # electrode's known/estimated Z seed -- see
+        # _image_sync_manual_target_from_selected.
+        self._image_lock_z_var = _ThreadSafeBooleanVar(value=True)
         self._image_monitor_cap = None
         self._image_monitor_running = False
         self._image_monitor_photo = None
         self._image_monitor_frame_idx = 0
         self._image_monitor_detect_every = 8
         self._image_monitor_last_overlay_bgr = None
-        self._image_move_gate_label = None
-        self._image_move_target_button = None
-        self._image_override_weak_roi_button = None
-        self._image_design_map = None
-        self._image_markup_map = None
-        self._image_markup_reference_rgb = None
         self._image_seed_map = None
-        self._image_seed_reference_rgb = None
+        self._image_seed_layout = None
+        self._image_seed_tracked = None
+        self._image_layout_seed_map = None
+        self._image_layout_tracked = None
+        # _image_monitor_tick (main thread) mutates the Circle objects in
+        # _image_layout_tracked/_image_seed_tracked in place every tick
+        # (detect_and_refit_frame's own docstring: "tracked is mutated in
+        # place"), while AutoContactZ's background thread concurrently
+        # reads individual circles' .smoothed_x/.smoothed_y/.radius
+        # (_image_probe_tip_pixel_now, _image_recalibrate_xy_bias_from_contact,
+        # _image_resolve_live_tracked_xy) with no synchronization -- a real
+        # data race between the two threads that were both confirmed active
+        # (via a faulthandler crash dump) at the moment of a Win7 access
+        # violation. Guards every cross-thread touch of these two
+        # attributes' Circle objects.
+        self._image_tracked_lock = threading.Lock()
         self._image_monitor_last_frame_rgb = None
         self._image_monitor_last_frame_time_s = None
         self._image_tracking_map = None
         self._image_selected_target = None
-        self._image_selected_design_target = None
-        self._image_stage_anchor = None
-        self._image_stage_calibration_refs = []
-        self._image_stage_affine_calibration = None
-        self._image_pending_roi_verification = None
-        self._image_pending_roi_seed_promotion = False
-        self._image_move_requires_review_after_weak_roi = False
-        self._image_allow_one_safe_move_after_weak_roi_override = False
-        self._image_last_roi_verify_result = None
         self._image_render_shape = None
         self._image_render_size = None
         self._image_render_offset = (0, 0)
 
+        # -- Probe-based pixel<->stage calibration --
+        self._image_pixel_stage_calibration_refs = []
+        self._image_pixel_stage_affine_calibration = None
+        self._image_pixel_stage_z_ref_mm = None
+        self._image_pixel_stage_affine_status_var = _ThreadSafeStringVar(value='Probe calibration: not solved')
+        self._image_probe_detector = None
+        self._image_probe_tip_candidate = None
+        self._image_probe_roi = None
+        self._image_probe_roi_select_mode = False
+        self._image_probe_roi_drag_start = None
+        self._image_probe_roi_drag_current = None
+        self._image_probe_status_var = _ThreadSafeStringVar(value='Probe: not detected')
+        # Button widgets recolored to reflect an active mode/process --
+        # see _image_set_mode_button_active. Assigned in _build_tab_image.
+        self._image_probe_roi_button = None
+        self._image_draw_circles_button = None
+        self._image_search_z_button = None
+
+        # -- Persistent per-electrode Z seeds + pooled Z-parallax slope --
+        self._image_electrode_z_store = ElectrodeZCalibrationStore.load(
+            getattr(_config, 'VISION_ELECTRODE_Z_SEED_PATH', 'vision_calibration/electrode_z_seed.json')
+        )
+        self._image_z_seed_status_var = _ThreadSafeStringVar(value='Z seed: lock a target and move to it first')
+        self._image_z_seed_ocv_var = _ThreadSafeStringVar(value='OCV: --')
+        # Diagnostic snapshot of the probe-tip detection driving the parallax
+        # samples collected during Z Contact Search -- see
+        # _image_stash_probe_roi_debug / _image_update_parallax_debug_display.
+        self._image_last_probe_roi_debug = None
+        self._image_last_parallax_debug = None
+        self._image_parallax_debug_var = _ThreadSafeStringVar(value='Last parallax sample: none yet')
+        self._image_parallax_panel_photo = None
+        # Per-run cache of the last live-tracked position actually trusted
+        # for each electrode (layout_index -> (stage_x, stage_y)); reset at
+        # the top of _run_worker. See _image_resolve_live_tracked_xy.
+        self._image_run_trusted_positions = {}
+        # layout_index -> the debug_out dict from the most recent
+        # _image_project_pixel_to_stage_xy call that targeted it (parallax
+        # shift, XY-bias applied, temperature used) -- read back by
+        # _image_log_xy_correction_sample when that electrode's own contact
+        # produces a fresh XY-bias sample, so the CSV/log record can show
+        # both what correction was applied and what was actually measured.
+        # Not reset per-run (unlike _image_run_trusted_positions): a stale
+        # entry just means "no correction was computed this touch", which
+        # the logger already treats as an absent value, same as None.
+        self._image_last_applied_correction = {}
+        self._image_xy_correction_csv_log_enabled = bool(enable_xy_correction_csv_log)
+
+        # -- DXF-layout-driven semi-manual electrode alignment --
+        self._image_layout_model = None
+        self._image_layout_status_var = _ThreadSafeStringVar(value='Layout: not loaded')
+        self._image_circle_params = None  # None => live detector/drift refit use their own built-in defaults
+        self._image_layout_drawn_circles = []       # [{"center":[x,y],"radius":r}, ...]
+        self._image_layout_alignment_pairs = []      # [(drawn_idx, layout_idx), ...]
+        self._image_layout_draw_mode = False
+        self._image_layout_selected_drawn_idx = None
+        self._image_layout_base_transform = None
+        self._image_layout_nudge_scale_x_var = _ThreadSafeIntVar(value=0)
+        self._image_layout_nudge_scale_y_var = _ThreadSafeIntVar(value=0)
+        self._image_layout_nudge_angle_var = _ThreadSafeIntVar(value=0)
+        self._image_layout_nudge_translate_x_var = _ThreadSafeIntVar(value=0)
+        self._image_layout_nudge_translate_y_var = _ThreadSafeIntVar(value=0)
+        self._image_layout_nudge_shear_x_var = _ThreadSafeIntVar(value=0)
+        self._image_layout_nudge_shear_y_var = _ThreadSafeIntVar(value=0)
+        self._image_layout_alignment_status_var = _ThreadSafeStringVar(value='Alignment: not fit')
+
         self._build_ui()
-        self._image_refresh_move_gate_status()
         if self._enable_background_polls:
             self._poll_log()
             self._poll_monitor()
             self._schedule_manual_ocv_poll()
+            self._schedule_manual_history_poll()
         self._refresh_port_choices()
+        self._load_condition_generator_settings()
 
     def destroy(self):
         self._manual_ocv_poll_shutdown = True
+        self._manual_history_poll_shutdown = True
         try:
             self._image_monitor_stop()
         finally:
@@ -628,8 +964,8 @@ class MicroprobGUI(tk.Tk):
 
         self.tab_hw   = ttk.Frame(nb)
         self.tab_cond = ttk.Frame(nb)
+        self.tab_semi = ttk.Frame(nb)
         self.tab_full = ttk.Frame(nb)
-        self.tab_auto = ttk.Frame(nb)
         self.tab_run  = ttk.Frame(nb)
         self.tab_image = ttk.Frame(nb)
         self.tab_live = ttk.Frame(nb)
@@ -637,8 +973,8 @@ class MicroprobGUI(tk.Tk):
 
         nb.add(self.tab_hw,   text='  Hardware  ')
         nb.add(self.tab_cond, text='  CSV List  ')
-        nb.add(self.tab_full, text='  Semi-auto  ')
-        nb.add(self.tab_auto, text='  Full-auto  ')
+        nb.add(self.tab_semi, text='  Semi-auto  ')
+        nb.add(self.tab_full, text='  Full-auto  ')
         nb.add(self.tab_run,  text='  Run / Monitor  ')
         nb.add(self.tab_image, text='  Image Monitor  ')
         nb.add(self.tab_live, text='  EIS Monitor  ')
@@ -646,8 +982,8 @@ class MicroprobGUI(tk.Tk):
 
         self._build_tab_hardware()
         self._build_tab_conditions()
+        self._build_tab_semi_auto()
         self._build_tab_full_auto()
-        self._build_tab_adaptive_full_auto()
         self._build_tab_run()
         self._build_tab_image()
         self._build_tab_live()
@@ -681,7 +1017,7 @@ class MicroprobGUI(tk.Tk):
         ip_frame.grid(row=2, column=1, sticky='w', padx=10, pady=6)
         tk.Label(ip_frame, text='IP:', bg=CLR_BG,
                  font=('Courier', 9), fg='#555').pack(side='left')
-        self._biologic_ip = tk.StringVar(value=BIOLOGIC_IP)
+        self._biologic_ip = _ThreadSafeStringVar(value=BIOLOGIC_IP)
         ip_entry = tk.Entry(ip_frame, textvariable=self._biologic_ip,
                             width=16, font=('Courier', 9))
         ip_entry.pack(side='left', padx=2)
@@ -775,7 +1111,7 @@ class MicroprobGUI(tk.Tk):
                    command=lambda: threading.Thread(
                        target=self._do_readback, daemon=True).start()
                    ).grid(row=13, column=0, padx=10, pady=6, sticky='w')
-        self._port_status_var = tk.StringVar(value='Serial ports: not scanned yet')
+        self._port_status_var = _ThreadSafeStringVar(value='Serial ports: not scanned yet')
         tk.Label(f, textvariable=self._port_status_var, bg=CLR_BG,
                  fg='#555', anchor='w', font=('Segoe UI', 9)).grid(
                  row=14, column=0, columnspan=5, sticky='w', padx=10, pady=(0, 8))
@@ -784,7 +1120,7 @@ class MicroprobGUI(tk.Tk):
         tk.Label(parent, text=label, bg=CLR_LGRAY, width=25,
                  anchor='w', font=('Segoe UI', 10)).grid(
                  row=row, column=0, padx=10, pady=4)
-        var = tk.StringVar(value='—')
+        var = _ThreadSafeStringVar(value='—')
         tk.Label(parent, textvariable=var, bg=CLR_LGRAY, width=15,
                  anchor='w', font=('Courier', 10)).grid(
                  row=row, column=1, padx=10)
@@ -815,11 +1151,11 @@ class MicroprobGUI(tk.Tk):
         cols = ['Label', 'Temperature_C', 'RampRate_C_per_min', 'GasA_setting', 'GasB_setting',
                 'X_mm', 'Y_mm', 'Z_mm',
                 'AutoContactZ', 'ContactStartOffset_mm', 'ContactStep_mm',
-                'ContactMaxDrop_mm', 'ContactMaxBeyondSeed_mm',
+                'ContactMaxBeyondSeed_mm',
                 'ContactOCVThreshold_V', 'ContactSettle_s', 'ContactEngage_mm',
                 'V_dc', 'dV', 'HoldTime_s', 'PostPEIS_HoldTime_s',
-                'PEIS_fHigh', 'PEIS_fLow', 'PEIS_nPts',
-                'CA_duration_s', 'CA_dt',
+                'PEIS_fHigh', 'PEIS_fLow', 'PEIS_nPts', 'PEIS_Bandwidth', 'PEIS_NAverage',
+                'SkipCA', 'CA_duration_s', 'CA_dt', 'CA_IRange', 'CA_Bandwidth',
                 'StableTime_s', 'GasStableTime_s', 'Skip']
         self._tree_cols = cols
 
@@ -851,8 +1187,51 @@ class MicroprobGUI(tk.Tk):
         self.tree.bind('<Control-v>', self._paste_tree_clipboard)
         self.tree.bind('<Control-V>', self._paste_tree_clipboard)
 
-    def _build_tab_full_auto(self):
-        f = self.tab_full
+    def _build_tab_semi_auto(self):
+        host = tk.Frame(self.tab_semi, bg=CLR_BG)
+        host.pack(fill='both', expand=True)
+
+        self._semi_auto_scroll_canvas = tk.Canvas(
+            host, bg=CLR_BG, highlightthickness=0, borderwidth=0,
+        )
+        semi_auto_scrollbar = ttk.Scrollbar(
+            host, orient='vertical', command=self._semi_auto_scroll_canvas.yview,
+        )
+        self._semi_auto_scroll_canvas.configure(yscrollcommand=semi_auto_scrollbar.set)
+        self._semi_auto_scroll_canvas.pack(side='left', fill='both', expand=True)
+        semi_auto_scrollbar.pack(side='right', fill='y')
+
+        f = tk.Frame(self._semi_auto_scroll_canvas, bg=CLR_BG)
+        self._semi_auto_scroll_window = self._semi_auto_scroll_canvas.create_window(
+            (0, 0), window=f, anchor='nw'
+        )
+
+        def _sync_semi_auto_scrollregion(_event=None):
+            self._semi_auto_scroll_canvas.configure(
+                scrollregion=self._semi_auto_scroll_canvas.bbox('all')
+            )
+
+        def _sync_semi_auto_canvas_width(event):
+            self._semi_auto_scroll_canvas.itemconfigure(
+                self._semi_auto_scroll_window, width=event.width,
+            )
+
+        f.bind('<Configure>', _sync_semi_auto_scrollregion)
+        self._semi_auto_scroll_canvas.bind('<Configure>', _sync_semi_auto_canvas_width)
+
+        def _semi_auto_mousewheel(event):
+            delta = getattr(event, 'delta', 0)
+            if delta:
+                self._semi_auto_scroll_canvas.yview_scroll(int(-delta / 120), 'units')
+
+        def _semi_auto_canvas_enter(_event):
+            self._semi_auto_scroll_canvas.bind_all('<MouseWheel>', _semi_auto_mousewheel)
+
+        def _semi_auto_canvas_leave(_event):
+            self._semi_auto_scroll_canvas.unbind_all('<MouseWheel>')
+
+        self._semi_auto_scroll_canvas.bind('<Enter>', _semi_auto_canvas_enter)
+        self._semi_auto_scroll_canvas.bind('<Leave>', _semi_auto_canvas_leave)
 
         intro = tk.LabelFrame(f, text='Semi-auto Condition Generator',
                               bg=CLR_BG, padx=10, pady=10)
@@ -868,24 +1247,61 @@ class MicroprobGUI(tk.Tk):
             justify='left',
             anchor='w',
             font=('Segoe UI', 10),
-        ).pack(side='left', fill='x', expand=True)
-        option_box = tk.LabelFrame(header, text='Disable Unused Hardware', bg=CLR_BG, padx=8, pady=6)
-        option_box.pack(side='right', padx=(12, 0))
+        ).pack(fill='x')
+        options_row = tk.Frame(header, bg=CLR_BG)
+        options_row.pack(fill='x', pady=(8, 0))
+        option_box = tk.LabelFrame(options_row, text='Disable Unused Hardware', bg=CLR_BG, padx=8, pady=6)
+        option_box.pack(side='left')
         ttk.Checkbutton(
             option_box, text='Use temperature',
-            variable=self._full_auto_use['temperature'],
-            command=self._update_full_auto_field_states
+            variable=self._semi_auto_use['temperature'],
+            command=self._update_semi_auto_field_states
         ).grid(row=0, column=0, sticky='w', padx=4)
         ttk.Checkbutton(
             option_box, text='Use gas',
-            variable=self._full_auto_use['gas'],
-            command=self._update_full_auto_field_states
+            variable=self._semi_auto_use['gas'],
+            command=self._update_semi_auto_field_states
         ).grid(row=1, column=0, sticky='w', padx=4)
         ttk.Checkbutton(
             option_box, text='Use tip position',
-            variable=self._full_auto_use['tip'],
-            command=self._update_full_auto_field_states
+            variable=self._semi_auto_use['tip'],
+            command=self._update_semi_auto_field_states
         ).grid(row=2, column=0, sticky='w', padx=4)
+        ttk.Checkbutton(
+            option_box, text='Use CA',
+            variable=self._semi_auto_use['ca'],
+            command=self._update_semi_auto_field_states
+        ).grid(row=3, column=0, sticky='w', padx=4)
+
+        tip_source_box = tk.LabelFrame(options_row, text='Tip Position Source', bg=CLR_BG, padx=8, pady=6)
+        tip_source_box.pack(side='left', padx=(12, 0))
+        ttk.Radiobutton(
+            tip_source_box, text='Manual range', value='manual',
+            variable=self._semi_auto_tip_source_var,
+            command=self._update_semi_auto_field_states,
+        ).grid(row=0, column=0, sticky='w', padx=4)
+        ttk.Radiobutton(
+            tip_source_box, text='Image Monitor seeded electrodes', value='image_monitor',
+            variable=self._semi_auto_tip_source_var,
+            command=self._update_semi_auto_field_states,
+        ).grid(row=1, column=0, sticky='w', padx=4)
+        tk.Label(tip_source_box, text='Electrodes to omit (blank = none)', bg=CLR_BG).grid(
+            row=2, column=0, sticky='w', padx=4, pady=(4, 0),
+        )
+        self._semi_auto_image_monitor_omit_electrodes_entry = tk.Entry(
+            tip_source_box, textvariable=self._semi_auto_image_monitor_omit_electrodes_var, width=18,
+        )
+        self._semi_auto_image_monitor_omit_electrodes_entry.grid(row=3, column=0, sticky='w', padx=4, pady=(0, 2))
+
+        diameter_row = tk.Frame(tip_source_box, bg=CLR_BG)
+        diameter_row.grid(row=4, column=0, sticky='w', padx=4, pady=(4, 0))
+        tk.Label(diameter_row, text='Exclude by diameter:', bg=CLR_BG).pack(side='left')
+        ttk.Button(
+            diameter_row, text='Refresh', command=self._image_refresh_semi_auto_exclude_diameter_checkboxes,
+        ).pack(side='left', padx=(4, 0))
+        self._semi_auto_exclude_diameter_frame = tk.Frame(tip_source_box, bg=CLR_BG)
+        self._semi_auto_exclude_diameter_frame.grid(row=5, column=0, sticky='w', padx=4, pady=(0, 2))
+        self._semi_auto_exclude_diameter_vars = {}
 
         grid = tk.Frame(f, bg=CLR_BG)
         grid.pack(fill='x', padx=8, pady=4)
@@ -907,19 +1323,208 @@ class MicroprobGUI(tk.Tk):
             ('AutoContactZ (0/1)', 'auto_contact_z', 5, 2),
             ('Contact start offset (mm)', 'contact_start_offset', 6, 0),
             ('Contact step (mm)', 'contact_step', 6, 2),
-            ('Contact max drop (mm)', 'contact_max_drop', 7, 0),
-            ('Contact max beyond seed (mm)', 'contact_max_beyond_seed', 7, 2),
-            ('Contact OCV threshold (V)', 'contact_ocv_threshold', 8, 0),
-            ('Contact settle (s)', 'contact_settle', 8, 2),
-            ('Contact engage (mm)', 'contact_engage', 9, 0),
-            ('dV (V)', 'dv', 10, 0),
-            ('Pre-PEIS hold (s)', 'hold_time', 10, 2),
-            ('Post-PEIS hold (s)', 'post_peis_hold_time', 11, 0),
-            ('PEIS f high (Hz)', 'peis_f_high', 11, 2),
-            ('PEIS f low (Hz)', 'peis_f_low', 12, 0),
-            ('PEIS n pts', 'peis_n_pts', 12, 2),
-            ('CA duration (s)', 'ca_duration', 13, 0),
-            ('CA dt (s)', 'ca_dt', 13, 2),
+            ('Contact max beyond seed (mm)', 'contact_max_beyond_seed', 7, 0),
+            ('Contact OCV threshold (V)', 'contact_ocv_threshold', 7, 2),
+            ('Contact settle (s)', 'contact_settle', 8, 0),
+            ('Contact engage (mm)', 'contact_engage', 8, 2),
+            ('PEIS amplitude (V)', 'dv', 9, 0),
+            ('PEIS f high (Hz)', 'peis_f_high', 9, 2),
+            ('PEIS f low (Hz)', 'peis_f_low', 10, 0),
+            ('PEIS n pts', 'peis_n_pts', 10, 2),
+            ('PEIS bandwidth', 'peis_bandwidth', 11, 0),
+            ('PEIS N average', 'peis_n_average', 11, 2),
+            ('Pre-step duration (s)', 'hold_time', 12, 0),
+            ('CA dt (s)', 'ca_dt', 12, 2),
+            ('Step duration (s)', 'ca_duration', 13, 0),
+            ('CA I Range', 'ca_i_range', 13, 2),
+            ('Post-step duration (s)', 'post_peis_hold_time', 14, 0),
+            ('CA bandwidth', 'ca_bandwidth', 14, 2),
+            ('Temp ramp rate (C/min)', 'temp_ramp_rate', 15, 0),
+            ('Temp stable time (s)', 'stable_time', 15, 2),
+            ('Gas stable time (s)', 'gas_stable_time', 16, 0),
+        ]
+        for label, key, row, col in fields:
+            tk.Label(
+                grid, text=label, bg=CLR_BG, anchor='w',
+                font=('Segoe UI', 10)
+            ).grid(row=row, column=col, sticky='w', padx=(0, 8), pady=4)
+            entry = tk.Entry(
+                grid, textvariable=self._semi_auto[key],
+                font=('Courier New', 10), width=28
+            )
+            entry.grid(row=row, column=col + 1, sticky='ew', padx=(0, 18), pady=4)
+            self._semi_auto_entries[key] = entry
+
+        help_box = tk.LabelFrame(f, text='Input Format', bg=CLR_BG, padx=10, pady=10)
+        help_box.pack(fill='x', padx=8, pady=(4, 6))
+        help_lines = [
+            'Temperatures / Voltages: comma-separated, for example 600, 550, 500',
+            'Gas pairs: semicolon-separated raw DMFC setting pairs (0-100), for example 10:30; 30:10',
+            'Tip positions: XY are linearly interpolated from electrode 1 to electrode N',
+            'Z is a seed value. AutoContactZ=1 starts 0.2 mm above seed, steps toward contact, then engages by the configured amount.',
+            'Contact max beyond seed both limits the search and is a hard tip-safety stop; keep it small (default 0.200 mm) to avoid driving the tip too far into an electrode.',
+            'Uncheck temperature / gas / tip position above to disable those inputs and generate None values for that hardware step.',
+            'During runs, gas is set before a temperature change; gas/temp stabilization waits overlap, and unchanged conditions skip their wait.',
+            'CA sequence per electrode: pre-step hold at Vdc, then the step at Vdc+dV (seeds PEIS), then the post-step hold back at Vdc immediately before PEIS runs.',
+            'Image Monitor seeded electrodes mode: the Electrodes field restricts which seeded electrodes are used, e.g. "1,3,5-8" -- blank uses every seeded electrode.',
+        ]
+        for line in help_lines:
+            tk.Label(help_box, text=line, bg=CLR_BG, anchor='w',
+                     justify='left', font=('Segoe UI', 10)).pack(fill='x', pady=1)
+
+        btn_row = tk.Frame(f, bg=CLR_BG)
+        btn_row.pack(fill='x', padx=8, pady=(2, 6))
+        ttk.Button(
+            btn_row, text='Generate to CSV List',
+            command=self._generate_semi_auto_conditions
+        ).pack(side='left', padx=4)
+        ttk.Button(
+            btn_row, text='Append to CSV List',
+            command=lambda: self._generate_semi_auto_conditions(append=True)
+        ).pack(side='left', padx=4)
+
+        tk.Label(
+            f, textvariable=self._semi_auto_summary, bg=CLR_LGRAY,
+            anchor='w', font=('Segoe UI', 10), relief='sunken'
+        ).pack(fill='x', padx=8, pady=(0, 8))
+        self._update_semi_auto_field_states()
+
+    def _build_tab_full_auto(self):
+        host = tk.Frame(self.tab_full, bg=CLR_BG)
+        host.pack(fill='both', expand=True)
+
+        self._full_auto_scroll_canvas = tk.Canvas(
+            host, bg=CLR_BG, highlightthickness=0, borderwidth=0,
+        )
+        full_auto_scrollbar = ttk.Scrollbar(
+            host, orient='vertical', command=self._full_auto_scroll_canvas.yview,
+        )
+        self._full_auto_scroll_canvas.configure(yscrollcommand=full_auto_scrollbar.set)
+        self._full_auto_scroll_canvas.pack(side='left', fill='both', expand=True)
+        full_auto_scrollbar.pack(side='right', fill='y')
+
+        f = tk.Frame(self._full_auto_scroll_canvas, bg=CLR_BG)
+        self._full_auto_scroll_window = self._full_auto_scroll_canvas.create_window(
+            (0, 0), window=f, anchor='nw'
+        )
+
+        def _sync_full_auto_scrollregion(_event=None):
+            self._full_auto_scroll_canvas.configure(
+                scrollregion=self._full_auto_scroll_canvas.bbox('all')
+            )
+
+        def _sync_full_auto_canvas_width(event):
+            self._full_auto_scroll_canvas.itemconfigure(
+                self._full_auto_scroll_window, width=event.width,
+            )
+
+        f.bind('<Configure>', _sync_full_auto_scrollregion)
+        self._full_auto_scroll_canvas.bind('<Configure>', _sync_full_auto_canvas_width)
+
+        def _full_auto_mousewheel(event):
+            delta = getattr(event, 'delta', 0)
+            if delta:
+                self._full_auto_scroll_canvas.yview_scroll(int(-delta / 120), 'units')
+
+        def _full_auto_canvas_enter(_event):
+            self._full_auto_scroll_canvas.bind_all('<MouseWheel>', _full_auto_mousewheel)
+
+        def _full_auto_canvas_leave(_event):
+            self._full_auto_scroll_canvas.unbind_all('<MouseWheel>')
+
+        self._full_auto_scroll_canvas.bind('<Enter>', _full_auto_canvas_enter)
+        self._full_auto_scroll_canvas.bind('<Leave>', _full_auto_canvas_leave)
+
+        intro = tk.LabelFrame(f, text='Full-auto Adaptive Planner',
+                              bg=CLR_BG, padx=10, pady=10)
+        intro.pack(fill='x', padx=8, pady=(8, 6))
+        header = tk.Frame(intro, bg=CLR_BG)
+        header.pack(fill='x')
+        tk.Label(
+            header,
+            text=('Prepare the future fully automatic workflow that will use '
+                  'optimized analysis results to choose the next measurement '
+                  'parameters. For now, this planner generates the same base '
+                  'CSV rows while keeping adaptive settings visible in the UI.'),
+            bg=CLR_BG,
+            justify='left',
+            anchor='w',
+            font=('Segoe UI', 10),
+        ).pack(fill='x')
+        options_row = tk.Frame(header, bg=CLR_BG)
+        options_row.pack(fill='x', pady=(8, 0))
+        option_box = tk.LabelFrame(options_row, text='Disable Unused Hardware', bg=CLR_BG, padx=8, pady=6)
+        option_box.pack(side='left')
+        ttk.Checkbutton(
+            option_box, text='Use temperature',
+            variable=self._full_auto_use['temperature'],
+            command=self._update_full_auto_field_states
+        ).grid(row=0, column=0, sticky='w', padx=4)
+        ttk.Checkbutton(
+            option_box, text='Use gas',
+            variable=self._full_auto_use['gas'],
+            command=self._update_full_auto_field_states
+        ).grid(row=1, column=0, sticky='w', padx=4)
+        ttk.Checkbutton(
+            option_box, text='Use tip position',
+            variable=self._full_auto_use['tip'],
+            command=self._update_full_auto_field_states
+        ).grid(row=2, column=0, sticky='w', padx=4)
+
+        tip_source_box = tk.LabelFrame(options_row, text='Tip Position Source', bg=CLR_BG, padx=8, pady=6)
+        tip_source_box.pack(side='left', padx=(12, 0))
+        ttk.Radiobutton(
+            tip_source_box, text='Manual range', value='manual',
+            variable=self._full_auto_tip_source_var,
+            command=self._update_full_auto_field_states,
+        ).grid(row=0, column=0, sticky='w', padx=4)
+        ttk.Radiobutton(
+            tip_source_box, text='Image Monitor seeded electrodes', value='image_monitor',
+            variable=self._full_auto_tip_source_var,
+            command=self._update_full_auto_field_states,
+        ).grid(row=1, column=0, sticky='w', padx=4)
+        tk.Label(tip_source_box, text='Electrodes to omit (blank = none)', bg=CLR_BG).grid(
+            row=2, column=0, sticky='w', padx=4, pady=(4, 0),
+        )
+        self._full_auto_image_monitor_omit_electrodes_entry = tk.Entry(
+            tip_source_box, textvariable=self._full_auto_image_monitor_omit_electrodes_var, width=18,
+        )
+        self._full_auto_image_monitor_omit_electrodes_entry.grid(row=3, column=0, sticky='w', padx=4, pady=(0, 2))
+
+        grid = tk.Frame(f, bg=CLR_BG)
+        grid.pack(fill='x', padx=8, pady=4)
+        grid.columnconfigure(1, weight=1)
+        grid.columnconfigure(3, weight=1)
+
+        fields = [
+            ('Temperatures (C)', 'temperatures', 0, 0),
+            ('Gas pairs A:B setting (0-100)', 'gas_pairs', 0, 2),
+            ('Voltages (V)', 'voltages', 1, 0),
+            ('Electrode 1 Z seed (mm)', 'z1', 1, 2),
+            ('Electrode start', 'electrode_start', 2, 0),
+            ('Electrode end', 'electrode_end', 2, 2),
+            ('Electrode 1 X (mm)', 'x1', 3, 0),
+            ('Electrode 1 Y (mm)', 'y1', 3, 2),
+            ('Electrode N X (mm)', 'xn', 4, 0),
+            ('Electrode N Y (mm)', 'yn', 4, 2),
+            ('Electrode N Z seed (mm)', 'zn', 5, 0),
+            ('AutoContactZ (0/1)', 'auto_contact_z', 5, 2),
+            ('Contact start offset (mm)', 'contact_start_offset', 6, 0),
+            ('Contact step (mm)', 'contact_step', 6, 2),
+            ('Contact max beyond seed (mm)', 'contact_max_beyond_seed', 7, 0),
+            ('Contact OCV threshold (V)', 'contact_ocv_threshold', 7, 2),
+            ('Contact settle (s)', 'contact_settle', 8, 0),
+            ('Contact engage (mm)', 'contact_engage', 8, 2),
+            ('dV scout step (V)', 'dv', 9, 0),
+            ('Pre-CA first seed/max (s)', 'hold_time', 9, 2),
+            ('Seeded PEIS high (Hz)', 'peis_f_high', 10, 0),
+            ('Seeded PEIS n pts', 'peis_n_pts', 10, 2),
+            ('PEIS bandwidth', 'peis_bandwidth', 11, 0),
+            ('PEIS N average', 'peis_n_average', 11, 2),
+            ('dV scout live max (s)', 'ca_duration', 12, 0),
+            ('CA/FFT dt (s)', 'ca_dt', 12, 2),
+            ('CA I Range', 'ca_i_range', 13, 0),
+            ('CA bandwidth', 'ca_bandwidth', 13, 2),
             ('Temp ramp rate (C/min)', 'temp_ramp_rate', 14, 0),
             ('Temp stable time (s)', 'stable_time', 14, 2),
             ('Gas stable time (s)', 'gas_stable_time', 15, 0),
@@ -936,16 +1541,18 @@ class MicroprobGUI(tk.Tk):
             entry.grid(row=row, column=col + 1, sticky='ew', padx=(0, 18), pady=4)
             self._full_auto_entries[key] = entry
 
-        help_box = tk.LabelFrame(f, text='Input Format', bg=CLR_BG, padx=10, pady=10)
+        help_box = tk.LabelFrame(f, text='Adaptive Planning Notes', bg=CLR_BG, padx=10, pady=10)
         help_box.pack(fill='x', padx=8, pady=(4, 6))
         help_lines = [
-            'Temperatures / Voltages: comma-separated, for example 600, 550, 500',
-            'Gas pairs: semicolon-separated raw DMFC setting pairs (0-100), for example 10:30; 30:10',
-            'Tip positions: XY are linearly interpolated from electrode 1 to electrode N',
-            'Z is a seed value. AutoContactZ=1 starts 0.2 mm above seed, steps toward contact, then engages by the configured amount.',
+            'Adaptive rows run: learned pre-CA seed -> dV scout CA live-stop -> FFT LF recommendation -> PEIS.',
+            'OLE-COM full-auto policy: PEIS high 100 Hz, overlap cap 0.5 Hz, deep limit 0.1 Hz, Nd=10, Na=1, BW4, Auto current range.',
+            'PEIS amplitude follows dV scout step, so dV=0.03 V uses 30 mV PEIS amplitude.',
+            'Pre-CA learning uses the detected stable decision time x1.3, capped at 300 s; scout/stout is not learned and uses live-stop.',
+            'Full-arc/onepage fitting is deferred during voltage ladders, then runs during site/gas/temp transitions or at run end.',
             'Uncheck temperature / gas / tip position above to disable those inputs and generate None values for that hardware step.',
             'During runs, gas is set before a temperature change; gas/temp stabilization waits overlap, and unchanged conditions skip their wait.',
-            'Post-PEIS CA uses one CA technique with two sequences: Vdc short hold, then Vdc+dV long CA.',
+            'OCV-based Z contact finding uses the seed Z and per-row contact settings; analysis-driven next-point updates run inside the live loop.',
+            'Image Monitor seeded electrodes mode: the Electrodes field restricts which seeded electrodes are used, e.g. "1,3,5-8" -- blank uses every seeded electrode.',
         ]
         for line in help_lines:
             tk.Label(help_box, text=line, bg=CLR_BG, anchor='w',
@@ -968,123 +1575,6 @@ class MicroprobGUI(tk.Tk):
         ).pack(fill='x', padx=8, pady=(0, 8))
         self._update_full_auto_field_states()
 
-    def _build_tab_adaptive_full_auto(self):
-        f = self.tab_auto
-
-        intro = tk.LabelFrame(f, text='Full-auto Adaptive Planner',
-                              bg=CLR_BG, padx=10, pady=10)
-        intro.pack(fill='x', padx=8, pady=(8, 6))
-        header = tk.Frame(intro, bg=CLR_BG)
-        header.pack(fill='x')
-        tk.Label(
-            header,
-            text=('Prepare the future fully automatic workflow that will use '
-                  'optimized analysis results to choose the next measurement '
-                  'parameters. For now, this planner generates the same base '
-                  'CSV rows while keeping adaptive settings visible in the UI.'),
-            bg=CLR_BG,
-            justify='left',
-            anchor='w',
-            font=('Segoe UI', 10),
-        ).pack(side='left', fill='x', expand=True)
-        option_box = tk.LabelFrame(header, text='Disable Unused Hardware', bg=CLR_BG, padx=8, pady=6)
-        option_box.pack(side='right', padx=(12, 0))
-        ttk.Checkbutton(
-            option_box, text='Use temperature',
-            variable=self._adaptive_full_auto_use['temperature'],
-            command=self._update_adaptive_full_auto_field_states
-        ).grid(row=0, column=0, sticky='w', padx=4)
-        ttk.Checkbutton(
-            option_box, text='Use gas',
-            variable=self._adaptive_full_auto_use['gas'],
-            command=self._update_adaptive_full_auto_field_states
-        ).grid(row=1, column=0, sticky='w', padx=4)
-        ttk.Checkbutton(
-            option_box, text='Use tip position',
-            variable=self._adaptive_full_auto_use['tip'],
-            command=self._update_adaptive_full_auto_field_states
-        ).grid(row=2, column=0, sticky='w', padx=4)
-
-        grid = tk.Frame(f, bg=CLR_BG)
-        grid.pack(fill='x', padx=8, pady=4)
-        grid.columnconfigure(1, weight=1)
-        grid.columnconfigure(3, weight=1)
-
-        fields = [
-            ('Temperatures (C)', 'temperatures', 0, 0),
-            ('Gas pairs A:B setting (0-100)', 'gas_pairs', 0, 2),
-            ('Voltages (V)', 'voltages', 1, 0),
-            ('Electrode 1 Z seed (mm)', 'z1', 1, 2),
-            ('Electrode start', 'electrode_start', 2, 0),
-            ('Electrode end', 'electrode_end', 2, 2),
-            ('Electrode 1 X (mm)', 'x1', 3, 0),
-            ('Electrode 1 Y (mm)', 'y1', 3, 2),
-            ('Electrode N X (mm)', 'xn', 4, 0),
-            ('Electrode N Y (mm)', 'yn', 4, 2),
-            ('Electrode N Z seed (mm)', 'zn', 5, 0),
-            ('AutoContactZ (0/1)', 'auto_contact_z', 5, 2),
-            ('Contact start offset (mm)', 'contact_start_offset', 6, 0),
-            ('Contact step (mm)', 'contact_step', 6, 2),
-            ('Contact max drop (mm)', 'contact_max_drop', 7, 0),
-            ('Contact max beyond seed (mm)', 'contact_max_beyond_seed', 7, 2),
-            ('Contact OCV threshold (V)', 'contact_ocv_threshold', 8, 0),
-            ('Contact settle (s)', 'contact_settle', 8, 2),
-            ('Contact engage (mm)', 'contact_engage', 9, 0),
-            ('dV scout step (V)', 'dv', 10, 0),
-            ('Pre-CA first seed/max (s)', 'hold_time', 10, 2),
-            ('Seeded PEIS high (Hz)', 'peis_f_high', 11, 0),
-            ('Seeded PEIS n pts', 'peis_n_pts', 11, 2),
-            ('dV scout live max (s)', 'ca_duration', 12, 0),
-            ('CA/FFT dt (s)', 'ca_dt', 12, 2),
-            ('Temp ramp rate (C/min)', 'temp_ramp_rate', 13, 0),
-            ('Temp stable time (s)', 'stable_time', 13, 2),
-            ('Gas stable time (s)', 'gas_stable_time', 14, 0),
-        ]
-        for label, key, row, col in fields:
-            tk.Label(
-                grid, text=label, bg=CLR_BG, anchor='w',
-                font=('Segoe UI', 10)
-            ).grid(row=row, column=col, sticky='w', padx=(0, 8), pady=4)
-            entry = tk.Entry(
-                grid, textvariable=self._adaptive_full_auto[key],
-                font=('Courier New', 10), width=28
-            )
-            entry.grid(row=row, column=col + 1, sticky='ew', padx=(0, 18), pady=4)
-            self._adaptive_full_auto_entries[key] = entry
-
-        help_box = tk.LabelFrame(f, text='Adaptive Planning Notes', bg=CLR_BG, padx=10, pady=10)
-        help_box.pack(fill='x', padx=8, pady=(4, 6))
-        help_lines = [
-            'Adaptive rows run: learned pre-CA seed -> dV scout CA live-stop -> FFT LF recommendation -> PEIS.',
-            'OLE-COM full-auto policy: PEIS high 100 Hz, overlap cap 0.5 Hz, deep limit 0.1 Hz, Nd=10, Na=1, BW4, Auto current range.',
-            'PEIS amplitude follows dV scout step, so dV=0.03 V uses 30 mV PEIS amplitude.',
-            'Pre-CA learning uses the detected stable decision time x1.3, capped at 300 s; scout/stout is not learned and uses live-stop.',
-            'Full-arc/onepage fitting is deferred during voltage ladders, then runs during site/gas/temp transitions or at run end.',
-            'Uncheck temperature / gas / tip position above to disable those inputs and generate None values for that hardware step.',
-            'During runs, gas is set before a temperature change; gas/temp stabilization waits overlap, and unchanged conditions skip their wait.',
-            'OCV-based Z contact finding uses the seed Z and per-row contact settings; analysis-driven next-point updates run inside the live loop.',
-        ]
-        for line in help_lines:
-            tk.Label(help_box, text=line, bg=CLR_BG, anchor='w',
-                     justify='left', font=('Segoe UI', 10)).pack(fill='x', pady=1)
-
-        btn_row = tk.Frame(f, bg=CLR_BG)
-        btn_row.pack(fill='x', padx=8, pady=(2, 6))
-        ttk.Button(
-            btn_row, text='Generate to CSV List',
-            command=self._generate_adaptive_full_auto_conditions
-        ).pack(side='left', padx=4)
-        ttk.Button(
-            btn_row, text='Append to CSV List',
-            command=lambda: self._generate_adaptive_full_auto_conditions(append=True)
-        ).pack(side='left', padx=4)
-
-        tk.Label(
-            f, textvariable=self._adaptive_full_auto_summary, bg=CLR_LGRAY,
-            anchor='w', font=('Segoe UI', 10), relief='sunken'
-        ).pack(fill='x', padx=8, pady=(0, 8))
-        self._update_adaptive_full_auto_field_states()
-
     # ── Tab 3: Run / Monitor ───────────────────────────────────────────
     def _build_tab_run(self):
         f = self.tab_run
@@ -1094,7 +1584,7 @@ class MicroprobGUI(tk.Tk):
         ctrl.pack(fill='x', padx=8, pady=6)
 
         tk.Label(ctrl, text='Result folder:', bg=CLR_BG).pack(side='left')
-        self._result_dir = tk.StringVar(value=os.path.join(os.getcwd(), 'results'))
+        self._result_dir = _ThreadSafeStringVar(value=os.path.join(os.getcwd(), 'results'))
         tk.Entry(ctrl, textvariable=self._result_dir, width=40).pack(side='left', padx=4)
         ttk.Button(ctrl, text='Browse',
                    command=self._browse_result).pack(side='left', padx=2)
@@ -1129,15 +1619,10 @@ class MicroprobGUI(tk.Tk):
         ttk.Combobox(
             safety,
             textvariable=self._run_contact_fail_policy_var,
-            values=('stop', 'skip_row'),
+            values=('collect_anyway', 'stop', 'skip_row'),
             width=16,
             state='readonly',
         ).grid(row=1, column=1, sticky='w', padx=(0, 12), pady=2)
-        ttk.Checkbutton(
-            safety,
-            text='Confirm preflight before run',
-            variable=self._run_confirm_preflight_var,
-        ).grid(row=1, column=2, sticky='w', pady=2)
 
         ttk.Checkbutton(
             safety,
@@ -1158,17 +1643,40 @@ class MicroprobGUI(tk.Tk):
             font=('Segoe UI', 9),
         ).grid(row=2, column=3, sticky='w', padx=(8, 0), pady=2)
 
-        btns = tk.Frame(safety, bg=CLR_BG)
-        btns.grid(row=0, column=4, rowspan=3, sticky='e', padx=(12, 0))
-        ttk.Button(btns, text='Preflight Check', command=self._preflight_check_dialog).pack(side='left', padx=3)
-        ttk.Button(btns, text='Preview Plan', command=self._preview_run_plan).pack(side='left', padx=3)
+        ttk.Checkbutton(
+            safety,
+            text='Ramp down after run to (deg C)',
+            variable=self._run_ramp_down_on_done_var,
+        ).grid(row=3, column=0, columnspan=2, sticky='w', padx=(0, 4), pady=2)
+        tk.Entry(
+            safety,
+            textvariable=self._run_ramp_down_end_temp_c_var,
+            width=8,
+            font=('Courier New', 9),
+        ).grid(row=3, column=2, sticky='w', pady=2)
+        tk.Label(safety, text='at (deg C/min)', bg=CLR_BG, font=('Segoe UI', 9)).grid(
+            row=3, column=3, sticky='w', padx=(8, 2), pady=2
+        )
+        tk.Entry(
+            safety,
+            textvariable=self._run_ramp_down_end_ramp_rate_var,
+            width=6,
+            font=('Courier New', 9),
+        ).grid(row=3, column=4, sticky='w', pady=2)
+        tk.Label(
+            safety,
+            text='Fires no matter how the run ends (success, stop, or error).',
+            bg=CLR_BG,
+            anchor='w',
+            font=('Segoe UI', 9),
+        ).grid(row=4, column=0, columnspan=5, sticky='w', padx=(0, 8), pady=(0, 2))
 
         # Progress
         prog_frame = tk.Frame(f, bg=CLR_BG)
         prog_frame.pack(fill='x', padx=8, pady=4)
 
         tk.Label(prog_frame, text='Progress:', bg=CLR_BG).pack(side='left')
-        self._progress_var = tk.DoubleVar()
+        self._progress_var = _ThreadSafeDoubleVar()
         self._progress_bar = ttk.Progressbar(prog_frame, variable=self._progress_var,
                                               maximum=100, length=400)
         self._progress_bar.pack(side='left', padx=8)
@@ -1176,7 +1684,7 @@ class MicroprobGUI(tk.Tk):
         self._progress_lbl.pack(side='left')
 
         # Status line
-        self._status_var = tk.StringVar(value='Ready')
+        self._status_var = _ThreadSafeStringVar(value='Ready')
         tk.Label(f, textvariable=self._status_var, bg=CLR_LGRAY,
                  anchor='w', font=('Segoe UI', 10), relief='sunken').pack(
                  fill='x', padx=8, pady=2)
@@ -1202,10 +1710,10 @@ class MicroprobGUI(tk.Tk):
         header = tk.Frame(f, bg=CLR_BG)
         header.pack(fill='x', padx=8, pady=8)
 
-        self._monitor_run_var = tk.StringVar(value='Run: idle')
-        self._monitor_step_var = tk.StringVar(value='Step: idle')
-        self._monitor_dc_var = tk.StringVar(value='Current: -')
-        self._monitor_eis_var = tk.StringVar(value='Impedance: -')
+        self._monitor_run_var = _ThreadSafeStringVar(value='Run: idle')
+        self._monitor_step_var = _ThreadSafeStringVar(value='Step: idle')
+        self._monitor_dc_var = _ThreadSafeStringVar(value='Current: -')
+        self._monitor_eis_var = _ThreadSafeStringVar(value='Impedance: -')
 
         for text_var in (self._monitor_run_var, self._monitor_step_var,
                          self._monitor_dc_var, self._monitor_eis_var):
@@ -1259,168 +1767,368 @@ class MicroprobGUI(tk.Tk):
                    command=self._monitor_reset).pack(anchor='e', padx=8, pady=(0, 6))
 
     def _build_tab_image(self):
-        f = self.tab_image
+        host = tk.Frame(self.tab_image, bg=CLR_BG)
+        host.pack(fill='both', expand=True)
 
-        ctrl = tk.Frame(f, bg=CLR_BG)
-        ctrl.pack(fill='x', padx=8, pady=8)
-
-        tk.Label(ctrl, text='Backend', bg=CLR_BG).pack(side='left')
-        ttk.Combobox(
-            ctrl,
-            textvariable=self._image_backend_var,
-            values=('dshow', 'any', 'msmf'),
-            width=10,
-            state='readonly',
-        ).pack(side='left', padx=(4, 10))
-
-        tk.Label(ctrl, text='Index', bg=CLR_BG).pack(side='left')
-        tk.Entry(ctrl, textvariable=self._image_index_var, width=5).pack(side='left', padx=(4, 10))
-
-        tk.Label(ctrl, text='Detector', bg=CLR_BG).pack(side='left')
-        ttk.Combobox(
-            ctrl,
-            textvariable=self._image_detector_var,
-            values=('live', 'reference', 'generic'),
-            width=10,
-            state='readonly',
-        ).pack(side='left', padx=(4, 10))
-
-        tk.Label(ctrl, text='Expected visible electrodes', bg=CLR_BG).pack(side='left')
-        tk.Entry(ctrl, textvariable=self._image_expected_count_var, width=6).pack(side='left', padx=(4, 10))
-
-        ttk.Button(ctrl, text='Start Camera', command=self._image_monitor_start).pack(side='left', padx=4)
-        ttk.Button(ctrl, text='Stop Camera', command=self._image_monitor_stop).pack(side='left', padx=4)
-        ttk.Button(ctrl, text='Freeze Current as Seed', command=self._image_freeze_current_seed).pack(side='left', padx=4)
-        ttk.Button(ctrl, text='Clear Seed', command=self._image_clear_seed).pack(side='left', padx=4)
-        ttk.Button(ctrl, text='Clear Target', command=self._image_clear_target).pack(side='left', padx=4)
-        ttk.Button(ctrl, text='Use Current XY as Anchor', command=self._image_set_stage_anchor_from_current_xy).pack(side='left', padx=4)
-        ttk.Button(ctrl, text='Clear Anchor', command=self._image_clear_stage_anchor).pack(side='left', padx=4)
-        ttk.Button(ctrl, text='Add Cal Point', command=self._image_add_stage_calibration_point_from_current_target).pack(side='left', padx=4)
-        ttk.Button(ctrl, text='Solve Affine', command=self._image_solve_stage_affine_calibration).pack(side='left', padx=4)
-        ttk.Button(ctrl, text='Clear Cal', command=self._image_clear_stage_affine_calibration).pack(side='left', padx=4)
-        ttk.Button(ctrl, text='Save Cal', command=self._image_save_stage_affine_calibration).pack(side='left', padx=4)
-        ttk.Button(ctrl, text='Load Cal', command=self._image_load_stage_affine_calibration).pack(side='left', padx=4)
-        ttk.Button(ctrl, text='Projected XY -> Target', command=self._image_apply_projected_stage_xy_to_manual_target).pack(side='left', padx=4)
-        self._image_move_target_button = ttk.Button(
-            ctrl,
-            text='Move Target (Safe)',
-            command=lambda: self._run_manual_action(self._image_move_target_safe),
+        self._image_scroll_canvas = tk.Canvas(
+            host,
+            bg=CLR_BG,
+            highlightthickness=0,
+            borderwidth=0,
         )
-        self._image_move_target_button.pack(side='left', padx=4)
-        self._image_override_weak_roi_button = ttk.Button(
-            ctrl,
-            text='Override Weak ROI Block',
-            command=self._image_override_weak_roi_block,
+        image_scrollbar = ttk.Scrollbar(
+            host,
+            orient='vertical',
+            command=self._image_scroll_canvas.yview,
         )
-        self._image_override_weak_roi_button.pack(side='left', padx=4)
-        tk.Checkbutton(
-            ctrl,
-            text='Allow stale/high override',
-            variable=self._image_allow_stale_high_override_var,
-            bg=CLR_BG,
-            command=self._image_refresh_move_gate_status,
-        ).pack(side='left', padx=(4, 0))
+        self._image_scroll_canvas.configure(yscrollcommand=image_scrollbar.set)
+        self._image_scroll_canvas.pack(side='left', fill='both', expand=True)
+        image_scrollbar.pack(side='right', fill='y')
 
-        calib_row = tk.Frame(f, bg=CLR_BG)
-        calib_row.pack(fill='x', padx=8, pady=(0, 6))
-        tk.Label(calib_row, text='Stage mapping', bg=CLR_BG).pack(side='left')
-        tk.Checkbutton(
-            calib_row,
-            text='Swap XY',
-            variable=self._image_stage_swap_xy_var,
-            bg=CLR_BG,
-            command=self._image_on_stage_projection_controls_changed,
-        ).pack(side='left', padx=(8, 6))
-        tk.Checkbutton(
-            calib_row,
-            text='Invert X',
-            variable=self._image_stage_invert_x_var,
-            bg=CLR_BG,
-            command=self._image_on_stage_projection_controls_changed,
-        ).pack(side='left', padx=6)
-        tk.Checkbutton(
-            calib_row,
-            text='Invert Y',
-            variable=self._image_stage_invert_y_var,
-            bg=CLR_BG,
-            command=self._image_on_stage_projection_controls_changed,
-        ).pack(side='left', padx=6)
-
-        design_row = tk.Frame(f, bg=CLR_BG)
-        design_row.pack(fill='x', padx=8, pady=(0, 6))
-        tk.Label(design_row, text='Design image', bg=CLR_BG).pack(side='left')
-        tk.Entry(design_row, textvariable=self._image_design_path_var, width=70).pack(side='left', padx=(6, 6), fill='x', expand=True)
-        ttk.Button(design_row, text='Browse', command=self._image_browse_design).pack(side='left', padx=2)
-        ttk.Button(design_row, text='Load Design', command=self._image_load_design).pack(side='left', padx=2)
-
-        markup_row = tk.Frame(f, bg=CLR_BG)
-        markup_row.pack(fill='x', padx=8, pady=(0, 6))
-        tk.Label(markup_row, text='Markup image', bg=CLR_BG).pack(side='left')
-        tk.Entry(markup_row, textvariable=self._image_markup_path_var, width=70).pack(side='left', padx=(6, 6), fill='x', expand=True)
-        ttk.Button(markup_row, text='Browse', command=self._image_browse_markup).pack(side='left', padx=2)
-        ttk.Button(markup_row, text='Load Markup', command=self._image_load_markup).pack(side='left', padx=2)
-
-        tk.Label(
-            f,
-            text='Swift/OpenCV live preview for tip/electrode monitoring. This is the first GUI bridge for future move-after-ROI verification and electrode selection.',
-            bg=CLR_BG,
-            anchor='w',
-            justify='left',
-            font=('Segoe UI', 10),
-        ).pack(fill='x', padx=8, pady=(0, 6))
-
-        tk.Label(
-            f, textvariable=self._image_status_var, bg=CLR_LGRAY,
-            anchor='w', font=('Segoe UI', 10), relief='groove', padx=8, pady=6
-        ).pack(fill='x', padx=8, pady=3)
-        tk.Label(
-            f, textvariable=self._image_detection_var, bg=CLR_LGRAY,
-            anchor='w', font=('Segoe UI', 10), relief='groove', padx=8, pady=6
-        ).pack(fill='x', padx=8, pady=(0, 6))
-        tk.Label(
-            f, textvariable=self._image_design_status_var, bg=CLR_LGRAY,
-            anchor='w', font=('Segoe UI', 10), relief='groove', padx=8, pady=6
-        ).pack(fill='x', padx=8, pady=(0, 6))
-        tk.Label(
-            f, textvariable=self._image_markup_status_var, bg=CLR_LGRAY,
-            anchor='w', font=('Segoe UI', 10), relief='groove', padx=8, pady=6
-        ).pack(fill='x', padx=8, pady=(0, 6))
-        tk.Label(
-            f, textvariable=self._image_target_status_var, bg=CLR_LGRAY,
-            anchor='w', font=('Segoe UI', 10), relief='groove', padx=8, pady=6
-        ).pack(fill='x', padx=8, pady=(0, 6))
-        tk.Label(
-            f, textvariable=self._image_roi_verify_status_var, bg=CLR_LGRAY,
-            anchor='w', font=('Segoe UI', 10), relief='groove', padx=8, pady=6
-        ).pack(fill='x', padx=8, pady=(0, 6))
-        self._image_move_gate_label = tk.Label(
-            f, textvariable=self._image_move_gate_status_var, bg=CLR_LGRAY,
-            anchor='w', font=('Segoe UI', 10), relief='groove', padx=8, pady=6
+        f = tk.Frame(self._image_scroll_canvas, bg=CLR_BG)
+        self._image_scroll_window = self._image_scroll_canvas.create_window(
+            (0, 0), window=f, anchor='nw'
         )
-        self._image_move_gate_label.pack(fill='x', padx=8, pady=(0, 6))
-        tk.Label(
-            f, textvariable=self._image_stage_anchor_status_var, bg=CLR_LGRAY,
-            anchor='w', font=('Segoe UI', 10), relief='groove', padx=8, pady=6
-        ).pack(fill='x', padx=8, pady=(0, 6))
-        tk.Label(
-            f, textvariable=self._image_stage_affine_status_var, bg=CLR_LGRAY,
-            anchor='w', font=('Segoe UI', 10), relief='groove', padx=8, pady=6
-        ).pack(fill='x', padx=8, pady=(0, 6))
-        tk.Label(
-            f, textvariable=self._image_hint_var, bg=CLR_BG,
-            anchor='w', justify='left', font=('Segoe UI', 10), fg='#546e7a'
-        ).pack(fill='x', padx=8, pady=(0, 6))
 
+        def _sync_image_scrollregion(_event=None):
+            self._image_scroll_canvas.configure(
+                scrollregion=self._image_scroll_canvas.bbox('all')
+            )
+
+        def _sync_image_canvas_width(event):
+            self._image_scroll_canvas.itemconfigure(
+                self._image_scroll_window,
+                width=event.width,
+            )
+
+        f.bind('<Configure>', _sync_image_scrollregion)
+        self._image_scroll_canvas.bind('<Configure>', _sync_image_canvas_width)
+
+        def _image_mousewheel(event):
+            delta = getattr(event, 'delta', 0)
+            if delta:
+                self._image_scroll_canvas.yview_scroll(int(-delta / 120), 'units')
+
+        # Scope the wheel binding to only be active while the cursor is over
+        # this tab's canvas -- a plain bind_all here would otherwise silently
+        # steal scroll-wheel input from the Manual Control tab's own
+        # scrollable canvas (bind_all is global and last-registered wins).
+        def _image_canvas_enter(_event):
+            self._image_scroll_canvas.bind_all('<MouseWheel>', _image_mousewheel)
+
+        def _image_canvas_leave(_event):
+            self._image_scroll_canvas.unbind_all('<MouseWheel>')
+
+        self._image_scroll_canvas.bind('<Enter>', _image_canvas_enter)
+        self._image_scroll_canvas.bind('<Leave>', _image_canvas_leave)
+
+        f.grid_columnconfigure(0, weight=1, uniform='image_col')
+        f.grid_columnconfigure(1, weight=1, uniform='image_col')
+
+        def _section(title, *, row, column, columnspan=1):
+            box = tk.LabelFrame(f, text=title, bg=CLR_BG, padx=8, pady=8)
+            box.grid(row=row, column=column, columnspan=columnspan, sticky='nsew', padx=6, pady=6)
+            return box
+
+        def _status_label(parent, var):
+            tk.Label(
+                parent, textvariable=var, bg=CLR_LGRAY,
+                anchor='w', font=('Segoe UI', 10), relief='groove', padx=8, pady=4,
+            ).pack(fill='x', padx=6, pady=(2, 6))
+
+        # A distinct style for a button whose mode/process is currently
+        # active (Select Probe ROI while dragging, Draw Electrode Circles
+        # while placing, Search Z while running) -- see
+        # _image_set_mode_button_active. Foreground changes render on every
+        # platform; background may not on themes that ignore it for ttk
+        # buttons (e.g. macOS aqua), so this isn't the only signal. No font
+        # change here -- a bold variant measures wider than regular and
+        # would resize the button when toggled; each of these buttons also
+        # gets an explicit width= below so its size never depends on style.
+        try:
+            ttk.Style(self).configure(
+                'ImageModeActive.TButton',
+                background=CLR_GOLD, foreground='#000000',
+            )
+        except Exception:
+            pass
+
+        # -- Camera & stage position (shared with Manual Control), plus
+        # target-electrode lock & move (merged in: locking a target updates
+        # the "Move to:" fields below, so both live in one place). ---------
+        stage_section = _section('Camera & Stage', row=0, column=0)
+        cam_row = tk.Frame(stage_section, bg=CLR_BG)
+        cam_row.pack(fill='x', padx=6, pady=(6, 2))
+        ttk.Button(cam_row, text='Start Camera', command=self._image_monitor_start).pack(side='left', padx=4)
+        ttk.Button(cam_row, text='Stop Camera', command=self._image_monitor_stop).pack(side='left', padx=4)
+        cam_frame_row = tk.Frame(stage_section, bg=CLR_BG)
+        cam_frame_row.pack(fill='x', padx=6, pady=2)
+        ttk.Button(cam_frame_row, text='Freeze Current Frame', command=self._image_freeze_current_seed).pack(side='left', padx=4)
+        ttk.Button(cam_frame_row, text='Clear Frame', command=self._image_clear_seed).pack(side='left', padx=4)
+        stage_row_cur = tk.Frame(stage_section, bg=CLR_BG)
+        stage_row_cur.pack(fill='x', padx=6, pady=2)
+        tk.Label(stage_row_cur, text='Current:', bg=CLR_BG).pack(side='left')
+        for axis_label, key in (('X', 'x'), ('Y', 'y'), ('Z', 'z')):
+            tk.Label(stage_row_cur, text=f'{axis_label}', bg=CLR_BG).pack(side='left', padx=(6, 0))
+            tk.Label(
+                stage_row_cur, textvariable=self._manual_current[key],
+                bg=CLR_LGRAY, font=('Courier New', 10), relief='groove', width=8,
+            ).pack(side='left', padx=(2, 0))
+        stage_row_tgt = tk.Frame(stage_section, bg=CLR_BG)
+        stage_row_tgt.pack(fill='x', padx=6, pady=2)
+        tk.Label(stage_row_tgt, text='Move to:', bg=CLR_BG).pack(side='left')
+        for axis_label, key in (('X', 'x'), ('Y', 'y'), ('Z', 'z')):
+            tk.Label(stage_row_tgt, text=f'{axis_label}', bg=CLR_BG).pack(side='left', padx=(6, 0))
+            tk.Entry(
+                stage_row_tgt, textvariable=self._manual_target[key],
+                width=8, font=('Courier New', 10),
+            ).pack(side='left', padx=(2, 0))
+        ttk.Checkbutton(
+            stage_row_tgt, text='Lock Z', variable=self._image_lock_z_var,
+        ).pack(side='left', padx=(12, 0))
+        stage_row_btns = tk.Frame(stage_section, bg=CLR_BG)
+        stage_row_btns.pack(fill='x', padx=6, pady=2)
+        ttk.Button(
+            stage_row_btns, text='Refresh Current State',
+            command=lambda: self._run_manual_action(self._manual_refresh_state),
+        ).pack(side='left', padx=4)
+        self._image_move_tip_button = ttk.Button(
+            stage_row_btns, text='Move Tip',
+            command=lambda: self._run_manual_action(self._manual_move_stage),
+        )
+        self._image_move_tip_button.pack(side='left', padx=4)
+        _status_label(stage_section, self._image_status_var)
+        _status_label(stage_section, self._image_detection_var)
+        _status_label(stage_section, self._image_target_status_var)
+
+        # -- Live camera preview (top-right, spans the Camera & Stage +
+        # Pixel-Probe Calibration rows so it's visible without scrolling). --
+        f.grid_rowconfigure(0, weight=1)
+        f.grid_rowconfigure(1, weight=1)
+        live_view_col = tk.Frame(f, bg=CLR_BG)
+        live_view_col.grid(row=0, column=1, rowspan=2, sticky='nsew', padx=6, pady=6)
+        live_view_col.grid_columnconfigure(0, weight=1)
+        live_view_col.grid_rowconfigure(1, weight=1)
+        circles_toggle_row = tk.Frame(live_view_col, bg=CLR_BG)
+        circles_toggle_row.grid(row=0, column=0, sticky='w', pady=(0, 4))
+        ttk.Checkbutton(
+            circles_toggle_row, text='Show Electrode Circles',
+            variable=self._image_show_circles_var,
+        ).pack(side='left')
         self._image_monitor_label = tk.Label(
-            f,
+            live_view_col,
             bg='black',
             anchor='center',
             text='Camera preview will appear here',
             fg='white',
             font=('Segoe UI', 11),
         )
-        self._image_monitor_label.pack(fill='both', expand=True, padx=8, pady=(0, 8))
-        self._image_monitor_label.bind('<Button-1>', self._image_monitor_click_select_target)
+        self._image_monitor_label.grid(row=1, column=0, sticky='nsew')
+        self._image_monitor_label.bind('<ButtonPress-1>', self._image_monitor_press)
+        self._image_monitor_label.bind('<B1-Motion>', self._image_monitor_drag)
+        self._image_monitor_label.bind('<ButtonRelease-1>', self._image_monitor_release)
+
+        # -- Pixel-probe calibration ------------------------------------------
+        probe_section = _section('Pixel-Probe Calibration', row=1, column=0)
+        probe_row1 = tk.Frame(probe_section, bg=CLR_BG)
+        probe_row1.pack(fill='x', padx=6, pady=(6, 2))
+        self._image_probe_roi_button = ttk.Button(
+            probe_row1, text='Select Probe ROI', width=16,
+            command=self._image_toggle_probe_roi_select_mode,
+        )
+        self._image_probe_roi_button.pack(side='left', padx=4)
+        ttk.Button(probe_row1, text='Clear Probe ROI', command=self._image_clear_probe_roi).pack(side='left', padx=4)
+        ttk.Button(probe_row1, text='Detect Probe Tip', command=self._image_detect_probe_tip).pack(side='left', padx=4)
+        ttk.Button(probe_row1, text='Capture Probe Cal Point', command=self._image_add_pixel_stage_calibration_point).pack(side='left', padx=4)
+        probe_row2 = tk.Frame(probe_section, bg=CLR_BG)
+        probe_row2.pack(fill='x', padx=6, pady=2)
+        ttk.Button(probe_row2, text='Solve Probe Affine', command=self._image_solve_pixel_stage_affine_calibration).pack(side='left', padx=4)
+        ttk.Button(probe_row2, text='Clear Probe Cal', command=self._image_clear_pixel_stage_affine_calibration).pack(side='left', padx=4)
+        ttk.Button(probe_row2, text='Save Probe Cal', command=self._image_save_pixel_stage_affine_calibration).pack(side='left', padx=4)
+        ttk.Button(probe_row2, text='Load Probe Cal', command=self._image_load_pixel_stage_affine_calibration).pack(side='left', padx=4)
+        probe_row3 = tk.Frame(probe_section, bg=CLR_BG)
+        probe_row3.pack(fill='x', padx=6, pady=2)
+        ttk.Button(probe_row3, text='Tune Probe Params', command=self._image_open_probe_tuning_window).pack(side='left', padx=4)
+        ttk.Button(probe_row3, text='Load Probe Params', command=self._image_load_probe_params_file).pack(side='left', padx=4)
+        _status_label(probe_section, self._image_probe_status_var)
+        _status_label(probe_section, self._image_pixel_stage_affine_status_var)
+
+
+        # -- DXF-layout alignment, plus a schematic plot of the raw loaded
+        # layout geometry (to the right of the controls, independent of
+        # whether a camera transform has been fit yet). ---------------------
+        layout_section = _section('DXF-Layout Alignment', row=2, column=0, columnspan=2)
+        layout_section.columnconfigure(0, weight=2)
+        layout_section.columnconfigure(1, weight=1)
+        layout_controls = tk.Frame(layout_section, bg=CLR_BG)
+        layout_controls.grid(row=0, column=0, sticky='nsew')
+
+        layout_row = tk.Frame(layout_controls, bg=CLR_BG)
+        layout_row.pack(fill='x', padx=6, pady=(6, 2))
+        ttk.Button(layout_row, text='Load DXF Layout', command=self._image_load_dxf_layout).pack(side='left', padx=2)
+        ttk.Button(layout_row, text='Load Circle Params', command=self._image_load_circle_params_file).pack(side='left', padx=2)
+        ttk.Button(layout_row, text='Tune Circle Params', command=self._image_open_circle_tuning_window).pack(side='left', padx=2)
+
+        align_row = tk.Frame(layout_controls, bg=CLR_BG)
+        align_row.pack(fill='x', padx=6, pady=2)
+        self._image_draw_circles_button = ttk.Button(
+            align_row, text='Draw Electrode Circles', width=20,
+            command=self._image_toggle_layout_draw_mode,
+        )
+        self._image_draw_circles_button.pack(side='left', padx=4)
+        ttk.Button(align_row, text='Undo Last Circle', command=self._image_undo_last_drawn_circle).pack(side='left', padx=4)
+        ttk.Button(align_row, text='Clear Circles', command=self._image_clear_drawn_circles).pack(side='left', padx=4)
+
+        fit_row = tk.Frame(layout_controls, bg=CLR_BG)
+        fit_row.pack(fill='x', padx=6, pady=2)
+        ttk.Button(fit_row, text='Fit Transform', command=self._image_fit_layout_alignment).pack(side='left', padx=4)
+        ttk.Button(fit_row, text='Accept Alignment', command=self._image_accept_layout_alignment).pack(side='left', padx=4)
+        ttk.Button(fit_row, text='Save Alignment', command=self._image_save_electrode_alignment).pack(side='left', padx=4)
+        ttk.Button(fit_row, text='Load Alignment', command=self._image_load_electrode_alignment).pack(side='left', padx=4)
+
+        pair_row = tk.Frame(layout_controls, bg=CLR_BG)
+        pair_row.pack(fill='x', padx=6, pady=2)
+        tk.Label(pair_row, text='Pair: drawn circle #', bg=CLR_BG).pack(side='left')
+        self._image_layout_pair_drawn_var = _ThreadSafeStringVar(value='')
+        tk.Entry(pair_row, textvariable=self._image_layout_pair_drawn_var, width=5).pack(side='left', padx=(4, 10))
+        tk.Label(pair_row, text='<-> layout electrode #', bg=CLR_BG).pack(side='left')
+        self._image_layout_pair_combo = ttk.Combobox(pair_row, values=(), width=28, state='readonly')
+        self._image_layout_pair_combo.pack(side='left', padx=(4, 6))
+        ttk.Button(pair_row, text='Confirm Pair', command=self._image_confirm_layout_pair).pack(side='left', padx=4)
+        ttk.Button(pair_row, text='Undo Last Pair', command=self._image_undo_last_layout_pair).pack(side='left', padx=4)
+
+        nudge_row = tk.Frame(layout_controls, bg=CLR_BG)
+        nudge_row.pack(fill='x', padx=6, pady=2)
+        tk.Label(nudge_row, text='scale x', bg=CLR_BG).pack(side='left')
+        tk.Scale(
+            nudge_row, from_=-50, to=50, orient='horizontal', length=110,
+            variable=self._image_layout_nudge_scale_x_var, command=lambda _v: self._image_apply_layout_nudge(),
+        ).pack(side='left', padx=(2, 8))
+        tk.Label(nudge_row, text='scale y', bg=CLR_BG).pack(side='left')
+        tk.Scale(
+            nudge_row, from_=-50, to=50, orient='horizontal', length=110,
+            variable=self._image_layout_nudge_scale_y_var, command=lambda _v: self._image_apply_layout_nudge(),
+        ).pack(side='left', padx=(2, 8))
+        tk.Label(nudge_row, text='angle', bg=CLR_BG).pack(side='left')
+        tk.Scale(
+            nudge_row, from_=-100, to=100, orient='horizontal', length=110,
+            variable=self._image_layout_nudge_angle_var, command=lambda _v: self._image_apply_layout_nudge(),
+        ).pack(side='left', padx=(2, 8))
+        tk.Label(nudge_row, text='translate x', bg=CLR_BG).pack(side='left')
+        tk.Scale(
+            nudge_row, from_=-100, to=100, orient='horizontal', length=110,
+            variable=self._image_layout_nudge_translate_x_var, command=lambda _v: self._image_apply_layout_nudge(),
+        ).pack(side='left', padx=(2, 8))
+        tk.Label(nudge_row, text='translate y', bg=CLR_BG).pack(side='left')
+        tk.Scale(
+            nudge_row, from_=-100, to=100, orient='horizontal', length=110,
+            variable=self._image_layout_nudge_translate_y_var, command=lambda _v: self._image_apply_layout_nudge(),
+        ).pack(side='left', padx=(2, 8))
+
+        nudge_row2 = tk.Frame(layout_controls, bg=CLR_BG)
+        nudge_row2.pack(fill='x', padx=6, pady=2)
+        tk.Label(nudge_row2, text='shear x', bg=CLR_BG).pack(side='left')
+        tk.Scale(
+            nudge_row2, from_=-100, to=100, orient='horizontal', length=110,
+            variable=self._image_layout_nudge_shear_x_var, command=lambda _v: self._image_apply_layout_nudge(),
+        ).pack(side='left', padx=(2, 8))
+        tk.Label(nudge_row2, text='shear y', bg=CLR_BG).pack(side='left')
+        tk.Scale(
+            nudge_row2, from_=-100, to=100, orient='horizontal', length=110,
+            variable=self._image_layout_nudge_shear_y_var, command=lambda _v: self._image_apply_layout_nudge(),
+        ).pack(side='left', padx=(2, 8))
+        _status_label(layout_controls, self._image_layout_status_var)
+        _status_label(layout_controls, self._image_layout_alignment_status_var)
+
+        self._image_dxf_layout_preview_canvas = tk.Canvas(
+            layout_section, bg='white', highlightthickness=1, highlightbackground='#b0bec5',
+            width=400, height=220,
+        )
+        self._image_dxf_layout_preview_canvas.grid(row=0, column=1, sticky='nsew', padx=(10, 0))
+        self._image_dxf_layout_preview_canvas.bind(
+            '<Configure>', lambda _e: self._image_draw_dxf_layout_preview()
+        )
+
+        # -- Z Contact Search parameters, plus Electrode Z-Seed controls
+        # (merged in: both Seed Z buttons run this same search, reading the
+        # same self._contact_search StringVars, so they belong with the
+        # parameters they use rather than in a separate box). --------------
+        # Mirrors layout_section's own layout_controls (left, weight=2) /
+        # preview canvas (right, weight=1) split exactly: a single left
+        # controls frame holding every row (fields, buttons, AND the status
+        # bars, all pack(fill='x') so they're sized to the controls
+        # column's own width rather than spanning the whole section), and
+        # the preview canvas gridded directly into the section at column=1
+        # so it fills its own column instead of floating at a fixed size.
+        contact_section = _section('Z Contact Search', row=3, column=0, columnspan=2)
+        contact_section.columnconfigure(0, weight=2)
+        contact_section.columnconfigure(1, weight=1)
+        contact_left = tk.Frame(contact_section, bg=CLR_BG)
+        contact_left.grid(row=0, column=0, sticky='nsew')
+
+        contact_fields_frame = tk.Frame(contact_left, bg=CLR_BG)
+        contact_fields_frame.pack(fill='x', padx=6, pady=(6, 2))
+        contact_fields = [
+            ('Start offset (mm)', 'start_offset'),
+            ('Step (mm)', 'step_mm'),
+            ('Max beyond seed (mm)', 'max_beyond_seed_mm'),
+            ('OCV threshold (V)', 'ocv_threshold'),
+            ('Settle per step (s)', 'settle_s'),
+            ('Engage extra (mm)', 'engage_mm'),
+            ('Target XY tolerance (mm)', 'target_xy_tolerance_mm'),
+        ]
+        for row, (label, key) in enumerate(contact_fields):
+            col = (row % 3) * 2
+            line = row // 3
+            tk.Label(contact_fields_frame, text=label, bg=CLR_BG, anchor='w',
+                     font=('Segoe UI', 10)).grid(row=line, column=col, sticky='w', pady=4, padx=(0, 6))
+            tk.Entry(contact_fields_frame, textvariable=self._contact_search[key], width=12,
+                     font=('Courier New', 10)).grid(
+                     row=line, column=col + 1, sticky='w', pady=4, padx=(0, 14))
+
+        contact_btn_col = tk.Frame(contact_fields_frame, bg=CLR_BG)
+        contact_btn_col.grid(row=0, column=6, rowspan=3, sticky='ns', padx=(14, 0))
+        self._image_search_z_button = ttk.Button(
+            contact_btn_col, text='Search Z', width=10,
+            command=lambda: self._run_manual_action(self._image_seed_z_from_contact),
+        )
+        self._image_search_z_button.pack(side='top', fill='x', padx=4, pady=2)
+
+        z_seed_controls_row = tk.Frame(contact_left, bg=CLR_BG)
+        z_seed_controls_row.pack(fill='x', padx=6, pady=2)
+        ttk.Button(
+            z_seed_controls_row, text='Save Z Seed', command=self._image_save_z_seed_store,
+        ).pack(side='left', padx=4)
+        ttk.Button(
+            z_seed_controls_row, text='Load Z Seed', command=self._image_load_z_seed_store,
+        ).pack(side='left', padx=4)
+        ttk.Button(
+            z_seed_controls_row, text='Clear Z Seed', command=self._image_clear_z_seed_store,
+        ).pack(side='left', padx=4)
+
+        _status_label(contact_left, self._image_z_seed_status_var)
+        _status_label(contact_left, self._image_z_seed_ocv_var)
+        _status_label(contact_left, self._image_parallax_debug_var)
+
+        # Same bordered-box-with-centered-placeholder-text style as
+        # self._image_dxf_layout_preview_canvas ("No layout loaded"), and
+        # gridded the same way -- directly into the section at column=1,
+        # sticky='nsew', so it fills/stretches with its column instead of
+        # sitting at a fixed size inside a wrapper frame.
+        self._image_parallax_panel_canvas = tk.Canvas(
+            contact_section, bg='white', highlightthickness=1, highlightbackground='#b0bec5',
+            width=400, height=190,
+        )
+        self._image_parallax_panel_canvas.grid(row=0, column=1, sticky='nsew', padx=(10, 0))
+        self._image_parallax_panel_canvas.bind(
+            '<Configure>', lambda _e: self._image_update_parallax_debug_display()
+        )
+        self._image_update_parallax_debug_display()
+
+        tk.Label(
+            f, textvariable=self._image_hint_var, bg=CLR_BG,
+            anchor='w', justify='left', font=('Segoe UI', 10), fg='#546e7a'
+        ).grid(row=4, column=0, columnspan=2, sticky='ew', padx=8, pady=(8, 6))
 
     def _build_tab_manual(self):
         host = tk.Frame(self.tab_manual, bg=CLR_BG)
@@ -1465,11 +2173,22 @@ class MicroprobGUI(tk.Tk):
             if delta:
                 self._manual_scroll_canvas.yview_scroll(int(-delta / 120), 'units')
 
-        self._manual_scroll_canvas.bind_all('<MouseWheel>', _manual_mousewheel)
+        # Scope the wheel binding to only be active while the cursor is over
+        # this tab's canvas -- see the matching comment in _build_tab_image;
+        # a plain bind_all would otherwise have the two tabs' scroll canvases
+        # fight over the single global <MouseWheel> binding.
+        def _manual_canvas_enter(_event):
+            self._manual_scroll_canvas.bind_all('<MouseWheel>', _manual_mousewheel)
+
+        def _manual_canvas_leave(_event):
+            self._manual_scroll_canvas.unbind_all('<MouseWheel>')
+
+        self._manual_scroll_canvas.bind('<Enter>', _manual_canvas_enter)
+        self._manual_scroll_canvas.bind('<Leave>', _manual_canvas_leave)
 
         top = tk.Frame(f, bg=CLR_BG)
         top.pack(fill='both', expand=True, padx=8, pady=8)
-        top.columnconfigure(0, weight=1)
+        top.columnconfigure(0, weight=2)
         top.columnconfigure(1, weight=1)
 
         current = tk.LabelFrame(top, text='Current State', bg=CLR_BG, padx=10, pady=10)
@@ -1493,6 +2212,8 @@ class MicroprobGUI(tk.Tk):
             tk.Label(current, textvariable=var, bg=CLR_LGRAY, anchor='w', width=14,
                      font=('Courier New', 10), relief='groove').grid(
                      row=row, column=1, sticky='ew', padx=(10, 0), pady=4)
+        for row in range(len(current_fields)):
+            current.rowconfigure(row, weight=1)
 
         target_fields = [
             ('Temperature (C)', 'temp'),
@@ -1509,6 +2230,13 @@ class MicroprobGUI(tk.Tk):
             tk.Entry(target, textvariable=self._manual_target[key], width=16,
                      font=('Courier New', 10)).grid(
                      row=row, column=1, sticky='ew', padx=(10, 0), pady=4)
+        # current now grows taller than target's own field rows need (the
+        # history graphs to its right), and grid stretches target's outer
+        # LabelFrame to match that row height -- give target's own rows
+        # weight so their extra vertical space is distributed evenly across
+        # all fields instead of leaving one large gap below the last entry.
+        for row in range(len(target_fields)):
+            target.rowconfigure(row, weight=1)
 
         btns = tk.Frame(f, bg=CLR_BG)
         btns.pack(fill='x', padx=8, pady=(0, 8))
@@ -1520,17 +2248,16 @@ class MicroprobGUI(tk.Tk):
         ttk.Button(btns, text='Apply Temperature',
                    command=lambda: self._run_manual_action(self._manual_apply_temperature)
                    ).pack(side='left', padx=4)
-        ttk.Button(btns, text='Move Tip',
-                   command=lambda: self._run_manual_action(self._manual_move_stage)
-                   ).pack(side='left', padx=4)
+        self._manual_move_tip_button = ttk.Button(
+            btns, text='Move Tip',
+            command=lambda: self._run_manual_action(self._manual_move_stage)
+        )
+        self._manual_move_tip_button.pack(side='left', padx=4)
         ttk.Button(btns, text='Set Gas',
                    command=lambda: self._run_manual_action(self._manual_set_gas)
                    ).pack(side='left', padx=4)
         ttk.Button(btns, text='Apply All',
                    command=lambda: self._run_manual_action(self._manual_apply_all)
-                   ).pack(side='left', padx=4)
-        ttk.Button(btns, text='Stop Tip',
-                   command=lambda: self._run_manual_action(self._manual_stop_stage)
                    ).pack(side='left', padx=4)
         ttk.Button(btns, text='Find Contact Z',
                    command=lambda: self._run_manual_action(self._manual_find_contact_z)
@@ -1548,7 +2275,7 @@ class MicroprobGUI(tk.Tk):
         quick_row.columnconfigure(0, weight=1)
         quick_row.columnconfigure(1, weight=1)
 
-        quick = tk.LabelFrame(quick_row, text='Quick EIS', bg=CLR_BG, padx=10, pady=10)
+        quick = tk.LabelFrame(quick_row, text='EIS', bg=CLR_BG, padx=10, pady=10)
         quick.grid(row=0, column=0, sticky='nsew', padx=(0, 6))
 
         quick_fields = [
@@ -1577,11 +2304,11 @@ class MicroprobGUI(tk.Tk):
             font=('Segoe UI', 9),
             fg='#555',
         ).grid(row=4, column=0, columnspan=4, sticky='w', pady=(2, 6))
-        ttk.Button(quick, text='Run Quick EIS',
+        ttk.Button(quick, text='Run EIS',
                    command=lambda: self._run_manual_action(self._manual_run_quick_eis)
                    ).grid(row=5, column=0, sticky='w', pady=(4, 0))
 
-        quick_rapid = tk.LabelFrame(quick_row, text='Quick Rapid EIS', bg=CLR_BG, padx=10, pady=10)
+        quick_rapid = tk.LabelFrame(quick_row, text='Hybrid CA/EIS', bg=CLR_BG, padx=10, pady=10)
         quick_rapid.grid(row=0, column=1, sticky='nsew', padx=(6, 0))
 
         quick_rapid_fields = [
@@ -1592,6 +2319,9 @@ class MicroprobGUI(tk.Tk):
             ('Pre-hold (s)', 'hold_time'),
             ('Post-hold (s)', 'post_hold_time'),
             ('CA duration (s)', 'ca_duration'),
+            ('CA dt (s)', 'ca_dt'),
+            ('CA I Range', 'ca_i_range'),
+            ('CA bandwidth', 'ca_bandwidth'),
             ('PEIS HF (Hz)', 'peis_f_high'),
             ('PEIS LF (Hz)', 'peis_f_low'),
             ('Cycles', 'cycles'),
@@ -1605,6 +2335,7 @@ class MicroprobGUI(tk.Tk):
                      font=('Courier New', 10)).grid(
                      row=line, column=col + 1, sticky='w', pady=4, padx=(0, 14))
 
+        quick_rapid_next_row = (len(quick_rapid_fields) + 1) // 2
         tk.Label(
             quick_rapid,
             text='Saved under Run / Monitor result folder -> Manual Rapid EIS.',
@@ -1612,10 +2343,10 @@ class MicroprobGUI(tk.Tk):
             anchor='w',
             font=('Segoe UI', 9),
             fg='#555',
-        ).grid(row=5, column=0, columnspan=4, sticky='w', pady=(2, 6))
-        ttk.Button(quick_rapid, text='Run Quick Rapid EIS',
+        ).grid(row=quick_rapid_next_row, column=0, columnspan=4, sticky='w', pady=(2, 6))
+        ttk.Button(quick_rapid, text='Run Hybrid CA/EIS',
                    command=lambda: self._run_manual_action(self._manual_run_quick_rapid_eis)
-                   ).grid(row=6, column=0, sticky='w', pady=(4, 0))
+                   ).grid(row=quick_rapid_next_row + 1, column=0, sticky='w', pady=(4, 0))
 
         manual_measure_btns = tk.Frame(f, bg=CLR_BG)
         manual_measure_btns.pack(fill='x', padx=8, pady=(0, 6))
@@ -1630,26 +2361,18 @@ class MicroprobGUI(tk.Tk):
                  anchor='w', font=('Segoe UI', 10), fg='#37474f').pack(
                  fill='x', padx=8, pady=(0, 6))
 
-        contact = tk.LabelFrame(f, text='Z Contact Search', bg=CLR_BG, padx=10, pady=10)
-        contact.pack(fill='x', padx=8, pady=(0, 8))
-
-        contact_fields = [
-            ('Start offset (mm)', 'start_offset'),
-            ('Step (mm)', 'step_mm'),
-            ('Max drop (mm)', 'max_drop_mm'),
-            ('Max beyond seed (mm)', 'max_beyond_seed_mm'),
-            ('OCV threshold (V)', 'ocv_threshold'),
-            ('Settle per step (s)', 'settle_s'),
-            ('Engage extra (mm)', 'engage_mm'),
-        ]
-        for row, (label, key) in enumerate(contact_fields):
-            col = (row % 3) * 2
-            line = row // 3
-            tk.Label(contact, text=label, bg=CLR_BG, anchor='w',
-                     font=('Segoe UI', 10)).grid(row=line, column=col, sticky='w', pady=4, padx=(0, 6))
-            tk.Entry(contact, textvariable=self._contact_search[key], width=12,
-                     font=('Courier New', 10)).grid(
-                     row=line, column=col + 1, sticky='w', pady=4, padx=(0, 14))
+        graphs_row = tk.Frame(f, bg=CLR_BG)
+        graphs_row.pack(fill='both', expand=True, padx=8, pady=(0, 8))
+        self._manual_temp_canvas = tk.Canvas(
+            graphs_row, bg='white', highlightthickness=1, highlightbackground='#b0bec5',
+            height=260,
+        )
+        self._manual_temp_canvas.pack(side='left', fill='both', expand=True, padx=(0, 6))
+        self._manual_gas_canvas = tk.Canvas(
+            graphs_row, bg='white', highlightthickness=1, highlightbackground='#b0bec5',
+            height=260,
+        )
+        self._manual_gas_canvas.pack(side='left', fill='both', expand=True, padx=(6, 0))
 
     # ══════════════════════════════════════════════════════════════════════
     # Hardware connect/disconnect
@@ -2171,12 +2894,45 @@ class MicroprobGUI(tk.Tk):
         if self.motor is None:
             self._manual_status_var.set('Motor controller is not connected')
             return
-        self._manual_status_var.set('Moving tip to target position')
-        for axis in ['X', 'Y', 'Z']:
-            target = float(self._manual_target[axis.lower()].get())
-            self.motor.move_abs_wait(axis, target)
-        self._manual_refresh_state()
-        self._manual_status_var.set('Tip move complete')
+        # Gold-highlighted while a move is in progress, same as Search Z --
+        # there's no reliable way to interrupt a move once started (see
+        # _manual_stop_stage's removal), so seeing that one is still
+        # running is the only feedback available. Both tabs' copies of the
+        # button reflect this, since either can trigger the same move.
+        self._image_set_mode_button_active(self._manual_move_tip_button, True)
+        self._image_set_mode_button_active(self._image_move_tip_button, True)
+        try:
+            self._manual_status_var.set('Moving tip to target position')
+            current_positions = {}
+            for axis in ('X', 'Y', 'Z'):
+                try:
+                    current_positions[axis] = float(self.motor.get_position(axis))
+                except Exception:
+                    current_positions[axis] = None
+            self.motor.move_xyz_safe(
+                x_mm=float(self._manual_target['x'].get()),
+                y_mm=float(self._manual_target['y'].get()),
+                z_mm=float(self._manual_target['z'].get()),
+                current_positions=current_positions,
+                log_fn=self._log,
+            )
+            self._manual_refresh_state()
+            self._manual_status_var.set('Tip move complete')
+            # "Move Tip" is the only move path now (the separate "Move Tip to
+            # Target" button was redundant with it). If an Image Monitor target
+            # is locked, this move only counts as having moved to it when the
+            # driven XY still matches that target's position -- if the Move to:
+            # fields were edited away from the locked target before clicking
+            # Move Tip, the lock is stale, so clear it automatically instead of
+            # needing a separate Clear Target button.
+            if getattr(self, '_image_selected_target', None) is not None:
+                self._image_note_manual_move_target_match(
+                    float(self._manual_target['x'].get()),
+                    float(self._manual_target['y'].get()),
+                )
+        finally:
+            self._image_set_mode_button_active(self._manual_move_tip_button, False)
+            self._image_set_mode_button_active(self._image_move_tip_button, False)
 
     def _manual_set_gas(self):
         if self.mfc is None:
@@ -2240,18 +2996,6 @@ class MicroprobGUI(tk.Tk):
         self._manual_set_gas()
         self._manual_move_stage()
         self._manual_status_var.set('All manual targets applied')
-
-    def _manual_stop_stage(self):
-        if self.motor is None:
-            self._manual_status_var.set('Motor controller is not connected')
-            return
-        for axis in ['X', 'Y', 'Z']:
-            try:
-                self.motor.stop(axis)
-            except Exception:
-                pass
-        self._manual_refresh_state()
-        self._manual_status_var.set('Tip stop command sent')
 
     def _manual_stop_measurement(self):
         if not self._manual_measurement_running:
@@ -2525,8 +3269,8 @@ class MicroprobGUI(tk.Tk):
 
         self._monitor_reset()
         self._queue_monitor_event('step', label=label, step='manual_peis',
-                                  message=f'Quick EIS running ({cycles} cycle(s))')
-        self._manual_status_var.set(f'Running Quick EIS: {label} ({cycles} cycle(s))')
+                                  message=f'EIS running ({cycles} cycle(s))')
+        self._manual_status_var.set(f'Running EIS: {label} ({cycles} cycle(s))')
         live_poll_stop = None if self._biologic_backend_is_olecom() else self._start_biologic_live_poll(label)
 
         try:
@@ -2557,7 +3301,7 @@ class MicroprobGUI(tk.Tk):
                 os.makedirs(cycle_dir, exist_ok=True)
                 self._queue_monitor_event('row_start', label=cycle_label, row_index=cycle_idx, total=cycles)
                 self._manual_status_var.set(
-                    f'Running Quick EIS {cycle_idx}/{cycles}: {cycle_label}'
+                    f'Running EIS {cycle_idx}/{cycles}: {cycle_label}'
                 )
                 eis_data = self.bl.run_peis(
                     v_dc=v_dc,
@@ -2631,11 +3375,11 @@ class MicroprobGUI(tk.Tk):
             )
             status = 'stopped' if stop_event.is_set() else 'complete'
             self._manual_status_var.set(
-                f'Quick EIS {status}: {completed}/{cycles} cycle(s), summary={summary_path}'
+                f'EIS {status}: {completed}/{cycles} cycle(s), summary={summary_path}'
             )
         except Exception as exc:
-            self._queue_monitor_event('error', label=label, message='Quick EIS failed')
-            self._manual_status_var.set(f'Quick EIS failed: {exc}')
+            self._queue_monitor_event('error', label=label, message='EIS failed')
+            self._manual_status_var.set(f'EIS failed: {exc}')
             self._log(f"[Manual EIS] {label} failed: {exc}")
             self._manual_set_recommendation('Recommendation: unavailable (measurement failed)')
         finally:
@@ -2657,6 +3401,9 @@ class MicroprobGUI(tk.Tk):
         hold_time = float(self._quick_rapid['hold_time'].get())
         post_hold_time = float(self._quick_rapid['post_hold_time'].get())
         ca_duration = float(self._quick_rapid['ca_duration'].get())
+        ca_dt = float(self._quick_rapid['ca_dt'].get())
+        ca_i_range = self._quick_rapid['ca_i_range'].get().strip() or BIOLOGIC_OLECOM_CA_I_RANGE
+        ca_bandwidth = self._quick_rapid['ca_bandwidth'].get().strip() or str(BIOLOGIC_OLECOM_CA_BANDWIDTH)
         n_pts = int(float(self._quick_rapid['n_pts'].get()))
         peis_f_high = float(self._quick_rapid['peis_f_high'].get())
         peis_f_low = float(self._quick_rapid['peis_f_low'].get())
@@ -2666,6 +3413,9 @@ class MicroprobGUI(tk.Tk):
             'hold_time': hold_time,
             'post_hold_time': post_hold_time,
             'ca_duration': ca_duration,
+            'ca_dt': ca_dt,
+            'ca_i_range': ca_i_range,
+            'ca_bandwidth': ca_bandwidth,
             'n_pts': n_pts,
             'peis_f_high': peis_f_high,
             'peis_f_low': peis_f_low,
@@ -2679,8 +3429,8 @@ class MicroprobGUI(tk.Tk):
 
         self._monitor_reset()
         self._queue_monitor_event('step', label=label, step='manual_rapid',
-                                  message=f'Quick Rapid EIS running ({cycles} cycle(s))')
-        self._manual_status_var.set(f'Running Quick Rapid EIS: {label} ({cycles} cycle(s))')
+                                  message=f'Hybrid CA/EIS running ({cycles} cycle(s))')
+        self._manual_status_var.set(f'Running Hybrid CA/EIS: {label} ({cycles} cycle(s))')
         live_poll_stop = None if self._biologic_backend_is_olecom() else self._start_biologic_live_poll(label)
 
         try:
@@ -2711,7 +3461,7 @@ class MicroprobGUI(tk.Tk):
                 os.makedirs(cycle_dir, exist_ok=True)
                 self._queue_monitor_event('row_start', label=cycle_label, row_index=cycle_idx, total=cycles)
                 self._manual_status_var.set(
-                    f'Running Quick Rapid EIS {cycle_idx}/{cycles}: {cycle_label}'
+                    f'Running Hybrid CA/EIS {cycle_idx}/{cycles}: {cycle_label}'
                 )
                 row = {
                     'Label': cycle_label,
@@ -2720,7 +3470,9 @@ class MicroprobGUI(tk.Tk):
                     'HoldTime_s': hold_time,
                     'PostPEIS_HoldTime_s': post_hold_time,
                     'CA_duration_s': ca_duration,
-                    'CA_dt': MANUAL_QUICK_CA_DT_S,
+                    'CA_dt': ca_dt,
+                    'CA_IRange': ca_i_range,
+                    'CA_Bandwidth': ca_bandwidth,
                     'PEIS_fHigh': peis_f_high,
                     'PEIS_fLow': peis_f_low,
                     'PEIS_nPts': n_pts,
@@ -2784,7 +3536,8 @@ class MicroprobGUI(tk.Tk):
                 self._log(
                     f"[Manual Rapid EIS] {cycle_label}: CH {channel}, Vdc={v_dc:.3f} V, "
                     f"dV={dv_v*1000:.1f} mV, range={peis_f_high:.4g}->{peis_f_low:.4g} Hz, "
-                    f"hold={hold_time:.1f}s, post={post_hold_time:.1f}s, CA={ca_duration:.1f}s, "
+                    f"hold={hold_time:.1f}s, post={post_hold_time:.1f}s, "
+                    f"CA={ca_duration:.1f}s (dt={ca_dt:.4g}s, IRange={ca_i_range}, BW={ca_bandwidth}), "
                     f"saved={cycle_dir}"
                 )
 
@@ -2796,11 +3549,11 @@ class MicroprobGUI(tk.Tk):
             )
             status = 'stopped' if stop_event.is_set() else 'complete'
             self._manual_status_var.set(
-                f'Quick Rapid EIS {status}: {completed}/{cycles} cycle(s), summary={summary_path}'
+                f'Hybrid CA/EIS {status}: {completed}/{cycles} cycle(s), summary={summary_path}'
             )
         except Exception as exc:
-            self._queue_monitor_event('error', label=label, message='Quick Rapid EIS failed')
-            self._manual_status_var.set(f'Quick Rapid EIS failed: {exc}')
+            self._queue_monitor_event('error', label=label, message='Hybrid CA/EIS failed')
+            self._manual_status_var.set(f'Hybrid CA/EIS failed: {exc}')
             self._log(f"[Manual Rapid EIS] {label} failed: {exc}")
             self._manual_set_recommendation('Recommendation: unavailable (measurement failed)')
         finally:
@@ -2874,6 +3627,92 @@ class MicroprobGUI(tk.Tk):
         self._manual_ocv_poll_inflight = False
         self._manual_ocv_var.set(self._format_manual_ocv_text(ocv))
 
+    def _schedule_manual_history_poll(self):
+        """
+        Periodically samples temperature and gas flow into
+        self._manual_history_points, feeding the Manual Control tab's
+        Current State history graphs. Runs continuously in the background
+        (including during automated runs -- unlike the OCV poll, this reads
+        the temperature controller/MFC, not the BioLogic channel, so it
+        can't interfere with an in-progress measurement) so history is
+        already built up whenever the tab is viewed.
+        """
+        if self._manual_history_poll_shutdown:
+            return
+        if not self._manual_history_poll_inflight and (self.tc is not None or self.mfc is not None):
+            self._manual_history_poll_inflight = True
+            threading.Thread(
+                target=self._manual_history_poll_worker,
+                name='manual_history_poll',
+                daemon=True,
+            ).start()
+        self.after(MANUAL_HISTORY_POLL_INTERVAL_MS, self._schedule_manual_history_poll)
+
+    def _manual_history_poll_worker(self):
+        temp = None
+        gas_a = None
+        gas_b = None
+        try:
+            if self.tc:
+                temp = float(self.tc.get_temperature())
+        except Exception:
+            temp = None
+        try:
+            if self.mfc:
+                gas_a = float(self.mfc.get_flow('A'))
+                gas_b = float(self.mfc.get_flow('B'))
+        except Exception:
+            gas_a = None
+            gas_b = None
+        try:
+            self.after(0, lambda: self._manual_history_poll_complete(temp, gas_a, gas_b))
+        except Exception:
+            self._manual_history_poll_inflight = False
+
+    def _manual_history_poll_complete(self, temp, gas_a, gas_b):
+        self._manual_history_poll_inflight = False
+        now = time.time()
+        if self._manual_history_start_time is None:
+            self._manual_history_start_time = now
+        elapsed = now - self._manual_history_start_time
+        for key, value in (('temp', temp), ('gas_a', gas_a), ('gas_b', gas_b)):
+            if value is None:
+                continue
+            points = self._manual_history_points[key]
+            points.append((elapsed, value))
+            if len(points) > MONITOR_TIME_SERIES_MAX_POINTS:
+                del points[0]
+        self._redraw_manual_history()
+
+    def _redraw_manual_history(self):
+        if hasattr(self, '_manual_temp_canvas'):
+            self._draw_line_plot(
+                self._manual_temp_canvas,
+                self._manual_history_points['temp'],
+                title='Temperature',
+                x_label='Time (s)',
+                y_label='Temperature (C)',
+                line_color=CLR_BLUE,
+                empty_text='Waiting for temperature readings...',
+            )
+        if hasattr(self, '_manual_gas_canvas'):
+            # mfc.get_flow returns the raw 0-100 DMFC output setting, not a
+            # calibrated sccm value -- see driver_mfc.py -- so the axis label
+            # matches the "RFX output" wording already used on the current-
+            # state readouts above, not a flow-rate unit.
+            self._draw_line_plot(
+                self._manual_gas_canvas,
+                self._manual_history_points['gas_a'],
+                title='Gas Output',
+                x_label='Time (s)',
+                y_label='Output setting (0-100)',
+                line_color=CLR_GOLD,
+                overlay_points=self._manual_history_points['gas_b'],
+                overlay_color=CLR_GREEN,
+                legend_entries=[('Gas A', CLR_GOLD), ('Gas B', CLR_GREEN)],
+                empty_text='Waiting for gas flow readings...',
+            )
+
     def _confirm_contact_candidate(
         self,
         *,
@@ -2882,6 +3721,7 @@ class MicroprobGUI(tk.Tk):
         stop_event=None,
         confirm_s=CONTACT_CONFIRM_DURATION_S,
         poll_s=CONTACT_CONFIRM_POLL_S,
+        ocv_status_var=None,
     ):
         deadline = time.time() + float(confirm_s)
         samples = 0
@@ -2891,6 +3731,10 @@ class MicroprobGUI(tk.Tk):
             ocv = self._manual_update_ocv()
             samples += 1
             remaining = max(0.0, deadline - time.time())
+            if ocv_status_var is not None:
+                ocv_status_var.set(
+                    f'OCV: {float(ocv):+.4f} V' if ocv is not None else 'OCV: unavailable'
+                )
             if ocv is None:
                 self._manual_status_var.set(
                     f'{status_prefix}: candidate rejected during confirm; OCV unavailable'
@@ -2915,14 +3759,56 @@ class MicroprobGUI(tk.Tk):
         base_z,
         start_offset,
         step_mm,
-        max_drop_mm,
+        max_beyond_seed_mm,
         ocv_threshold,
         settle_s,
         engage_mm,
-        max_beyond_seed_mm=None,
         status_prefix='Contact search',
         stop_event=None,
+        probe_pixel_sample_fn=None,
+        ocv_status_var=None,
+        z_status_var=None,
+        track_manual_target_z=True,
     ):
+        """
+        probe_pixel_sample_fn, if given, is a zero-arg callable returning the
+        probe tip's current detected (pixel_x, pixel_y) or None on detection
+        failure. Called once right after moving to the search-start height
+        and once right after contact is confirmed -- XY is never touched
+        during this search, so the displacement between those two samples is
+        a direct Z-parallax measurement. See run_automation.find_contact_z
+        for the headless equivalent.
+
+        track_manual_target_z controls whether the "Move to: Z" field
+        (self._manual_target['z'], shared with Manual Control) is updated
+        to reflect the search's own start/measurement heights as it runs.
+        Default True matches every existing caller (Manual Control's "Find
+        Contact Z" has no reason to ever suppress this). The Image Monitor
+        tab's "Search Z" passes False when its "Lock Z" checkbox is on --
+        this method has no notion of that checkbox itself (it's a target-lock
+        concept specific to that tab, not something this shared search
+        method should know about), so the caller decides.
+
+        max_beyond_seed_mm both bounds how many steps the search tries (how
+        far past the seed it's willing to look for contact) and is enforced
+        as a hard safety limit on every step (how far past the seed it's
+        ever allowed to actually move) -- these used to be two separately
+        tunable numbers (a "max drop" search budget plus this safety bound),
+        but driving the tip even ~0.5 mm too far into an electrode can
+        damage it, so there is deliberately only one number to get right now.
+
+        ocv_status_var, if given, is kept updated with the live OCV reading
+        on every step and during the confirm phase -- used by the Image
+        Monitor tab's Z Contact Search box, which otherwise shows nothing
+        while a search is running (self._manual_status_var, updated below
+        regardless, is only visible on the Manual Control tab).
+
+        z_status_var, if given, is kept updated with the current step's Z
+        position on every step -- lets the Image Monitor tab's "Z seed:"
+        label (self._image_z_seed_status_var) show the search actively
+        progressing instead of a static "searching..." for however long the
+        search takes.
+        """
         if self.motor is None:
             raise RuntimeError('Motor controller is not connected')
         if self.bl is None:
@@ -2930,33 +3816,39 @@ class MicroprobGUI(tk.Tk):
         step_mm = abs(float(step_mm))
         if step_mm <= 0:
             raise RuntimeError('Contact step must be > 0 mm')
+        max_beyond_seed_mm = abs(float(max_beyond_seed_mm))
 
         positive_z_is_up = bool(STAGE_SAFE_MOVE.get('positive_z_is_up', True))
         approach_sign = -1.0 if positive_z_is_up else 1.0
         start_z = base_z - approach_sign * abs(start_offset)
         self._manual_status_var.set(f'{status_prefix}: starting from Z={start_z:.3f} mm')
         self.motor.move_abs_wait('Z', start_z)
-        self._manual_target['z'].set(f'{start_z:.3f}')
+        if track_manual_target_z:
+            self._manual_target['z'].set(f'{start_z:.3f}')
         self._manual_refresh_state()
 
-        max_steps = max(1, int(round(max_drop_mm / step_mm)))
-        max_beyond_seed_mm = (
-            None if max_beyond_seed_mm is None
-            else abs(float(max_beyond_seed_mm))
-        )
+        start_pixel = None
+        start_roi_debug = None
+        if probe_pixel_sample_fn is not None:
+            try:
+                start_pixel = probe_pixel_sample_fn()
+            except Exception:
+                start_pixel = None
+            start_roi_debug = self._image_last_probe_roi_debug
+
+        max_steps = max(1, int(round((abs(start_offset) + max_beyond_seed_mm) / step_mm)))
         found_contact = None
 
         for idx in range(max_steps + 1):
             if stop_event is not None and stop_event.is_set():
                 raise RuntimeError('Contact search stopped')
             z_here = start_z + approach_sign * idx * abs(step_mm)
-            if max_beyond_seed_mm is not None:
-                beyond_seed = approach_sign * (z_here - float(base_z))
-                if beyond_seed > max_beyond_seed_mm:
-                    raise RuntimeError(
-                        f'Contact safety lock: Z would pass seed by {beyond_seed:.3f} mm '
-                        f'(limit {max_beyond_seed_mm:.3f} mm)'
-                    )
+            beyond_seed = approach_sign * (z_here - float(base_z))
+            if beyond_seed > max_beyond_seed_mm + CONTACT_SAFETY_LOCK_EPSILON_MM:
+                raise RuntimeError(
+                    f'Contact safety lock: Z would pass seed by {beyond_seed:.3f} mm '
+                    f'(limit {max_beyond_seed_mm:.3f} mm)'
+                )
             self.motor.move_abs_wait('Z', z_here)
             time.sleep(settle_s)
             ocv = self._manual_update_ocv()
@@ -2964,6 +3856,12 @@ class MicroprobGUI(tk.Tk):
                 f'{status_prefix}: Z={z_here:.3f} mm, OCV={ocv:+.4f} V' if ocv is not None
                 else f'{status_prefix}: Z={z_here:.3f} mm, OCV unavailable'
             )
+            if ocv_status_var is not None:
+                ocv_status_var.set(
+                    f'OCV: {ocv:+.4f} V' if ocv is not None else 'OCV: unavailable'
+                )
+            if z_status_var is not None:
+                z_status_var.set(f'Z seed: searching (Z={z_here:.3f} mm)')
             if ocv is not None and abs(ocv) <= ocv_threshold:
                 self._manual_status_var.set(
                     f'{status_prefix}: contact candidate at Z={z_here:.3f} mm; '
@@ -2973,21 +3871,80 @@ class MicroprobGUI(tk.Tk):
                     ocv_threshold=ocv_threshold,
                     status_prefix=status_prefix,
                     stop_event=stop_event,
+                    ocv_status_var=ocv_status_var,
                 ):
                     found_contact = z_here
                     break
 
         if found_contact is None:
-            raise RuntimeError('Contact search did not find a valid OCV threshold')
+            if probe_pixel_sample_fn is not None:
+                self._image_last_parallax_debug = {
+                    'start_roi': start_roi_debug, 'contact_roi': None,
+                    'start_pixel': start_pixel, 'contact_pixel': None,
+                    'start_z': start_z, 'contact_z': None,
+                    'accepted': False, 'reject_reason': 'contact not confirmed',
+                }
+                # _execute_contact_z_search runs on a background worker
+                # thread (via _run_manual_action) -- Tkinter widget/image
+                # updates must be marshaled back onto the main thread via
+                # self.after, same as every other cross-thread UI update in
+                # this file. Without this the PhotoImage silently fails to
+                # render (the plain StringVar status text still updates
+                # fine, which is why only the image looked broken).
+                self.after(0, self._image_update_parallax_debug_display)
+            raise ContactNotConfirmedError(
+                'Contact search did not find a valid OCV threshold', last_z=z_here,
+            )
+
+        contact_pixel = None
+        contact_roi_debug = None
+        if probe_pixel_sample_fn is not None:
+            try:
+                contact_pixel = probe_pixel_sample_fn()
+            except Exception:
+                contact_pixel = None
+            contact_roi_debug = self._image_last_probe_roi_debug
 
         measure_z = found_contact + approach_sign * abs(engage_mm)
         self.motor.move_abs_wait('Z', measure_z)
-        self._manual_target['z'].set(f'{measure_z:.3f}')
+        if track_manual_target_z:
+            self._manual_target['z'].set(f'{measure_z:.3f}')
         self._manual_refresh_state()
         self._manual_status_var.set(
             f'Contact found at Z={found_contact:.3f} mm, measurement Z set to {measure_z:.3f} mm'
         )
-        return found_contact, measure_z
+        parallax_sample = None
+        reject_reason = None
+        if start_pixel is None or contact_pixel is None:
+            reject_reason = 'probe tip not detected at start and/or contact'
+        else:
+            delta_px = contact_pixel[0] - start_pixel[0]
+            delta_py = contact_pixel[1] - start_pixel[1]
+            delta_mag = (delta_px ** 2 + delta_py ** 2) ** 0.5
+            min_delta = getattr(_config, 'VISION_PARALLAX_MIN_SAMPLE_PIXEL_DELTA_PX', 2.0)
+            if delta_mag < min_delta:
+                reject_reason = f'displacement {delta_mag:.2f}px < {min_delta:.2f}px'
+            else:
+                # No fixed expected sign here -- which way the tracked pixel
+                # shifts with Z depends on camera orientation (e.g. flips
+                # sign under a 180-degree camera rotation), not just probe
+                # geometry, so the origin-constrained slope fit downstream
+                # (solve_parallax_slope_from_samples) is the thing that
+                # should discover the true sign from the data, not a
+                # hardcoded gate here rejecting whichever sign doesn't match
+                # a specific past setup.
+                parallax_sample = (start_z, start_pixel, found_contact, contact_pixel)
+        if probe_pixel_sample_fn is not None:
+            self._image_last_parallax_debug = {
+                'start_roi': start_roi_debug, 'contact_roi': contact_roi_debug,
+                'start_pixel': start_pixel, 'contact_pixel': contact_pixel,
+                'start_z': start_z, 'contact_z': found_contact,
+                'accepted': parallax_sample is not None, 'reject_reason': reject_reason,
+            }
+            # See the ContactNotConfirmedError branch above for why this
+            # must go through self.after rather than being called directly.
+            self.after(0, self._image_update_parallax_debug_display)
+        return found_contact, measure_z, parallax_sample
 
     def _manual_find_contact_z(self):
         try:
@@ -2995,7 +3952,6 @@ class MicroprobGUI(tk.Tk):
             base_z=float(self._manual_target['z'].get()),
             start_offset=float(self._contact_search['start_offset'].get()),
             step_mm=float(self._contact_search['step_mm'].get()),
-            max_drop_mm=float(self._contact_search['max_drop_mm'].get()),
                 max_beyond_seed_mm=float(self._contact_search['max_beyond_seed_mm'].get()),
                 ocv_threshold=float(self._contact_search['ocv_threshold'].get()),
                 settle_s=float(self._contact_search['settle_s'].get()),
@@ -3091,6 +4047,32 @@ class MicroprobGUI(tk.Tk):
             items.append(cast(token))
         return items
 
+    def _parse_int_ranges(self, text):
+        """
+        Parse a comma/newline-separated list of ints and inclusive
+        hyphen-ranges (e.g. "1, 3, 5-8" -> {1, 3, 5, 6, 7, 8}) -- same
+        tokenizing style as _parse_number_list, extended with range
+        expansion. Returns an empty set for blank/whitespace-only input
+        (callers treat that as "no filter", not "select nothing").
+        Raises ValueError on a malformed token.
+        """
+        result = set()
+        for token in str(text).replace('\n', ',').split(','):
+            token = token.strip()
+            if not token:
+                continue
+            if '-' in token[1:]:
+                # token[1:] so a leading '-' (a negative number, not used
+                # here but keeps this robust) isn't mistaken for a range.
+                lo_text, _, hi_text = token.partition('-')
+                lo, hi = int(lo_text.strip()), int(hi_text.strip())
+                if hi < lo:
+                    raise ValueError(f"Invalid range '{token}': end is before start.")
+                result.update(range(lo, hi + 1))
+            else:
+                result.add(int(token))
+        return result
+
     def _parse_gas_pairs(self, text):
         pairs = []
         raw = str(text).replace('\n', ';')
@@ -3104,48 +4086,111 @@ class MicroprobGUI(tk.Tk):
             pairs.append((float(parts[0]), float(parts[1])))
         return pairs
 
-    def _generate_full_auto_conditions(self, append=False):
+    def _image_refresh_semi_auto_exclude_diameter_checkboxes(self):
+        """
+        Rebuilds the "Exclude by diameter" checkboxes from the currently
+        loaded DXF layout -- one checkbox per distinct electrode diameter
+        present (electrode diameters cluster into a handful of size
+        classes, e.g. large sensing vs. small reference electrodes, so a
+        fixed small set of checkboxes is a better fit than a free-text
+        field the user would have to know exact values for). User-
+        triggered (not auto-refreshed on layout load) so it's obvious when
+        the list might be stale after loading a different layout.
+        """
+        for child in self._semi_auto_exclude_diameter_frame.winfo_children():
+            child.destroy()
+        layout = self._image_layout_model
+        if layout is None or layout.template_radii is None:
+            self._semi_auto_exclude_diameter_vars = {}
+            tk.Label(
+                self._semi_auto_exclude_diameter_frame,
+                text='(load a DXF layout with per-circle radii first)',
+                bg=CLR_BG, fg='#888',
+            ).pack(side='left')
+            return
+        diameters_um = sorted({
+            round(float(r) * 2.0 * 1000.0, 1) for r in layout.template_radii
+        })
+        new_vars = {}
+        for diameter_um in diameters_um:
+            var = self._semi_auto_exclude_diameter_vars.get(diameter_um) or _ThreadSafeBooleanVar(value=False)
+            new_vars[diameter_um] = var
+            label = f'{diameter_um:g} um'
+            ttk.Checkbutton(
+                self._semi_auto_exclude_diameter_frame, text=label, variable=var,
+            ).pack(side='left', padx=(0, 8))
+        self._semi_auto_exclude_diameter_vars = new_vars
+
+    def _image_layout_indices_for_excluded_diameters(self):
+        """0-based layout indices whose diameter matches a checked box in
+        the "Exclude by diameter" row, or an empty set if none are
+        checked/no layout is loaded."""
+        layout = self._image_layout_model
+        if layout is None or layout.template_radii is None:
+            return set()
+        checked_diameters = {
+            diameter_um for diameter_um, var in self._semi_auto_exclude_diameter_vars.items()
+            if var.get()
+        }
+        if not checked_diameters:
+            return set()
+        excluded = set()
+        for layout_index, r in enumerate(layout.template_radii):
+            diameter_um = round(float(r) * 2.0 * 1000.0, 1)
+            if diameter_um in checked_diameters:
+                excluded.add(layout_index)
+        return excluded
+
+    def _generate_semi_auto_conditions(self, append=False):
         try:
-            use_temp = self._full_auto_use['temperature'].get()
-            use_gas = self._full_auto_use['gas'].get()
-            use_tip = self._full_auto_use['tip'].get()
+            use_temp = self._semi_auto_use['temperature'].get()
+            use_gas = self._semi_auto_use['gas'].get()
+            use_tip = self._semi_auto_use['tip'].get()
+            use_ca = self._semi_auto_use['ca'].get()
+            tip_source = self._semi_auto_tip_source_var.get()
             temperatures = (
-                self._parse_number_list(self._full_auto['temperatures'].get(), float)
+                self._parse_number_list(self._semi_auto['temperatures'].get(), float)
                 if use_temp else [None]
             )
             voltages = self._parse_number_list(
-                self._full_auto['voltages'].get(), float
+                self._semi_auto['voltages'].get(), float
             )
-            gas_pairs = self._parse_gas_pairs(self._full_auto['gas_pairs'].get()) if use_gas else [(None, None)]
-            e_start = int(float(self._full_auto['electrode_start'].get())) if use_tip else 1
-            e_end = int(float(self._full_auto['electrode_end'].get())) if use_tip else 1
-            x1 = float(self._full_auto['x1'].get()) if use_tip else None
-            y1 = float(self._full_auto['y1'].get()) if use_tip else None
-            xn = float(self._full_auto['xn'].get()) if use_tip else None
-            yn = float(self._full_auto['yn'].get()) if use_tip else None
-            z1 = float(self._full_auto['z1'].get()) if use_tip else None
-            zn = float(self._full_auto['zn'].get()) if use_tip else None
+            gas_pairs = self._parse_gas_pairs(self._semi_auto['gas_pairs'].get()) if use_gas else [(None, None)]
+            e_start = int(float(self._semi_auto['electrode_start'].get())) if use_tip else 1
+            e_end = int(float(self._semi_auto['electrode_end'].get())) if use_tip else 1
+            x1 = float(self._semi_auto['x1'].get()) if use_tip else None
+            y1 = float(self._semi_auto['y1'].get()) if use_tip else None
+            xn = float(self._semi_auto['xn'].get()) if use_tip else None
+            yn = float(self._semi_auto['yn'].get()) if use_tip else None
+            z1 = float(self._semi_auto['z1'].get()) if use_tip else None
+            zn = float(self._semi_auto['zn'].get()) if use_tip else None
             auto_contact_z = 1 if (
-                use_tip and _parse_boolish(self._full_auto['auto_contact_z'].get(), default=True)
+                use_tip and (
+                    tip_source == 'image_monitor'
+                    or _parse_boolish(self._semi_auto['auto_contact_z'].get(), default=True)
+                )
             ) else 0
-            contact_start_offset = float(self._full_auto['contact_start_offset'].get()) if use_tip else 0.200
-            contact_step = float(self._full_auto['contact_step'].get()) if use_tip else 0.010
-            contact_max_drop = float(self._full_auto['contact_max_drop'].get()) if use_tip else 0.400
-            contact_max_beyond_seed = float(self._full_auto['contact_max_beyond_seed'].get()) if use_tip else 0.200
-            contact_ocv_threshold = float(self._full_auto['contact_ocv_threshold'].get()) if use_tip else 0.100
-            contact_settle = float(self._full_auto['contact_settle'].get()) if use_tip else 1.00
-            contact_engage = float(self._full_auto['contact_engage'].get()) if use_tip else 0.050
-            dv = float(self._full_auto['dv'].get())
-            hold_time = float(self._full_auto['hold_time'].get())
-            post_peis_hold_time = float(self._full_auto['post_peis_hold_time'].get())
-            peis_f_high = float(self._full_auto['peis_f_high'].get())
-            peis_f_low = float(self._full_auto['peis_f_low'].get())
-            peis_n_pts = int(float(self._full_auto['peis_n_pts'].get()))
-            ca_duration = float(self._full_auto['ca_duration'].get())
-            ca_dt = float(self._full_auto['ca_dt'].get())
-            temp_ramp_rate = float(self._full_auto['temp_ramp_rate'].get()) if use_temp else None
-            stable_time = float(self._full_auto['stable_time'].get()) if use_temp else None
-            gas_stable_time = float(self._full_auto['gas_stable_time'].get()) if use_gas else None
+            contact_start_offset = float(self._semi_auto['contact_start_offset'].get()) if use_tip else 0.200
+            contact_step = float(self._semi_auto['contact_step'].get()) if use_tip else 0.005
+            contact_max_beyond_seed = float(self._semi_auto['contact_max_beyond_seed'].get()) if use_tip else 0.200
+            contact_ocv_threshold = float(self._semi_auto['contact_ocv_threshold'].get()) if use_tip else 0.100
+            contact_settle = float(self._semi_auto['contact_settle'].get()) if use_tip else 0.30
+            contact_engage = float(self._semi_auto['contact_engage'].get()) if use_tip else 0.01
+            dv = float(self._semi_auto['dv'].get())
+            hold_time = float(self._semi_auto['hold_time'].get()) if use_ca else None
+            post_peis_hold_time = float(self._semi_auto['post_peis_hold_time'].get()) if use_ca else None
+            peis_f_high = float(self._semi_auto['peis_f_high'].get())
+            peis_f_low = float(self._semi_auto['peis_f_low'].get())
+            peis_n_pts = int(float(self._semi_auto['peis_n_pts'].get()))
+            peis_bandwidth = self._semi_auto['peis_bandwidth'].get().strip()
+            peis_n_average = int(float(self._semi_auto['peis_n_average'].get()))
+            ca_duration = float(self._semi_auto['ca_duration'].get()) if use_ca else None
+            ca_dt = float(self._semi_auto['ca_dt'].get()) if use_ca else None
+            ca_i_range = self._semi_auto['ca_i_range'].get().strip()
+            ca_bandwidth = self._semi_auto['ca_bandwidth'].get().strip()
+            temp_ramp_rate = float(self._semi_auto['temp_ramp_rate'].get()) if use_temp else None
+            stable_time = float(self._semi_auto['stable_time'].get()) if use_temp else None
+            gas_stable_time = float(self._semi_auto['gas_stable_time'].get()) if use_gas else None
         except ValueError as exc:
             messagebox.showerror("Full-auto input error", str(exc))
             return
@@ -3156,34 +4201,55 @@ class MicroprobGUI(tk.Tk):
                 "Voltage list must not be empty."
             )
             return
-        if use_tip and e_end < e_start:
+        if use_tip and tip_source == 'manual' and e_end < e_start:
             messagebox.showwarning(
                 "Electrode range",
                 "Electrode end must be greater than or equal to electrode start."
             )
             return
 
-        electrode_ids = list(range(e_start, e_end + 1))
-        count = len(electrode_ids)
+        if use_tip and tip_source == 'image_monitor':
+            try:
+                omit_1based = self._parse_int_ranges(
+                    self._semi_auto_image_monitor_omit_electrodes_var.get()
+                )
+            except ValueError as exc:
+                messagebox.showerror("Full-auto input error", f"Invalid electrode selection: {exc}")
+                return
+            omit_layout_indices = {i - 1 for i in omit_1based} if omit_1based else set()
+            omit_layout_indices = omit_layout_indices | self._image_layout_indices_for_excluded_diameters()
+            omit_layout_indices = omit_layout_indices or None
+            try:
+                seeded = self._image_seeded_electrode_rows_source(omit_layout_indices=omit_layout_indices)
+            except RuntimeError as exc:
+                messagebox.showerror("Full-auto input error", str(exc))
+                return
+            electrode_positions = [(layout_index + 1, x, y, z) for layout_index, x, y, z in seeded]
+        elif use_tip:
+            electrode_ids = list(range(e_start, e_end + 1))
+            count = len(electrode_ids)
+            electrode_positions = []
+            for electrode in electrode_ids:
+                frac = 0.0 if count == 1 else (electrode - e_start) / (e_end - e_start)
+                electrode_positions.append((
+                    electrode,
+                    x1 + frac * (xn - x1),
+                    y1 + frac * (yn - y1),
+                    z1 + frac * (zn - z1),
+                ))
+        else:
+            electrode_positions = [(None, None, None, None)]
+
         rows = []
         for temp in temperatures:
             for gas_a, gas_b in gas_pairs:
-                for electrode in electrode_ids:
-                    if use_tip:
-                        frac = 0.0 if count == 1 else (electrode - e_start) / (e_end - e_start)
-                        x_pos = x1 + frac * (xn - x1)
-                        y_pos = y1 + frac * (yn - y1)
-                        z_pos = z1 + frac * (zn - z1)
-                    else:
-                        x_pos = None
-                        y_pos = None
-                        z_pos = None
+                for electrode, x_pos, y_pos, z_pos in electrode_positions:
                     for v_dc in voltages:
                         label = _condition_label(
                             temperature=temp,
                             gas_a=gas_a,
                             gas_b=gas_b,
-                            electrode=electrode if use_tip else None,
+                            electrode=electrode,
                             x_mm=x_pos,
                             y_mm=y_pos,
                             z_mm=z_pos,
@@ -3201,7 +4267,171 @@ class MicroprobGUI(tk.Tk):
                             'AutoContactZ': auto_contact_z,
                             'ContactStartOffset_mm': contact_start_offset,
                             'ContactStep_mm': contact_step,
-                            'ContactMaxDrop_mm': contact_max_drop,
+                            'ContactMaxBeyondSeed_mm': contact_max_beyond_seed,
+                            'ContactOCVThreshold_V': contact_ocv_threshold,
+                            'ContactSettle_s': contact_settle,
+                            'ContactEngage_mm': contact_engage,
+                            'V_dc': v_dc,
+                            'dV': dv,
+                            'HoldTime_s': hold_time if hold_time is not None else 'None',
+                            'PostPEIS_HoldTime_s': post_peis_hold_time if post_peis_hold_time is not None else 'None',
+                            'PEIS_fHigh': peis_f_high,
+                            'PEIS_fLow': peis_f_low,
+                            'PEIS_nPts': peis_n_pts,
+                            'PEIS_Bandwidth': peis_bandwidth if peis_bandwidth else 'None',
+                            'PEIS_NAverage': peis_n_average,
+                            'SkipCA': 0 if use_ca else 1,
+                            'CA_duration_s': ca_duration if ca_duration is not None else 'None',
+                            'CA_dt': ca_dt if ca_dt is not None else 'None',
+                            'CA_IRange': ca_i_range if ca_i_range else 'None',
+                            'CA_Bandwidth': ca_bandwidth if ca_bandwidth else 'None',
+                            'StableTime_s': stable_time if stable_time is not None else 'None',
+                            'GasStableTime_s': gas_stable_time if gas_stable_time is not None else 'None',
+                            'Skip': 0,
+                        })
+
+        new_df = pd.DataFrame(rows, columns=self._tree_cols)
+        if append and not self.condition_df.empty:
+            self._tree_to_df()
+            new_df = pd.concat([self.condition_df, new_df], ignore_index=True)
+
+        self.condition_df = new_df
+        self._refresh_tree()
+        self._semi_auto_summary.set(
+            f'Generated {len(rows)} rows from '
+            f'{len(temperatures)} temperatures × {len(gas_pairs)} gas pairs × '
+            f'{len(electrode_positions)} electrodes × {len(voltages)} voltages'
+        )
+        self._log(f"[Full-auto] Generated {len(rows)} rows into Semi-auto table")
+
+    def _generate_full_auto_conditions(self, append=False):
+        try:
+            use_temp = self._full_auto_use['temperature'].get()
+            use_gas = self._full_auto_use['gas'].get()
+            use_tip = self._full_auto_use['tip'].get()
+            tip_source = self._full_auto_tip_source_var.get()
+            temperatures = (
+                self._parse_number_list(self._full_auto['temperatures'].get(), float)
+                if use_temp else [None]
+            )
+            voltages = self._parse_number_list(
+                self._full_auto['voltages'].get(), float
+            )
+            gas_pairs = (
+                self._parse_gas_pairs(self._full_auto['gas_pairs'].get())
+                if use_gas else [(None, None)]
+            )
+            e_start = int(float(self._full_auto['electrode_start'].get())) if use_tip else 1
+            e_end = int(float(self._full_auto['electrode_end'].get())) if use_tip else 1
+            x1 = float(self._full_auto['x1'].get()) if use_tip else None
+            y1 = float(self._full_auto['y1'].get()) if use_tip else None
+            xn = float(self._full_auto['xn'].get()) if use_tip else None
+            yn = float(self._full_auto['yn'].get()) if use_tip else None
+            z1 = float(self._full_auto['z1'].get()) if use_tip else None
+            zn = float(self._full_auto['zn'].get()) if use_tip else None
+            auto_contact_z = 1 if (
+                use_tip and (
+                    tip_source == 'image_monitor'
+                    or _parse_boolish(self._full_auto['auto_contact_z'].get(), default=True)
+                )
+            ) else 0
+            contact_start_offset = float(self._full_auto['contact_start_offset'].get()) if use_tip else 0.200
+            contact_step = float(self._full_auto['contact_step'].get()) if use_tip else 0.005
+            contact_max_beyond_seed = float(self._full_auto['contact_max_beyond_seed'].get()) if use_tip else 0.200
+            contact_ocv_threshold = float(self._full_auto['contact_ocv_threshold'].get()) if use_tip else 0.100
+            contact_settle = float(self._full_auto['contact_settle'].get()) if use_tip else 0.30
+            contact_engage = float(self._full_auto['contact_engage'].get()) if use_tip else 0.01
+            dv = float(self._full_auto['dv'].get())
+            hold_time = float(self._full_auto['hold_time'].get())
+            post_peis_hold_time = float(self._full_auto['post_peis_hold_time'].get())
+            peis_f_high = float(self._full_auto['peis_f_high'].get())
+            peis_f_low = float(self._full_auto['peis_f_low'].get())
+            peis_n_pts = int(float(self._full_auto['peis_n_pts'].get()))
+            peis_bandwidth = self._full_auto['peis_bandwidth'].get().strip()
+            peis_n_average = int(float(self._full_auto['peis_n_average'].get()))
+            ca_duration = float(self._full_auto['ca_duration'].get())
+            ca_dt = float(self._full_auto['ca_dt'].get())
+            ca_i_range = self._full_auto['ca_i_range'].get().strip()
+            ca_bandwidth = self._full_auto['ca_bandwidth'].get().strip()
+            temp_ramp_rate = float(self._full_auto['temp_ramp_rate'].get()) if use_temp else None
+            stable_time = float(self._full_auto['stable_time'].get()) if use_temp else None
+            gas_stable_time = float(self._full_auto['gas_stable_time'].get()) if use_gas else None
+            normal_eis_floor_hz = float(self._full_auto['normal_eis_floor_hz'].get())
+        except ValueError as exc:
+            messagebox.showerror("Adaptive full-auto input error", str(exc))
+            return
+
+        if not voltages:
+            messagebox.showwarning(
+                "Adaptive full-auto input",
+                "Voltage list must not be empty."
+            )
+            return
+        if use_tip and tip_source == 'manual' and e_end < e_start:
+            messagebox.showwarning(
+                "Electrode range",
+                "Electrode end must be greater than or equal to electrode start."
+            )
+            return
+
+        if use_tip and tip_source == 'image_monitor':
+            try:
+                omit_1based = self._parse_int_ranges(
+                    self._full_auto_image_monitor_omit_electrodes_var.get()
+                )
+            except ValueError as exc:
+                messagebox.showerror("Adaptive full-auto input error", f"Invalid electrode selection: {exc}")
+                return
+            omit_layout_indices = {i - 1 for i in omit_1based} if omit_1based else None
+            try:
+                seeded = self._image_seeded_electrode_rows_source(omit_layout_indices=omit_layout_indices)
+            except RuntimeError as exc:
+                messagebox.showerror("Adaptive full-auto input error", str(exc))
+                return
+            electrode_positions = [(layout_index + 1, x, y, z) for layout_index, x, y, z in seeded]
+        elif use_tip:
+            electrode_ids = list(range(e_start, e_end + 1))
+            count = len(electrode_ids)
+            electrode_positions = []
+            for electrode in electrode_ids:
+                frac = 0.0 if count == 1 else (electrode - e_start) / (e_end - e_start)
+                electrode_positions.append((
+                    electrode,
+                    x1 + frac * (xn - x1),
+                    y1 + frac * (yn - y1),
+                    z1 + frac * (zn - z1),
+                ))
+        else:
+            electrode_positions = [(None, None, None, None)]
+
+        rows = []
+        for temp in temperatures:
+            for gas_a, gas_b in gas_pairs:
+                for electrode, x_pos, y_pos, z_pos in electrode_positions:
+                    for v_dc in voltages:
+                        label = _condition_label(
+                            prefix='ADAPT',
+                            temperature=temp,
+                            gas_a=gas_a,
+                            gas_b=gas_b,
+                            electrode=electrode,
+                            x_mm=x_pos,
+                            y_mm=y_pos,
+                            z_mm=z_pos,
+                            voltage=v_dc,
+                        )
+                        rows.append({
+                            'Label': label,
+                            'Temperature_C': temp if temp is not None else 'None',
+                            'RampRate_C_per_min': temp_ramp_rate if temp_ramp_rate is not None else 'None',
+                            'GasA_setting': gas_a if gas_a is not None else 'None',
+                            'GasB_setting': gas_b if gas_b is not None else 'None',
+                            'X_mm': round(x_pos, 6) if x_pos is not None else 'None',
+                            'Y_mm': round(y_pos, 6) if y_pos is not None else 'None',
+                            'Z_mm': round(z_pos, 6) if z_pos is not None else 'None',
+                            'AutoContactZ': auto_contact_z,
+                            'ContactStartOffset_mm': contact_start_offset,
+                            'ContactStep_mm': contact_step,
                             'ContactMaxBeyondSeed_mm': contact_max_beyond_seed,
                             'ContactOCVThreshold_V': contact_ocv_threshold,
                             'ContactSettle_s': contact_settle,
@@ -3213,8 +4443,12 @@ class MicroprobGUI(tk.Tk):
                             'PEIS_fHigh': peis_f_high,
                             'PEIS_fLow': peis_f_low,
                             'PEIS_nPts': peis_n_pts,
+                            'PEIS_Bandwidth': peis_bandwidth if peis_bandwidth else 'None',
+                            'PEIS_NAverage': peis_n_average,
                             'CA_duration_s': ca_duration,
                             'CA_dt': ca_dt,
+                            'CA_IRange': ca_i_range if ca_i_range else 'None',
+                            'CA_Bandwidth': ca_bandwidth if ca_bandwidth else 'None',
                             'StableTime_s': stable_time if stable_time is not None else 'None',
                             'GasStableTime_s': gas_stable_time if gas_stable_time is not None else 'None',
                             'Skip': 0,
@@ -3228,155 +4462,62 @@ class MicroprobGUI(tk.Tk):
         self.condition_df = new_df
         self._refresh_tree()
         self._full_auto_summary.set(
-            f'Generated {len(rows)} rows from '
-            f'{len(temperatures)} temperatures × {len(gas_pairs)} gas pairs × '
-            f'{len(electrode_ids)} electrodes × {len(voltages)} voltages'
-        )
-        self._log(f"[Full-auto] Generated {len(rows)} rows into Semi-auto table")
-
-    def _generate_adaptive_full_auto_conditions(self, append=False):
-        try:
-            use_temp = self._adaptive_full_auto_use['temperature'].get()
-            use_gas = self._adaptive_full_auto_use['gas'].get()
-            use_tip = self._adaptive_full_auto_use['tip'].get()
-            temperatures = (
-                self._parse_number_list(self._adaptive_full_auto['temperatures'].get(), float)
-                if use_temp else [None]
-            )
-            voltages = self._parse_number_list(
-                self._adaptive_full_auto['voltages'].get(), float
-            )
-            gas_pairs = (
-                self._parse_gas_pairs(self._adaptive_full_auto['gas_pairs'].get())
-                if use_gas else [(None, None)]
-            )
-            e_start = int(float(self._adaptive_full_auto['electrode_start'].get())) if use_tip else 1
-            e_end = int(float(self._adaptive_full_auto['electrode_end'].get())) if use_tip else 1
-            x1 = float(self._adaptive_full_auto['x1'].get()) if use_tip else None
-            y1 = float(self._adaptive_full_auto['y1'].get()) if use_tip else None
-            xn = float(self._adaptive_full_auto['xn'].get()) if use_tip else None
-            yn = float(self._adaptive_full_auto['yn'].get()) if use_tip else None
-            z1 = float(self._adaptive_full_auto['z1'].get()) if use_tip else None
-            zn = float(self._adaptive_full_auto['zn'].get()) if use_tip else None
-            auto_contact_z = 1 if (
-                use_tip and _parse_boolish(self._adaptive_full_auto['auto_contact_z'].get(), default=True)
-            ) else 0
-            contact_start_offset = float(self._adaptive_full_auto['contact_start_offset'].get()) if use_tip else 0.200
-            contact_step = float(self._adaptive_full_auto['contact_step'].get()) if use_tip else 0.010
-            contact_max_drop = float(self._adaptive_full_auto['contact_max_drop'].get()) if use_tip else 0.400
-            contact_max_beyond_seed = float(self._adaptive_full_auto['contact_max_beyond_seed'].get()) if use_tip else 0.200
-            contact_ocv_threshold = float(self._adaptive_full_auto['contact_ocv_threshold'].get()) if use_tip else 0.100
-            contact_settle = float(self._adaptive_full_auto['contact_settle'].get()) if use_tip else 1.00
-            contact_engage = float(self._adaptive_full_auto['contact_engage'].get()) if use_tip else 0.050
-            dv = float(self._adaptive_full_auto['dv'].get())
-            hold_time = float(self._adaptive_full_auto['hold_time'].get())
-            post_peis_hold_time = float(self._adaptive_full_auto['post_peis_hold_time'].get())
-            peis_f_high = float(self._adaptive_full_auto['peis_f_high'].get())
-            peis_f_low = float(self._adaptive_full_auto['peis_f_low'].get())
-            peis_n_pts = int(float(self._adaptive_full_auto['peis_n_pts'].get()))
-            ca_duration = float(self._adaptive_full_auto['ca_duration'].get())
-            ca_dt = float(self._adaptive_full_auto['ca_dt'].get())
-            temp_ramp_rate = float(self._adaptive_full_auto['temp_ramp_rate'].get()) if use_temp else None
-            stable_time = float(self._adaptive_full_auto['stable_time'].get()) if use_temp else None
-            gas_stable_time = float(self._adaptive_full_auto['gas_stable_time'].get()) if use_gas else None
-            normal_eis_floor_hz = float(self._adaptive_full_auto['normal_eis_floor_hz'].get())
-        except ValueError as exc:
-            messagebox.showerror("Adaptive full-auto input error", str(exc))
-            return
-
-        if not voltages:
-            messagebox.showwarning(
-                "Adaptive full-auto input",
-                "Voltage list must not be empty."
-            )
-            return
-        if use_tip and e_end < e_start:
-            messagebox.showwarning(
-                "Electrode range",
-                "Electrode end must be greater than or equal to electrode start."
-            )
-            return
-
-        electrode_ids = list(range(e_start, e_end + 1))
-        count = len(electrode_ids)
-        rows = []
-        for temp in temperatures:
-            for gas_a, gas_b in gas_pairs:
-                for electrode in electrode_ids:
-                    if use_tip:
-                        frac = 0.0 if count == 1 else (electrode - e_start) / (e_end - e_start)
-                        x_pos = x1 + frac * (xn - x1)
-                        y_pos = y1 + frac * (yn - y1)
-                        z_pos = z1 + frac * (zn - z1)
-                    else:
-                        x_pos = None
-                        y_pos = None
-                        z_pos = None
-                    for v_dc in voltages:
-                        label = _condition_label(
-                            prefix='ADAPT',
-                            temperature=temp,
-                            gas_a=gas_a,
-                            gas_b=gas_b,
-                            electrode=electrode if use_tip else None,
-                            x_mm=x_pos,
-                            y_mm=y_pos,
-                            z_mm=z_pos,
-                            voltage=v_dc,
-                        )
-                        rows.append({
-                            'Label': label,
-                            'Temperature_C': temp if temp is not None else 'None',
-                            'RampRate_C_per_min': temp_ramp_rate if temp_ramp_rate is not None else 'None',
-                            'GasA_setting': gas_a if gas_a is not None else 'None',
-                            'GasB_setting': gas_b if gas_b is not None else 'None',
-                            'X_mm': round(x_pos, 6) if x_pos is not None else 'None',
-                            'Y_mm': round(y_pos, 6) if y_pos is not None else 'None',
-                            'Z_mm': round(z_pos, 6) if z_pos is not None else 'None',
-                            'AutoContactZ': auto_contact_z,
-                            'ContactStartOffset_mm': contact_start_offset,
-                            'ContactStep_mm': contact_step,
-                            'ContactMaxDrop_mm': contact_max_drop,
-                            'ContactMaxBeyondSeed_mm': contact_max_beyond_seed,
-                            'ContactOCVThreshold_V': contact_ocv_threshold,
-                            'ContactSettle_s': contact_settle,
-                            'ContactEngage_mm': contact_engage,
-                            'V_dc': v_dc,
-                            'dV': dv,
-                            'HoldTime_s': hold_time,
-                            'PostPEIS_HoldTime_s': post_peis_hold_time,
-                            'PEIS_fHigh': peis_f_high,
-                            'PEIS_fLow': peis_f_low,
-                            'PEIS_nPts': peis_n_pts,
-                            'CA_duration_s': ca_duration,
-                            'CA_dt': ca_dt,
-                            'StableTime_s': stable_time if stable_time is not None else 'None',
-                            'GasStableTime_s': gas_stable_time if gas_stable_time is not None else 'None',
-                            'Skip': 0,
-                        })
-
-        new_df = pd.DataFrame(rows, columns=self._tree_cols)
-        if append and not self.condition_df.empty:
-            self._tree_to_df()
-            new_df = pd.concat([self.condition_df, new_df], ignore_index=True)
-
-        self.condition_df = new_df
-        self._refresh_tree()
-        self._adaptive_full_auto_summary.set(
             f'Generated {len(rows)} adaptive rows '
             f'(normal EIS floor {normal_eis_floor_hz:g} Hz) from '
             f'{len(temperatures)} temperatures x {len(gas_pairs)} gas pairs x '
-            f'{len(electrode_ids)} electrodes x {len(voltages)} voltages'
+            f'{len(electrode_positions)} electrodes x {len(voltages)} voltages'
         )
         self._log(
             f"[Adaptive Full-auto] Generated {len(rows)} rows into Semi-auto table "
             f"(normal EIS floor {normal_eis_floor_hz:g} Hz; runtime will update later same-regime rows)"
         )
 
+    # Fields that only apply to the "Manual range" tip-position source --
+    # meaningless (and disabled) when "Image Monitor seeded electrodes" is
+    # selected instead, since that mode walks every seeded layout electrode
+    # rather than interpolating between two manually-typed endpoints, and
+    # always forces AutoContactZ on (Z-seeding is required, not optional,
+    # for that mode).
+    _MANUAL_TIP_SOURCE_ONLY_FIELDS = [
+        'electrode_start', 'electrode_end', 'x1', 'y1', 'xn', 'yn', 'z1', 'zn', 'auto_contact_z',
+    ]
+
+    def _update_semi_auto_field_states(self):
+        tip_fields = [
+            'z1', 'zn', 'auto_contact_z',
+            'contact_start_offset', 'contact_step',
+            'contact_max_beyond_seed', 'contact_ocv_threshold',
+            'contact_settle', 'contact_engage',
+            'electrode_start', 'electrode_end', 'x1', 'y1', 'xn', 'yn',
+        ]
+        groups = {
+            'temperature': ['temperatures', 'temp_ramp_rate', 'stable_time'],
+            'gas': ['gas_pairs', 'gas_stable_time'],
+            'tip': tip_fields,
+            'ca': ['hold_time', 'post_peis_hold_time', 'ca_duration', 'ca_dt', 'ca_i_range', 'ca_bandwidth'],
+        }
+        for key, fields in groups.items():
+            enabled = self._semi_auto_use[key].get()
+            state = 'normal' if enabled else 'disabled'
+            for field in fields:
+                entry = self._semi_auto_entries.get(field)
+                if entry is not None:
+                    entry.config(state=state)
+        image_monitor_mode = self._semi_auto_tip_source_var.get() == 'image_monitor'
+        if image_monitor_mode:
+            self._semi_auto['auto_contact_z'].set('1')
+            for field in self._MANUAL_TIP_SOURCE_ONLY_FIELDS:
+                entry = self._semi_auto_entries.get(field)
+                if entry is not None:
+                    entry.config(state='disabled')
+        self._semi_auto_image_monitor_omit_electrodes_entry.config(
+            state='normal' if image_monitor_mode else 'disabled'
+        )
+
     def _update_full_auto_field_states(self):
         tip_fields = [
             'z1', 'zn', 'auto_contact_z',
-            'contact_start_offset', 'contact_step', 'contact_max_drop',
+            'contact_start_offset', 'contact_step',
             'contact_max_beyond_seed', 'contact_ocv_threshold',
             'contact_settle', 'contact_engage',
             'electrode_start', 'electrode_end', 'x1', 'y1', 'xn', 'yn',
@@ -3393,27 +4534,16 @@ class MicroprobGUI(tk.Tk):
                 entry = self._full_auto_entries.get(field)
                 if entry is not None:
                     entry.config(state=state)
-
-    def _update_adaptive_full_auto_field_states(self):
-        tip_fields = [
-            'z1', 'zn', 'auto_contact_z',
-            'contact_start_offset', 'contact_step', 'contact_max_drop',
-            'contact_max_beyond_seed', 'contact_ocv_threshold',
-            'contact_settle', 'contact_engage',
-            'electrode_start', 'electrode_end', 'x1', 'y1', 'xn', 'yn',
-        ]
-        groups = {
-            'temperature': ['temperatures', 'temp_ramp_rate', 'stable_time'],
-            'gas': ['gas_pairs', 'gas_stable_time'],
-            'tip': tip_fields,
-        }
-        for key, fields in groups.items():
-            enabled = self._adaptive_full_auto_use[key].get()
-            state = 'normal' if enabled else 'disabled'
-            for field in fields:
-                entry = self._adaptive_full_auto_entries.get(field)
+        image_monitor_mode = self._full_auto_tip_source_var.get() == 'image_monitor'
+        if image_monitor_mode:
+            self._full_auto['auto_contact_z'].set('1')
+            for field in self._MANUAL_TIP_SOURCE_ONLY_FIELDS:
+                entry = self._full_auto_entries.get(field)
                 if entry is not None:
-                    entry.config(state=state)
+                    entry.config(state='disabled')
+        self._full_auto_image_monitor_omit_electrodes_entry.config(
+            state='normal' if image_monitor_mode else 'disabled'
+        )
 
     def _row_uses_adaptive_runtime(self, row):
         label = str(row.get('Label', '')).strip()
@@ -3850,16 +4980,50 @@ class MicroprobGUI(tk.Tk):
             scout_min_s = min(requested_scout_min_s, scout_max_s)
         requested_post_s = max(0.0, float(row.get('PostPEIS_HoldTime_s', 10)))
         post_s = min(requested_post_s, 10.0) if dynamic_lf else requested_post_s
-        dt_s = max(0.1, float(row.get('CA_dt', MANUAL_QUICK_CA_DT_S)))
+        # Only guards against zero/negative (which would break the MPS
+        # technique) -- previously floored to 0.1s unconditionally, which
+        # silently overrode any smaller value the user actually configured.
+        dt_s = max(0.001, float(row.get('CA_dt', MANUAL_QUICK_CA_DT_S)))
+        ca_bandwidth = row.get('CA_Bandwidth')
+        if ca_bandwidth is None or pd.isna(ca_bandwidth) or str(ca_bandwidth).strip() in ('', 'None'):
+            ca_bandwidth = BIOLOGIC_OLECOM_CA_BANDWIDTH
+        else:
+            ca_bandwidth = int(float(ca_bandwidth))
+        ca_i_range = row.get('CA_IRange')
+        if ca_i_range is None or pd.isna(ca_i_range) or str(ca_i_range).strip() in ('', 'None'):
+            ca_i_range = BIOLOGIC_OLECOM_CA_I_RANGE
+        else:
+            ca_i_range = str(ca_i_range).strip()
         peis_high = float(row.get('PEIS_fHigh', 100.0))
         n_pts = int(float(row.get('PEIS_nPts', 60)))
         requested_low = float(row.get('PEIS_fLow', BIOLOGIC_OLECOM_PEIS_DEEP_LIMIT_HZ))
+        peis_bandwidth = row.get('PEIS_Bandwidth')
+        if peis_bandwidth is None or pd.isna(peis_bandwidth) or str(peis_bandwidth).strip() in ('', 'None'):
+            peis_bandwidth = BIOLOGIC_OLECOM_BANDWIDTH
+        else:
+            peis_bandwidth = int(float(peis_bandwidth))
+        peis_n_average = row.get('PEIS_NAverage')
+        if peis_n_average is None or pd.isna(peis_n_average) or str(peis_n_average).strip() in ('', 'None'):
+            peis_n_average = 1
+        else:
+            peis_n_average = max(1, int(float(peis_n_average)))
 
         if dynamic_lf:
-            peis_deep_limit = float(BIOLOGIC_OLECOM_PEIS_DEEP_LIMIT_HZ)
+            # requested_low (the row's own PEIS_fLow, typed on the
+            # Semi-auto/Full-auto tab or in a loaded CSV) is the floor the
+            # adaptive engine's own LF recommendation is allowed to reach --
+            # previously this always used the fixed BIOLOGIC_OLECOM_PEIS_DEEP_LIMIT_HZ
+            # default (0.1 Hz) instead, so a user-typed lower PEIS_fLow was
+            # silently ignored on every OLE-COM Semi-auto/Full-auto row.
+            # overlap_limit is unchanged: it still guarantees PEIS always
+            # measures down to at least that frequency, regardless of what
+            # the raw FFT recommendation alone would have chosen.
+            peis_deep_limit = requested_low
             peis_overlap_limit = float(BIOLOGIC_OLECOM_PEIS_OVERLAP_LIMIT_HZ)
         else:
-            # Manual Quick Rapid should honor the typed PEIS low frequency.
+            # Non-adaptive callers (Manual Quick Rapid, and Semi-auto CSV
+            # rows as of the dynamic_lf routing fix above) should honor the
+            # typed PEIS low frequency exactly, not just as a floor.
             peis_deep_limit = requested_low
             peis_overlap_limit = requested_low
 
@@ -3883,11 +5047,15 @@ class MicroprobGUI(tk.Tk):
                     peis_deep_limit=peis_deep_limit,
                     peis_overlap_limit=peis_overlap_limit,
                     peis_npts=n_pts,
-                    bandwidth=BIOLOGIC_OLECOM_BANDWIDTH,
+                    bandwidth=peis_bandwidth,
+                    peis_n_average=peis_n_average,
+                    ca_bandwidth=ca_bandwidth,
+                    ca_i_range=ca_i_range,
                     save_dir=save_dir,
                     label=label,
                     stop_event=stop_event,
                     defer_postprocess=bool(defer_postprocess),
+                    monitor_callback=self._queue_monitor_event,
                 )
                 break
             except Exception as exc:
@@ -3925,6 +5093,63 @@ class MicroprobGUI(tk.Tk):
         )
         os.makedirs(folder, exist_ok=True)
         return folder
+
+    def _curate_row_result_artifacts(self, *, row, row_index, label, sequence_result, result_root):
+        """
+        Copies this row's final PEIS .txt/.mpr, plus a matching condition
+        .json, out of its own per-row working folder into one flat,
+        consistently-named set directly under result_root -- so every
+        sample's key results are easy to find in one place regardless of
+        which measurement protocol produced them (plain PEIS via
+        measurement_sequence.py, or the OLE-COM hybrid CA/FFT-seeded
+        protocol, which exposes the same info via sequence_result.summary
+        instead of attributes -- see OleComSequenceResult in
+        driver_biologic_olecom.py). Only ever copies -- the per-row
+        working folder (row_output_dir) and everything already written
+        there are untouched, so this is purely additive and safe to fail
+        without affecting the run itself.
+        """
+        try:
+            os.makedirs(result_root, exist_ok=True)
+            electrode_id = self._extract_electrode_id(label)
+            layout_index = electrode_id - 1 if electrode_id is not None else None
+            diameter_um = self._image_layout_diameter_um_for_layout_index(layout_index)
+            safe_label = _safe_path_part(label, fallback=f'row{row_index:03d}')
+            diameter_part = f"_{diameter_um:.0f}um" if diameter_um is not None else ""
+            ts = time.strftime('%Y%m%d_%H%M%S')
+            base_name = f"{safe_label}{diameter_part}_{ts}"
+
+            summary = getattr(sequence_result, 'summary', None) or {}
+            txt_src = getattr(sequence_result, 'peis_path', None) or summary.get('peis_txt')
+            mpr_src = getattr(sequence_result, 'peis_mpr_path', None) or summary.get('peis_mpr')
+
+            curated_txt = curated_mpr = None
+            if txt_src and os.path.exists(txt_src):
+                curated_txt = os.path.join(result_root, f"{base_name}.txt")
+                shutil.copy2(txt_src, curated_txt)
+            if mpr_src and os.path.exists(mpr_src):
+                curated_mpr = os.path.join(result_root, f"{base_name}.mpr")
+                shutil.copy2(mpr_src, curated_mpr)
+
+            condition = {
+                'label': label,
+                'row_index': int(row_index),
+                'electrode_diameter_um': diameter_um,
+                'created_at': time.strftime('%Y-%m-%d %H:%M:%S'),
+                'row_settings': {str(k): _json_safe(v) for k, v in row.items()},
+                'curated_peis_txt': curated_txt,
+                'curated_peis_mpr': curated_mpr,
+            }
+            curated_json = os.path.join(result_root, f"{base_name}.json")
+            with open(curated_json, 'w', encoding='utf-8') as fh:
+                json.dump(_json_safe(condition), fh, ensure_ascii=False, indent=2)
+
+            if curated_txt or curated_mpr:
+                self._log(f"  Curated results: {base_name}.(txt/mpr/json)")
+            return curated_txt, curated_mpr, curated_json
+        except Exception as exc:
+            self._log(f"  [WARNING] Could not curate flat result artifacts: {exc}")
+            return None, None, None
 
     def _write_csv_measurement_record(
         self,
@@ -4127,7 +5352,7 @@ class MicroprobGUI(tk.Tk):
             return None
 
         try:
-            normal_eis_floor_hz = float(self._adaptive_full_auto['normal_eis_floor_hz'].get())
+            normal_eis_floor_hz = float(self._full_auto['normal_eis_floor_hz'].get())
         except Exception:
             normal_eis_floor_hz = 0.01
 
@@ -4703,23 +5928,20 @@ class MicroprobGUI(tk.Tk):
                         missing_seed.append(label)
                     try:
                         start_offset = _parse_optional_float(row.get('ContactStartOffset_mm'), default=0.200)
-                        step_mm = _parse_optional_float(row.get('ContactStep_mm'), default=0.010)
-                        max_drop = _parse_optional_float(row.get('ContactMaxDrop_mm'), default=0.400)
+                        step_mm = _parse_optional_float(row.get('ContactStep_mm'), default=0.005)
                         max_beyond = _parse_optional_float(row.get('ContactMaxBeyondSeed_mm'), default=0.200)
                         threshold = _parse_optional_float(row.get('ContactOCVThreshold_V'), default=0.100)
-                        settle_s = _parse_optional_float(row.get('ContactSettle_s'), default=1.00)
-                        engage_mm = _parse_optional_float(row.get('ContactEngage_mm'), default=0.050)
+                        settle_s = _parse_optional_float(row.get('ContactSettle_s'), default=0.30)
+                        engage_mm = _parse_optional_float(row.get('ContactEngage_mm'), default=0.01)
                     except Exception as exc:
                         contact_param_errors.append(f'{label}: invalid AutoContactZ parameter ({exc})')
                         continue
                     if step_mm is None or step_mm <= 0:
                         contact_param_errors.append(f'{label}: ContactStep_mm must be > 0')
-                    if max_drop is None or max_drop <= 0:
-                        contact_param_errors.append(f'{label}: ContactMaxDrop_mm must be > 0')
                     if start_offset is None or start_offset < 0:
                         contact_param_errors.append(f'{label}: ContactStartOffset_mm must be >= 0')
-                    if max_beyond is not None and max_beyond < 0:
-                        contact_param_errors.append(f'{label}: ContactMaxBeyondSeed_mm must be >= 0')
+                    if max_beyond is None or max_beyond < 0:
+                        contact_param_errors.append(f'{label}: ContactMaxBeyondSeed_mm must be >= 0 (this is now the tip-safety limit -- it is required, not optional)')
                     if threshold is None or threshold < 0:
                         contact_param_errors.append(f'{label}: ContactOCVThreshold_V must be >= 0')
                     if settle_s is None or settle_s < 0:
@@ -4764,48 +5986,6 @@ class MicroprobGUI(tk.Tk):
             lines.append('\nPreflight passed with no warnings.')
         return '\n'.join(lines)
 
-    def _preflight_check_dialog(self):
-        df = self._conditions_for_run()
-        errors, warnings, info = self._preflight_conditions(df)
-        report = self._format_preflight_report(errors, warnings, info, df)
-        self._log('\n[Preflight]\n' + report)
-        if errors:
-            messagebox.showerror('Preflight failed', report)
-        elif warnings:
-            messagebox.showwarning('Preflight warnings', report)
-        else:
-            messagebox.showinfo('Preflight passed', report)
-        return not errors
-
-    def _preview_run_plan(self):
-        df = self._conditions_for_run()
-        if df.empty:
-            messagebox.showwarning('Preview Plan', 'No runnable condition rows.')
-            return
-        lines = [f'Previewing first {min(len(df), 20)} of {len(df)} runnable rows:']
-        for idx, row in df.head(20).iterrows():
-            label = str(row.get('Label', f'row{idx+1}'))
-            xyz = (
-                _parse_optional_float(row.get('X_mm'), default=None),
-                _parse_optional_float(row.get('Y_mm'), default=None),
-                _parse_optional_float(row.get('Z_mm'), default=None),
-            )
-            contact = 'AutoContactZ' if _parse_boolish(row.get('AutoContactZ'), default=False) else 'fixed Z'
-            lines.append(
-                f"{idx+1:03d}. {label}: T={row.get('Temperature_C', '')}, "
-                f"gas setting=({_row_gas_setting(row, 'A', default='')},"
-                f"{_row_gas_setting(row, 'B', default='')}), "
-                f"V={row.get('V_dc', '')}, XYZ={xyz}, {contact}"
-            )
-        if self._run_retract_tip_on_done_var.get():
-            lines.append(
-                f"After successful completion: retract tip by "
-                f"{self._run_retract_tip_mm_var.get()} mm."
-            )
-        report = '\n'.join(lines)
-        self._log('\n[Preview]\n' + report)
-        messagebox.showinfo('Run Plan Preview', report)
-
     def _start_run(self):
         df = self._conditions_for_run()
         if df.empty:
@@ -4818,9 +5998,6 @@ class MicroprobGUI(tk.Tk):
         if errors:
             messagebox.showerror('Preflight failed', report)
             return
-        if self._run_confirm_preflight_var.get():
-            if not messagebox.askyesno('Start automated run?', report + '\n\nStart run now?'):
-                return
 
         self._active_biologic_channel = self._selected_biologic_channel()
         self.stop_flag.clear()
@@ -4967,35 +6144,37 @@ class MicroprobGUI(tk.Tk):
             return None
         return (round(float(x), 5), round(float(y), 5))
 
-    def _contact_exact_key(self, row):
-        pos_key = self._contact_position_key(row)
-        if pos_key is None:
-            return None
-        temp = _parse_optional_float(row.get('Temperature_C'), default=None)
-        gas_a = _row_gas_setting(row, 'A', default=None)
-        gas_b = _row_gas_setting(row, 'B', default=None)
-        return (
-            pos_key,
-            None if temp is None else round(float(temp), 3),
-            None if gas_a is None else round(float(gas_a), 3),
-            None if gas_b is None else round(float(gas_b), 3),
-        )
+    def _contact_search_start_z(self, base_z, start_offset):
+        """
+        The Z height AutoContactZ/_execute_contact_z_search's search begins
+        from -- base_z offset away from the electrode by start_offset, in
+        the safe/away-from-contact direction. Mirrors the start_z formula
+        inside _execute_contact_z_search (and run_automation.find_contact_z's
+        headless equivalent) so the initial move-to-electrode Z target can
+        be routed straight here instead of to the seed itself.
+        """
+        positive_z_is_up = bool(STAGE_SAFE_MOVE.get('positive_z_is_up', True))
+        approach_sign = -1.0 if positive_z_is_up else 1.0
+        return float(base_z) - approach_sign * abs(float(start_offset))
 
-    def _auto_contact_z_for_row(self, row, label, contact_z_cache=None, exact_contact_z_cache=None):
+    def _auto_contact_z_for_row(self, row, label, contact_z_cache=None):
+        """
+        Returns (measurement_z, contact_confirmed): contact_confirmed is
+        None if AutoContactZ wasn't enabled for this row at all, True on a
+        confirmed OCV contact, False if the search never confirmed contact
+        but the Contact fail policy is 'collect_anyway' -- in that case
+        measurement_z is wherever the search's last step reached, and
+        neither the Z-seed/parallax/XY-bias calibration stores nor
+        contact_z_cache are updated (an unconfirmed height must not
+        contaminate those). Raises (as before) when the policy is
+        'stop'/'skip_row' and the caller's own row-level handling applies.
+        """
         if not _parse_boolish(row.get('AutoContactZ'), default=False):
-            return None
+            return None, None
         if self.motor is None or self.bl is None:
             raise RuntimeError('AutoContactZ requires both motor and BioLogic connections')
         base_z = _parse_optional_float(row.get('Z_mm'), default=None)
         cache_key = self._contact_position_key(row)
-        exact_key = self._contact_exact_key(row)
-        if exact_contact_z_cache is not None and exact_key in exact_contact_z_cache:
-            measure_z = float(exact_contact_z_cache[exact_key])
-            self._log(
-                f"  AutoContactZ exact cached contact at Z={measure_z:.3f} mm "
-                f"reused for same XY/temp/gas"
-            )
-            return measure_z
         if contact_z_cache is not None and cache_key in contact_z_cache:
             base_z = contact_z_cache[cache_key]
             self._log(
@@ -5007,38 +6186,61 @@ class MicroprobGUI(tk.Tk):
         self._queue_monitor_event('step', label=label, step='contact_z',
                                   message='OCV contact search')
         self._log(f"  AutoContactZ enabled: seed Z={float(base_z):.3f} mm")
-        found_z, measure_z = self._execute_contact_z_search(
-            base_z=float(base_z),
-            start_offset=self._contact_param_from_row(row, 'ContactStartOffset_mm', 'start_offset', 0.200),
-            step_mm=self._contact_param_from_row(row, 'ContactStep_mm', 'step_mm', 0.010),
-            max_drop_mm=self._contact_param_from_row(row, 'ContactMaxDrop_mm', 'max_drop_mm', 0.400),
-            max_beyond_seed_mm=self._contact_param_from_row(row, 'ContactMaxBeyondSeed_mm', 'max_beyond_seed_mm', 0.200),
-            ocv_threshold=self._contact_param_from_row(row, 'ContactOCVThreshold_V', 'ocv_threshold', 0.100),
-            settle_s=self._contact_param_from_row(row, 'ContactSettle_s', 'settle_s', 1.00),
-            engage_mm=self._contact_param_from_row(row, 'ContactEngage_mm', 'engage_mm', 0.050),
-            status_prefix=f'Auto contact {label}',
-            stop_event=self.stop_flag,
-        )
+        electrode_id = self._extract_electrode_id(str(row.get('Label', '')))
+        layout_index = electrode_id - 1 if electrode_id is not None else None
+        try:
+            found_z, measure_z, parallax_sample = self._execute_contact_z_search(
+                base_z=float(base_z),
+                start_offset=self._contact_param_from_row(row, 'ContactStartOffset_mm', 'start_offset', 0.200),
+                step_mm=self._contact_param_from_row(row, 'ContactStep_mm', 'step_mm', 0.005),
+                max_beyond_seed_mm=self._contact_param_from_row(row, 'ContactMaxBeyondSeed_mm', 'max_beyond_seed_mm', 0.200),
+                ocv_threshold=self._contact_param_from_row(row, 'ContactOCVThreshold_V', 'ocv_threshold', 0.100),
+                settle_s=self._contact_param_from_row(row, 'ContactSettle_s', 'settle_s', 0.30),
+                engage_mm=self._contact_param_from_row(row, 'ContactEngage_mm', 'engage_mm', 0.01),
+                status_prefix=f'Auto contact {label}',
+                stop_event=self.stop_flag,
+                probe_pixel_sample_fn=lambda: self._image_probe_tip_pixel_now(layout_index=layout_index),
+                z_status_var=self._image_z_seed_status_var,
+            )
+        except ContactNotConfirmedError as exc:
+            if self._run_contact_fail_policy_var.get() != 'collect_anyway':
+                raise
+            self._log(
+                f"  AutoContactZ: contact NOT confirmed (OCV never stabilized); "
+                f"collecting measurement anyway at last-probed Z={exc.last_z:.3f} mm"
+            )
+            return exc.last_z, False
         self._log(
             f"  AutoContactZ found contact at Z={found_z:.3f} mm; "
             f"measurement Z={measure_z:.3f} mm"
         )
         if contact_z_cache is not None and cache_key is not None:
             contact_z_cache[cache_key] = measure_z
-        if exact_contact_z_cache is not None and exact_key is not None:
-            exact_contact_z_cache[exact_key] = measure_z
-        return measure_z
+        z_status = self._image_record_electrode_z_contact(row, measure_z, parallax_sample)
+        xy_status = None
+        if electrode_id is not None:
+            xy_status = self._image_recalibrate_xy_bias_from_contact(electrode_id - 1)
+        self._image_set_combined_z_seed_status(z_status, xy_status)
+        return measure_z, True
 
-    def _retract_tip_after_successful_run(self):
-        if not self._run_retract_tip_on_done_var.get():
-            return
+    def _retract_tip(self, distance_mm, *, context, monitor_label):
+        """
+        Move the tip straight up by distance_mm (or down, on a stage where
+        positive Z isn't up -- see STAGE_SAFE_MOVE['positive_z_is_up']).
+        context is a short label used only for log/error messages (e.g.
+        'End-of-run', 'Pre-temperature-change'); monitor_label is what
+        shows up in the Run/Monitor step display. Never raises -- a retract
+        failure is logged as a warning, not treated as a row/run failure,
+        matching the original end-of-run-only behavior this was extracted
+        from.
+        """
         if self.motor is None:
-            self._log("  End-of-run tip retract skipped: motor is not connected")
+            self._log(f"  {context} tip retract skipped: motor is not connected")
             return
         try:
-            distance_mm = abs(float(self._run_retract_tip_mm_var.get()))
+            distance_mm = abs(float(distance_mm))
         except Exception:
-            self._log("  End-of-run tip retract skipped: invalid retract distance")
+            self._log(f"  {context} tip retract skipped: invalid retract distance")
             return
         if distance_mm <= 0:
             return
@@ -5050,19 +6252,100 @@ class MicroprobGUI(tk.Tk):
             target_z = current_z + z_up_sign * distance_mm
             self._queue_monitor_event(
                 'step',
-                label='End of run',
+                label=monitor_label,
                 step='tip_retract',
                 message=f'Retracting tip {distance_mm:.3f} mm',
             )
             self._log(
-                f"  End-of-run tip retract: Z {current_z:.3f} -> {target_z:.3f} mm "
+                f"  {context} tip retract: Z {current_z:.3f} -> {target_z:.3f} mm "
                 f"({distance_mm:.3f} mm up)"
             )
             self.motor.move_abs_wait('Z', target_z)
         except Exception as exc:
-            self._log(f"  End-of-run tip retract warning: {exc}")
+            self._log(f"  {context} tip retract warning: {exc}")
+
+    def _retract_tip_after_successful_run(self):
+        if not self._run_retract_tip_on_done_var.get():
+            return
+        self._retract_tip(
+            self._run_retract_tip_mm_var.get(),
+            context='End-of-run',
+            monitor_label='End of run',
+        )
+
+    def _ramp_down_furnace_after_run(self, reason):
+        """
+        Command the furnace toward the configured end-of-run temperature.
+
+        Called from _run_worker's outermost finally, so this fires no
+        matter how the run ended -- success, user stop, or an uncaught
+        exception partway through a row or even during setup. Never
+        raises (same convention as _retract_tip): a failure here is
+        logged as a warning, not allowed to mask whatever error actually
+        ended the run or block the finally block's remaining cleanup
+        (re-enabling Start/Stop).
+
+        Only *commands* the ramp and returns -- does not call
+        tc.wait_stable(), since that can block for a long time on a large
+        temperature drop and this must not delay re-enabling the UI.
+        """
+        if not self._run_ramp_down_on_done_var.get():
+            return
+        if self.tc is None:
+            self._log(f"  [Ramp-down] Skipped ({reason}): temperature controller is not connected")
+            return
+        try:
+            end_temp_c = float(self._run_ramp_down_end_temp_c_var.get())
+            ramp_rate = float(self._run_ramp_down_end_ramp_rate_var.get())
+        except Exception:
+            self._log(f"  [Ramp-down] Skipped ({reason}): invalid end temperature or ramp rate")
+            return
+        try:
+            self._log(
+                f"  [Ramp-down] {reason}: commanding furnace to {end_temp_c:g} C "
+                f"at {ramp_rate:g} C/min"
+            )
+            self.tc.set_ramp_rate(ramp_rate)
+            self.tc.set_temperature(end_temp_c)
+            self._active_temperature_target_c = end_temp_c
+            self._queue_monitor_event(
+                'step', label='Ramp-down', step='furnace_ramp_down',
+                message=f'Ramping furnace to {end_temp_c:g} C',
+            )
+        except Exception as exc:
+            self._log(f"  [Ramp-down ERROR] Failed to command furnace ramp-down: {exc}")
 
     def _run_worker(self):
+        """
+        Thin, exception-safe wrapper around _run_worker_impl.
+
+        Everything that must happen "no matter how the run ends" --
+        furnace ramp-down, clearing self.running, and re-enabling the
+        Start/Stop buttons -- lives in this finally, wrapping the ENTIRE
+        run (not just the per-row loop _run_worker_impl's own try/finally
+        covers) so it still fires even if something raises during setup,
+        or if _run_worker_impl's own cleanup itself raises.
+        """
+        run_failed = False
+        try:
+            run_failed = self._run_worker_impl()
+        except Exception:
+            run_failed = True
+            self._log(f"[RUN] [FATAL] {traceback.format_exc()}")
+            self._status_var.set("Error - stopped")
+        finally:
+            reason = (
+                'run failed' if run_failed
+                else 'stopped by user' if self.stop_flag.is_set()
+                else 'run completed'
+            )
+            self._ramp_down_furnace_after_run(reason)
+            self.running = False
+            self._run_on_main_thread(self._btn_start.config, state='normal')
+            self._run_on_main_thread(self._btn_stop.config, state='disabled')
+            self._queue_monitor_event('run_done')
+
+    def _run_worker_impl(self):
         df = self.condition_df.copy()
         if 'Skip' in df.columns:
             df = df[df['Skip'].astype(str) != '1'].reset_index(drop=True)
@@ -5091,7 +6374,7 @@ class MicroprobGUI(tk.Tk):
         adaptive_runtime = self._create_adaptive_runtime(df)
         self._init_adaptive_summary(adaptive_runtime, result_root=result_root, df=df)
         contact_z_cache = {}
-        exact_contact_z_cache = {}
+        self._image_run_trusted_positions = {}
         run_failed = False
 
         try:
@@ -5106,7 +6389,7 @@ class MicroprobGUI(tk.Tk):
                 self._queue_monitor_event('row_start', label=label, row_index=idx + 1, total=total)
                 self._status_var.set(f"Row {idx+1}/{total}: {label}")
                 self._progress_var.set((idx / total) * 100)
-                self._progress_lbl.config(text=f"{idx+1} / {total}")
+                self._run_on_main_thread(self._progress_lbl.config, text=f"{idx+1} / {total}")
 
                 try:
                     row, adaptive_recommendation = self._prepare_adaptive_row(adaptive_runtime, row, idx)
@@ -5176,6 +6459,20 @@ class MicroprobGUI(tk.Tk):
                     self._active_temperature_target_c = target_temp
                     temp_changed = prev_temp != target_temp
                     if self.tc and target_temp is not None and temp_changed:
+                        # Always raise the tip before ramping to a new
+                        # temperature -- not gated by the end-of-run retract
+                        # checkbox, since this is a safety measure (avoid
+                        # the tip sitting in contact while the furnace/melt
+                        # is changing temperature) rather than an optional
+                        # convenience. The next row's own move-to-position
+                        # step (below, after temperature stabilizes) already
+                        # brings the tip back down to the correct XY/Z, so
+                        # nothing else needs to lower it back.
+                        self._retract_tip(
+                            self._run_retract_tip_mm_var.get(),
+                            context='Pre-temperature-change',
+                            monitor_label=label,
+                        )
                         self._start_olecom_postprocess_transition_window('temperature stabilization')
                         ramp_rate = _parse_optional_float(row.get('RampRate_C_per_min', 5.0), default=5.0)
                         self._queue_monitor_event('step', label=label, step='temperature',
@@ -5234,6 +6531,20 @@ class MicroprobGUI(tk.Tk):
                             ax: _parse_optional_float(row.get(f'{ax}_mm'), default=None)
                             for ax in ['X', 'Y', 'Z']
                         }
+                        target_pos['X'], target_pos['Y'], _xy_source = self._image_resolve_live_tracked_xy(
+                            row, target_pos['X'], target_pos['Y'],
+                        )
+                        if _parse_boolish(row.get('AutoContactZ'), default=False) and target_pos['Z'] is not None:
+                            # Go straight to the search-start height (seed +
+                            # offset) instead of the raw seed -- moving to
+                            # the seed first would send the tip down to/
+                            # through the electrode surface at full move
+                            # speed before _execute_contact_z_search's own
+                            # careful step-wise approach even begins.
+                            start_offset = self._contact_param_from_row(
+                                row, 'ContactStartOffset_mm', 'start_offset', 0.200,
+                            )
+                            target_pos['Z'] = self._contact_search_start_z(target_pos['Z'], start_offset)
                         moves = self.motor.move_xyz_safe(
                             x_mm=target_pos['X'],
                             y_mm=target_pos['Y'],
@@ -5247,15 +6558,15 @@ class MicroprobGUI(tk.Tk):
                     elif self.motor:
                         self._log("  Tip move skipped for this row")
 
-                    measurement_z = self._auto_contact_z_for_row(
+                    measurement_z, contact_confirmed = self._auto_contact_z_for_row(
                         row,
                         label,
                         contact_z_cache,
-                        exact_contact_z_cache,
                     )
                     if measurement_z is not None:
                         row = row.copy()
                         row['Z_mm'] = measurement_z
+                        row['ContactConfirmed'] = contact_confirmed
                         pos_now = (
                             _parse_optional_float(row.get('X_mm'), default=None),
                             _parse_optional_float(row.get('Y_mm'), default=None),
@@ -5268,23 +6579,112 @@ class MicroprobGUI(tk.Tk):
 
                     if self.bl and (self._biologic_backend_is_olecom() or rapid_sequence):
                         save_dir = row_output_dir
+                        peis_bandwidth = row.get('PEIS_Bandwidth')
+                        if peis_bandwidth is not None and (pd.isna(peis_bandwidth) or str(peis_bandwidth).strip() == ''):
+                            peis_bandwidth = None
+                        peis_n_average = int(_parse_optional_float(row.get('PEIS_NAverage'), default=1))
+                        skip_ca = _parse_boolish(row.get('SkipCA'), default=False)
                         live_poll_stop = None if self._biologic_backend_is_olecom() else self._start_biologic_live_poll(label)
-                        try:
-                            if self._biologic_backend_is_olecom():
+                        # _run_olecom_hybrid_sequence has its own internal
+                        # retry-with-recovery for transient OLE-COM errors
+                        # (_is_olecom_transient_error/_recover_olecom_after_error),
+                        # but that only covered the hybrid branch below --
+                        # every other branch here (skip_ca's normal_sequence
+                        # in particular, which routes SkipCA rows on the
+                        # OLE-COM backend straight to run_peis/LoadSettings,
+                        # same as any other row) had no recovery at all: one
+                        # transient LoadSettings failure (e.g. RPC_E_SERVERFAULT,
+                        # "EC-Lab may still be flushing a previous buffer or
+                        # holding a stale COM channel") stopped the whole run,
+                        # and nothing ever released the stale self.bl.ctrl
+                        # handle -- so the identical failure would recur on
+                        # every subsequent attempt against the same broken
+                        # connection. _attempt_row_measurement's body keeps
+                        # the original branch selection's indentation as-is
+                        # (it's defined where that code used to sit directly
+                        # under the old try:); only the retry loop below it
+                        # is new.
+                        def _attempt_row_measurement():
+                            # row and measurement_mode are reassigned below
+                            # (row = row.copy() after an applied FFT LF;
+                            # measurement_mode on protocol fallback/routing)
+                            # and both are read again after this function
+                            # returns (_finalize_adaptive_row,
+                            # _postprocess_csv_measurement, etc.) -- nonlocal
+                            # is required so those reassignments update
+                            # _run_worker's own row/measurement_mode instead
+                            # of shadowing them with function-local names.
+                            nonlocal row, measurement_mode
+                            if skip_ca and normal_sequence:
+                                # SkipCA must be an absolute guarantee, not just
+                                # something rapid_eis_sequence honors -- both the
+                                # OLE-COM hybrid protocol and the adaptive
+                                # live-seeded protocol are fundamentally CA/FFT-
+                                # seeded (they have no meaning without a CA trace
+                                # to analyze), so neither can "skip CA" internally.
+                                # Route around both entirely and run a guaranteed
+                                # CA-free PEIS-only measurement instead.
+                                if self._biologic_backend_is_olecom() or self._row_uses_adaptive_runtime(row):
+                                    self._log(
+                                        "  [SkipCA] CA disabled for this row -- running PEIS-only "
+                                        "instead of the OLE-COM/adaptive CA-seeded protocol"
+                                    )
+                                measurement_mode = 'normal_eis'
+                                sequence_result = normal_sequence(
+                                    biologic=self.bl,
+                                    v_dc=float(row['V_dc']),
+                                    peis_f_high=float(row.get('PEIS_fHigh', 1e5)),
+                                    peis_f_low=float(row.get('PEIS_fLow', 0.1)),
+                                    peis_npts=int(float(row.get('PEIS_nPts', 60))),
+                                    amplitude_mv=float(row.get('dV', 0.03)) * 1000.0,
+                                    channel=biologic_channel,
+                                    bandwidth=peis_bandwidth,
+                                    n_average=peis_n_average,
+                                    save_dir=save_dir,
+                                    label=label,
+                                    monitor_callback=self._queue_monitor_event,
+                                    stop_event=self.stop_flag,
+                                )
+                            elif self._biologic_backend_is_olecom():
                                 if measurement_mode == 'normal_eis':
                                     self._log(
                                         "  [OLE-COM] normal_eis request converted to hybrid live-stop; "
                                         "FFT/PEIS LF policy remains active"
                                     )
                                 measurement_mode = 'rapid_eis'
-                                self._log("  [Full-auto] using OLE-COM CA/FFT seeded PEIS protocol")
+                                row_is_adaptive = self._row_uses_adaptive_runtime(row)
+                                self._log(
+                                    "  [Full-auto] using OLE-COM CA/FFT seeded PEIS protocol"
+                                    if row_is_adaptive else
+                                    "  [Semi-auto] using OLE-COM hybrid protocol with fixed "
+                                    "CA duration / PEIS low frequency from this row"
+                                )
                                 sequence_result = self._run_olecom_hybrid_sequence(
                                     row=row,
                                     label=label,
                                     save_dir=save_dir,
                                     channel=biologic_channel,
                                     stop_event=self.stop_flag,
-                                    dynamic_lf=True,
+                                    # Only Full-auto (ADAPT-labeled) rows want the
+                                    # adaptive FFT-driven LF/scout-duration policy --
+                                    # Semi-auto rows specify CA duration and PEIS low
+                                    # frequency directly and expect them honored as
+                                    # given, which is exactly what dynamic_lf=False's
+                                    # branch inside _run_olecom_hybrid_sequence already
+                                    # does (previously unreachable from here: this call
+                                    # site hardcoded dynamic_lf=True for every OLE-COM
+                                    # row regardless of which tab generated it, silently
+                                    # overriding Semi-auto's own CA_duration_s/PEIS_fLow
+                                    # with the fixed adaptive defaults).
+                                    dynamic_lf=row_is_adaptive,
+                                    # Decoupled from dynamic_lf on purpose: postprocessing
+                                    # deferral is about how/when the full-arc Nyquist plot
+                                    # gets built (GUI's own background worker either way),
+                                    # not about the LF policy -- must stay True for every
+                                    # row here regardless of dynamic_lf, or Semi-auto rows
+                                    # would silently switch to synchronous inline
+                                    # postprocessing inside run_once instead.
+                                    defer_postprocess=True,
                                 )
                                 summary = getattr(sequence_result, 'summary', {}) or {}
                                 applied_lf = summary.get(
@@ -5303,6 +6703,8 @@ class MicroprobGUI(tk.Tk):
                                     peis_npts=int(float(row.get('PEIS_nPts', 60))),
                                     amplitude_mv=float(row.get('dV', 0.03)) * 1000.0,
                                     channel=biologic_channel,
+                                    bandwidth=peis_bandwidth,
+                                    n_average=peis_n_average,
                                     save_dir=save_dir,
                                     label=label,
                                     monitor_callback=self._queue_monitor_event,
@@ -5362,11 +6764,31 @@ class MicroprobGUI(tk.Tk):
                                         ca_duration=float(row.get('CA_duration_s', 200)),
                                         ca_dt=float(row.get('CA_dt', 0.1)),
                                         channel=biologic_channel,
+                                        skip_ca=_parse_boolish(row.get('SkipCA'), default=False),
+                                        bandwidth=peis_bandwidth,
+                                        n_average=peis_n_average,
                                         save_dir=save_dir,
                                         label=label,
                                         monitor_callback=self._queue_monitor_event,
                                         stop_event=self.stop_flag,
                                     )
+                            return sequence_result
+
+                        olecom_row_retry = self._biologic_backend_is_olecom()
+                        max_row_attempts = 2 if olecom_row_retry else 1
+                        try:
+                            for row_attempt in range(1, max_row_attempts + 1):
+                                try:
+                                    sequence_result = _attempt_row_measurement()
+                                    break
+                                except Exception as exc:
+                                    if row_attempt >= max_row_attempts or not self._is_olecom_transient_error(exc):
+                                        raise
+                                    self._log(
+                                        f"  [OLE-COM recovery] retrying row measurement "
+                                        f"{row_attempt + 1}/{max_row_attempts} after transient error: {exc}"
+                                    )
+                                    self._recover_olecom_after_error(str(exc))
                         finally:
                             if live_poll_stop is not None:
                                 live_poll_stop.set()
@@ -5380,6 +6802,13 @@ class MicroprobGUI(tk.Tk):
                             measurement_mode=measurement_mode,
                             sequence_result=sequence_result,
                             row_output_dir=row_output_dir,
+                        )
+                        self._curate_row_result_artifacts(
+                            row=row,
+                            row_index=idx + 1,
+                            label=label,
+                            sequence_result=sequence_result,
+                            result_root=result_root,
                         )
                         self._log("  Measurement completed")
                         self._queue_monitor_event('row_done', label=label)
@@ -5421,7 +6850,7 @@ class MicroprobGUI(tk.Tk):
             self._retract_tip_after_successful_run()
 
         self._progress_var.set(100)
-        self._progress_lbl.config(text=f"{total} / {total}")
+        self._run_on_main_thread(self._progress_lbl.config, text=f"{total} / {total}")
         if run_failed:
             self._status_var.set("Error - stopped")
             self._log("\nRun stopped due to error.")
@@ -5431,10 +6860,7 @@ class MicroprobGUI(tk.Tk):
         else:
             self._status_var.set("Done")
             self._log("\nRun completed.")
-        self.running = False
-        self._btn_start.config(state='normal')
-        self._btn_stop.config(state='disabled')
-        self._queue_monitor_event('run_done')
+        return run_failed
 
     def _queue_monitor_event(self, event, **payload):
         if event == 'device_live':
@@ -5517,7 +6943,8 @@ class MicroprobGUI(tk.Tk):
             self._image_monitor_last_frame_rgb = None
             self._image_monitor_last_frame_time_s = None
             self._image_seed_map = None
-            self._image_seed_reference_rgb = None
+            self._image_seed_layout = None
+            self._image_seed_tracked = None
             self._image_tracking_map = None
             self._image_status_var.set(f'Camera running: {backend_name}:{index}')
             self._image_detection_var.set('Electrodes: detecting...')
@@ -5538,18 +6965,21 @@ class MicroprobGUI(tk.Tk):
         self._image_monitor_last_frame_rgb = None
         self._image_monitor_last_frame_time_s = None
         self._image_seed_map = None
-        self._image_seed_reference_rgb = None
+        self._image_seed_layout = None
+        self._image_seed_tracked = None
         self._image_tracking_map = None
-        self._image_pending_roi_verification = None
-        self._image_pending_roi_seed_promotion = False
-        self._image_move_requires_review_after_weak_roi = False
-        self._image_allow_one_safe_move_after_weak_roi_override = False
-        self._image_allow_stale_high_override_var.set(False)
-        self._image_last_roi_verify_result = None
         self._image_selected_target = None
         self._image_render_shape = None
         self._image_render_size = None
         self._image_render_offset = (0, 0)
+        self._image_probe_tip_candidate = None
+        self._image_probe_roi = None
+        self._image_probe_roi_select_mode = False
+        self._image_probe_roi_drag_start = None
+        self._image_probe_roi_drag_current = None
+        self._image_layout_draw_mode = False
+        self._image_set_mode_button_active(self._image_probe_roi_button, False)
+        self._image_set_mode_button_active(self._image_draw_circles_button, False)
         if hasattr(self, '_image_monitor_label'):
             self._image_monitor_label.configure(
                 image='',
@@ -5563,9 +6993,45 @@ class MicroprobGUI(tk.Tk):
             self._image_detection_var.set('Electrodes: -')
         if hasattr(self, '_image_target_status_var'):
             self._image_target_status_var.set('Target: not locked')
-        if hasattr(self, '_image_roi_verify_status_var'):
-            self._image_roi_verify_status_var.set('ROI verify: idle')
-        self._image_refresh_move_gate_status()
+        self._image_last_probe_roi_debug = None
+        self._image_last_parallax_debug = None
+        self._image_parallax_debug_var.set('Last parallax sample: none yet')
+        if hasattr(self, '_image_parallax_panel_label'):
+            self._image_update_parallax_debug_display()
+
+    def _image_probe_occluded_layout_indices(self, tracked):
+        """
+        layout_index set for electrodes the probe arm is currently over
+        (their known stage X sits more than VISION_PROBE_OCCLUSION_X_MARGIN_MM
+        to the "covered" side of the probe tip's current stage X) --
+        skipped entirely from this cycle's redetection in
+        detect_and_refit_frame, since the arm occludes/confuses the Hough
+        search there. Best-effort: returns None on any failure (no motor,
+        no calibration, etc.), matching every other vision fallback in this
+        file -- detect_and_refit_frame treats None the same as an empty set.
+        """
+        if self.motor is None:
+            return None
+        try:
+            probe_x_mm = float(self.motor.get_position('X'))
+        except Exception:
+            return None
+        margin = getattr(_config, 'VISION_PROBE_OCCLUSION_X_MARGIN_MM', 2.0)
+        excluded = set()
+        for c in tracked:
+            if c.layout_index is None:
+                continue
+            try:
+                stage_xy = self._image_project_pixel_to_stage_xy(
+                    c.smoothed_x, c.smoothed_y, layout_index=c.layout_index,
+                )
+                if stage_xy is None:
+                    continue
+                if float(stage_xy[0]) < probe_x_mm - margin:
+                    excluded.add(c.layout_index)
+            except Exception:
+                continue
+        return excluded
 
     def _image_monitor_tick(self):
         if not self._image_monitor_running or self._image_monitor_cap is None:
@@ -5582,104 +7048,108 @@ class MicroprobGUI(tk.Tk):
         frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
         self._image_monitor_last_frame_rgb = frame_rgb.copy()
         self._image_monitor_last_frame_time_s = float(time.time())
-        self._image_process_pending_roi_verification(frame_rgb)
-        detector_name = (self._image_detector_var.get() or 'live').lower()
         expected_count = self._parse_image_expected_count()
 
-        if (
+        have_frozen_seed = self._image_seed_tracked is not None and self._image_seed_layout is not None
+        have_layout_seed = self._image_layout_tracked is not None and self._image_layout_model is not None
+
+        if have_frozen_seed or have_layout_seed:
+            # Per-electrode ROI redetection + confidence-gated affine re-fit
+            # (vision/electrode_drift.py, the same mechanism run_automation.py's
+            # headless AutoTrackXY uses), not ECC whole-frame registration --
+            # an occluding probe over the sample only invalidates the
+            # individual circles it covers, not one shared global transform.
+            try:
+                if have_frozen_seed:
+                    layout = self._image_seed_layout
+                    tracked = self._image_seed_tracked
+                    seed_meta = self._image_seed_map
+                    source_label = 'frozen seed'
+                    hint_text = (
+                        'Hint: frozen-seed tracking is active. The current live frame and overlay were locked as the tracking seed, so later frames are being tracked from that seed.'
+                    )
+                else:
+                    layout = self._image_layout_model
+                    tracked = self._image_layout_tracked
+                    seed_meta = self._image_layout_seed_map
+                    source_label = 'DXF layout seed'
+                    hint_text = (
+                        'Hint: DXF-layout-guided tracking is active. The accepted layout alignment is used as the initial visible-electrode seed; later frames are tracked from that seed.'
+                    )
+                occluded_layout_indices = self._image_probe_occluded_layout_indices(tracked)
+                min_confident = max(
+                    getattr(_config, 'VISION_DRIFT_MIN_CONFIDENT_ELECTRODES', 4),
+                    math.ceil(
+                        layout.n * getattr(_config, 'VISION_DRIFT_MIN_CONFIDENT_ELECTRODES_FRACTION', 0.2)
+                    ),
+                )
+                # detect_and_refit_frame mutates tracked's Circle objects in
+                # place (.smoothed_x/.smoothed_y/.detected/etc.) while a
+                # background AutoContactZ thread may concurrently read those
+                # same attributes -- see _image_tracked_lock's own comment
+                # at its definition for why this needs to be held here.
+                with self._image_tracked_lock:
+                    result = detect_and_refit_frame(
+                        frame_rgb,
+                        layout,
+                        tracked,
+                        min_confident=min_confident,
+                        ema_alpha=getattr(_config, 'VISION_DRIFT_EMA_ALPHA', 0.3),
+                        max_projected_deviation_radii=getattr(
+                            _config, 'VISION_DRIFT_MAX_PROJECTED_DEVIATION_RADII', None
+                        ),
+                        # Electrodes near the probe's current stage X are no
+                        # longer skipped from redetection here -- that used
+                        # to hard-skip the Hough search there entirely
+                        # (detect_and_refit_frame's excluded_layout_indices),
+                        # preventing a legitimate detection from ever being
+                        # attempted in that region at all. occluded_layout_indices
+                        # is still computed and shown (see the 'occluded'
+                        # table column below) as an informational flag, not
+                        # a gate.
+                        **self._image_resolve_drift_refit_params(),
+                    )
+                overlay_detections = self._image_tracked_circles_to_table(
+                    tracked, seed_meta, occluded_layout_indices=occluded_layout_indices,
+                )
+                # display_bgr is still the plain current camera frame from
+                # the top of this method -- annotate_detections is drawn
+                # fresh from self._image_tracking_map at the end of
+                # _render_image_monitor_frame instead, so it ends up on top
+                # of the alignment/probe overlays drawn there rather than
+                # under them.
+                self._image_monitor_last_overlay_bgr = display_bgr.copy()
+                self._image_tracking_map = overlay_detections.copy()
+                self._image_update_selected_target_from_overlay()
+                refit_suffix = (
+                    f', re-fit from {result.confident_count} redetected'
+                    if result.refit_performed
+                    else f', {result.confident_count} redetected'
+                )
+                self._image_detection_var.set(
+                    f'Electrodes: {len(overlay_detections)} tracked ({source_label}{refit_suffix})'
+                )
+                self._image_hint_var.set(hint_text)
+            except Exception as exc:
+                self._image_monitor_last_overlay_bgr = None
+                self._image_tracking_map = None
+                self._image_detection_var.set(f'Electrodes: detection failed ({exc})')
+        elif (
             self._image_monitor_last_overlay_bgr is None
             or self._image_monitor_frame_idx % max(self._image_monitor_detect_every, 1) == 1
         ):
             try:
-                if (
-                    detector_name == 'live'
-                    and self._image_seed_map is not None
-                    and not self._image_seed_map.empty
-                    and self._image_seed_reference_rgb is not None
-                ):
-                    transform, cc = compute_ecc_affine_registration(
-                        self._image_seed_reference_rgb,
-                        frame_rgb,
-                    )
-                    projected = transform_detection_table(
-                        self._image_seed_map,
-                        transform,
-                        source_tag='frozen_seed_ecc_projection',
-                    )
-                    overlay_detections = refine_circular_electrode_map_rgb(
-                        frame_rgb,
-                        projected,
-                        search_radius_px=32.0,
-                        radius_tolerance=0.35,
-                    )
-                    raw_count = len(self._image_seed_map)
-                    source_suffix = f' | frozen seed, ECC={cc:.3f}'
-                elif (
-                    detector_name == 'live'
-                    and self._image_markup_map is not None
-                    and not self._image_markup_map.empty
-                    and self._image_markup_reference_rgb is not None
-                ):
-                    seed = scale_detection_table(
-                        self._image_markup_map,
-                        source_shape=self._image_markup_reference_rgb.shape[:2],
-                        target_shape=frame_rgb.shape[:2],
-                    )
-                    transform, cc = compute_ecc_affine_registration(
-                        self._image_markup_reference_rgb,
-                        frame_rgb,
-                    )
-                    projected = transform_detection_table(
-                        seed,
-                        transform,
-                        source_tag='markup_ecc_projection',
-                    )
-                    overlay_detections = refine_circular_electrode_map_rgb(
-                        frame_rgb,
-                        projected,
-                        search_radius_px=32.0,
-                        radius_tolerance=0.35,
-                    )
-                    raw_count = len(self._image_markup_map)
-                    source_suffix = f' | markup seed, ECC={cc:.3f}'
-                elif detector_name == 'live':
-                    detections = detect_live_microscope_electrode_map_rgb(
-                        frame_rgb,
-                        sample_side_mm=10.0,
-                        size_group='all',
-                    )
-                    overlay_detections = filter_live_overlay_detections(
-                        detections,
-                        max_candidates=expected_count,
-                    )
-                    raw_count = len(detections)
-                    source_suffix = ''
-                elif detector_name == 'reference':
-                    detections = detect_reference_microscope_electrode_map_rgb(
-                        frame_rgb,
-                        sample_side_mm=10.0,
-                        size_group='all',
-                    )
-                    overlay_detections = detections
-                    raw_count = len(detections)
-                    source_suffix = ' | reference preset'
-                else:
-                    detections = detect_electrode_map_rgb(
-                        frame_rgb,
-                        sample_side_mm=10.0,
-                        size_group='all',
-                        min_radius_px=6,
-                        max_radius_px=80,
-                    )
-                    overlay_detections = detections
-                    raw_count = len(detections)
-                    source_suffix = ''
-                annotated_rgb = annotate_detections(
+                detections = detect_live_microscope_electrode_map_rgb(
                     frame_rgb,
-                    overlay_detections,
-                    annotate_labels=(detector_name != 'live'),
+                    sample_side_mm=10.0,
+                    size_group='all',
+                    **self._image_resolve_live_detector_params(),
                 )
-                display_bgr = cv2.cvtColor(annotated_rgb, cv2.COLOR_RGB2BGR)
+                overlay_detections = filter_live_overlay_detections(
+                    detections,
+                    max_candidates=expected_count,
+                )
+                raw_count = len(detections)
                 self._image_monitor_last_overlay_bgr = display_bgr.copy()
                 self._image_tracking_map = overlay_detections.copy()
                 self._image_update_selected_target_from_overlay()
@@ -5688,48 +7158,29 @@ class MicroprobGUI(tk.Tk):
                     if expected_count is not None else ''
                 )
                 self._image_detection_var.set(
-                    f'Electrodes: {len(overlay_detections)} primary candidates from {raw_count} raw circles ({detector_name} detector){expected_suffix}{source_suffix}'
+                    f'Electrodes: {len(overlay_detections)} primary candidates from {raw_count} raw circles (live detector){expected_suffix}'
                 )
-                if detector_name == 'live':
-                    if self._image_seed_map is not None and not self._image_seed_map.empty:
-                        self._image_hint_var.set(
-                            'Hint: frozen-seed tracking is active. The current live frame and overlay were locked as the tracking seed, so later frames are being aligned against that seed.'
-                        )
-                    elif self._image_markup_map is not None and not self._image_markup_map.empty:
-                        self._image_hint_var.set(
-                            'Hint: markup-guided tracking is active. The red-circle markup is used only as the initial visible-electrode seed; later frames are tracked from that seed.'
-                        )
-                    else:
-                        self._image_hint_var.set(
-                            'Hint: live view shows conservative primary candidates only. If you know roughly how many electrodes should be visible, fill in Expected visible electrodes. If the overlay still looks wrong, use a pre-shot microscope image or attach the design image for assisted setup.'
-                        )
-                self._image_apply_pending_roi_seed_promotion()
+                self._image_hint_var.set(
+                    'Hint: live view shows conservative primary candidates only. If you know roughly how many electrodes should be visible, fill in Expected visible electrodes. If the overlay still looks wrong, align a DXF layout for a trusted tracking seed.'
+                )
             except Exception as exc:
                 self._image_monitor_last_overlay_bgr = None
                 self._image_tracking_map = None
                 self._image_detection_var.set(f'Electrodes: detection failed ({exc})')
-        elif detector_name == 'live' and self._image_tracking_map is not None and not self._image_tracking_map.empty:
+        elif self._image_tracking_map is not None and not self._image_tracking_map.empty:
             try:
-                frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-                tracked = refine_circular_electrode_map_rgb(
+                tracked_df = refine_circular_electrode_map_rgb(
                     frame_rgb,
                     self._image_tracking_map,
                     search_radius_px=28.0,
                     radius_tolerance=0.30,
                 )
-                annotated_rgb = annotate_detections(
-                    frame_rgb,
-                    tracked,
-                    annotate_labels=False,
-                )
-                display_bgr = cv2.cvtColor(annotated_rgb, cv2.COLOR_RGB2BGR)
                 self._image_monitor_last_overlay_bgr = display_bgr.copy()
-                self._image_tracking_map = tracked.copy()
+                self._image_tracking_map = tracked_df.copy()
                 self._image_update_selected_target_from_overlay()
                 self._image_detection_var.set(
-                    f'Electrodes: tracking {len(tracked)} candidates from prior live frame'
+                    f'Electrodes: tracking {len(tracked_df)} candidates from prior live frame'
                 )
-                self._image_apply_pending_roi_seed_promotion()
             except Exception:
                 if self._image_monitor_last_overlay_bgr is not None:
                     display_bgr = self._image_monitor_last_overlay_bgr.copy()
@@ -5745,11 +7196,49 @@ class MicroprobGUI(tk.Tk):
         if cv2 is None or Image is None or ImageTk is None:
             _vision_unavailable()
         frame_bgr = self._image_draw_selected_target(frame_bgr)
+        if self._image_show_circles_var.get():
+            frame_bgr = self._image_draw_layout_alignment_overlay(frame_bgr)
+        frame_bgr = self._image_draw_probe_tip_overlay(frame_bgr)
+        frame_bgr = self._image_draw_probe_roi_overlay(frame_bgr)
+        frame_bgr = self._image_draw_axis_arrows_overlay(frame_bgr)
         frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
         self._image_render_shape = frame_rgb.shape[:2]
+        if not self.tab_image.winfo_ismapped():
+            # Detection/tracking above already ran and stays current; only
+            # skip the PhotoImage conversion + Label bitmap update, which
+            # is both pointless and actively harmful while this tab isn't
+            # visible -- repeatedly reconfiguring a Label's image inside a
+            # Canvas-embedded window item while its Notebook tab is
+            # unmapped is what caused stray camera-frame artifacts to bleed
+            # onto other tabs (Manual Control in particular, which uses the
+            # same Canvas+create_window scroll pattern).
+            return
+        if (
+            self._image_show_circles_var.get()
+            and self._image_tracking_map is not None
+            and not self._image_tracking_map.empty
+        ):
+            # Drawn last, on top of the alignment overlay/probe tip/probe
+            # ROI above, so the detected (orange/green) vs. extrapolated
+            # (gray) color-coding from annotate_detections stays visible
+            # instead of being covered by the alignment overlay's amber
+            # projected circles.
+            frame_rgb = annotate_detections(frame_rgb, self._image_tracking_map, annotate_labels=False)
         image = Image.fromarray(frame_rgb)
-        max_w = max(self._image_monitor_label.winfo_width(), 640)
-        max_h = max(self._image_monitor_label.winfo_height(), 480)
+        # Only fall back to the 640x480 default before the label has been
+        # laid out at least once (winfo_width/height report ~1 pre-map) --
+        # max(actual, 640) instead of this would force the render to at
+        # least 640x480 even once the label is genuinely laid out smaller
+        # than that (any non-maximized window), so the rendered image ends
+        # up bigger than what's actually visible in the label. That desync
+        # is exactly what made _image_frame_xy_from_event's cursor->frame
+        # mapping (which assumes the render exactly fills the label) drift
+        # unless the window was maximized/fullscreen, where the label
+        # naturally exceeds 640x480 and the mismatch disappears.
+        label_w = self._image_monitor_label.winfo_width()
+        label_h = self._image_monitor_label.winfo_height()
+        max_w = label_w if label_w > 10 else 640
+        max_h = label_h if label_h > 10 else 480
         image.thumbnail((max_w, max_h), Image.Resampling.LANCZOS)
         self._image_render_size = image.size
         self._image_render_offset = (
@@ -5759,6 +7248,27 @@ class MicroprobGUI(tk.Tk):
         photo = ImageTk.PhotoImage(image)
         self._image_monitor_photo = photo
         self._image_monitor_label.configure(image=photo, text='')
+
+    def _image_force_live_view_redraw(self):
+        """
+        Re-render the live view immediately from the last composited frame,
+        instead of waiting for the next scheduled ~120ms
+        _image_monitor_tick. Called by the tuning windows
+        (CircleTuningWindow/ProbeTuningWindow) right after opening and on
+        close -- both are separate floating Toplevel windows that can
+        overlap the live camera preview, and this project's
+        Canvas+create_window+Label live-view pattern is already known to
+        be fragile to overlapping-window redraw glitches on macOS (see the
+        tab-visibility guard above in _render_image_monitor_frame for the
+        earlier, related fix). Forcing an immediate re-render shortens the
+        window during which a stale compositing artifact could stay
+        visible from "up to 120ms" to "immediately," without depending on
+        exactly reproducing the underlying platform quirk. No-op if the
+        camera isn't running or no frame has been rendered yet.
+        """
+        if not self._image_monitor_running or self._image_monitor_last_overlay_bgr is None:
+            return
+        self._render_image_monitor_frame(self._image_monitor_last_overlay_bgr.copy())
 
     def _parse_image_expected_count(self):
         raw = (self._image_expected_count_var.get() or '').strip()
@@ -5772,88 +7282,6 @@ class MicroprobGUI(tk.Tk):
             return None
         return value
 
-    def _image_browse_design(self):
-        path = filedialog.askopenfilename(
-            title='Select design image',
-            filetypes=[
-                ('Image files', '*.png *.jpg *.jpeg *.bmp *.tif *.tiff'),
-                ('All files', '*.*'),
-            ],
-        )
-        if path:
-            self._image_design_path_var.set(path)
-
-    def _image_browse_markup(self):
-        path = filedialog.askopenfilename(
-            title='Select markup image',
-            filetypes=[
-                ('Image files', '*.png *.jpg *.jpeg *.bmp *.tif *.tiff'),
-                ('All files', '*.*'),
-            ],
-        )
-        if path:
-            self._image_markup_path_var.set(path)
-
-    def _image_load_design(self):
-        path = (self._image_design_path_var.get() or '').strip()
-        if not path:
-            self._image_design_map = None
-            self._image_reset_stale_high_override_for_context_change()
-            self._image_design_status_var.set('Design: not loaded')
-            return
-        try:
-            detections = detect_electrode_map(
-                path,
-                sample_side_mm=10.0,
-                size_group='all',
-            )
-            self._image_design_map = detections
-            self._image_reset_stale_high_override_for_context_change()
-            self._image_design_status_var.set(
-                f'Design: loaded {len(detections)} candidates from {os.path.basename(path)}'
-            )
-            self._image_hint_var.set(
-                'Hint: when the live image is partial or ambiguous, keep the design loaded and use it as assisted context for later target-electrode setup.'
-            )
-        except Exception as exc:
-            self._image_design_map = None
-            self._image_reset_stale_high_override_for_context_change()
-            self._image_design_status_var.set(f'Design load failed: {exc}')
-
-    def _image_load_markup(self):
-        path = (self._image_markup_path_var.get() or '').strip()
-        if not path:
-            self._image_markup_map = None
-            self._image_markup_reference_rgb = None
-            self._image_reset_stale_high_override_for_context_change()
-            self._image_markup_status_var.set('Markup: choose an image file first')
-            return
-        try:
-            if cv2 is None:
-                _vision_unavailable()
-            image_rgb = cv2.cvtColor(cv2.imread(path, cv2.IMREAD_COLOR), cv2.COLOR_BGR2RGB)
-            detections = detect_markup_electrode_map_rgb(
-                image_rgb,
-                sample_side_mm=10.0,
-                size_group='all',
-            )
-            self._image_markup_map = detections
-            self._image_markup_reference_rgb = strip_red_markup_from_rgb(image_rgb)
-            self._image_reset_stale_high_override_for_context_change()
-            rows = int(detections['row_index'].nunique()) if not detections.empty else 0
-            cols = int(detections['col_index'].max()) if not detections.empty else 0
-            self._image_markup_status_var.set(
-                f'Markup: loaded {len(detections)} electrodes ({rows} rows, up to {cols} cols)'
-            )
-            self._image_hint_var.set(
-                'Hint: markup image loaded. Use this as the trusted visible-electrode layout when live auto-detection looks unreliable.'
-            )
-        except Exception as exc:
-            self._image_markup_map = None
-            self._image_markup_reference_rgb = None
-            self._image_reset_stale_high_override_for_context_change()
-            self._image_markup_status_var.set(f'Markup load failed: {exc}')
-
     def _image_freeze_current_seed(self):
         if self._image_monitor_last_frame_rgb is None or self._image_tracking_map is None or self._image_tracking_map.empty:
             self._image_status_var.set('Freeze seed failed: no current live frame/overlay to lock')
@@ -5864,527 +7292,54 @@ class MicroprobGUI(tk.Tk):
         )
 
     def _image_clear_seed(self):
-        self._image_seed_reference_rgb = None
         self._image_seed_map = None
-        self._image_allow_stale_high_override_var.set(False)
-        self._image_refresh_move_gate_status()
+        self._image_seed_layout = None
+        self._image_seed_tracked = None
         self._image_status_var.set('Cleared frozen tracking seed')
 
-    def _image_clear_stage_anchor(self):
-        self._image_stage_anchor = None
-        self._image_stage_anchor_status_var.set('Stage anchor: not set')
-        self._image_allow_stale_high_override_var.set(False)
-        self._image_refresh_move_gate_status()
-        if self._image_selected_target is not None:
-            self._image_update_target_status()
-
-    def _image_reset_stale_high_override_for_context_change(self):
-        self._image_allow_stale_high_override_var.set(False)
-        self._image_refresh_move_gate_status()
-
-    def _image_on_stage_projection_controls_changed(self):
-        self._image_reset_stale_high_override_for_context_change()
-        self._image_refresh_stage_projection_status()
-
-    def _image_refresh_move_gate_status(self):
-        risk_context = self._image_build_weak_roi_override_risk_context()
-        high_risk_without_opt_in = bool(
-            risk_context
-            and risk_context.get('override_risk') == 'high'
-            and not bool(self._image_allow_stale_high_override_var.get())
-        )
-        if self._image_move_requires_review_after_weak_roi:
-            if self._image_allow_one_safe_move_after_weak_roi_override:
-                status_text = 'Move gate: weak ROI blocked (one-shot override armed)'
-                bg = '#fdf0e6'
-                fg = CLR_ORANGE
-                move_state = 'normal'
-                override_state = 'disabled'
-            else:
-                status_text = 'Move gate: weak ROI blocked'
-                bg = '#fdecea'
-                fg = CLR_RED
-                move_state = 'disabled'
-                override_state = 'disabled' if high_risk_without_opt_in else 'normal'
-        else:
-            status_text = 'Move gate: clear'
-            bg = '#eafaf1'
-            fg = CLR_GREEN
-            move_state = 'normal'
-            override_state = 'disabled'
-        if hasattr(self, '_image_move_gate_status_var'):
-            self._image_move_gate_status_var.set(status_text)
-        if self._image_move_gate_label is not None:
-            self._image_move_gate_label.configure(bg=bg, fg=fg)
-        if self._image_move_target_button is not None:
-            self._image_move_target_button.configure(state=move_state)
-        if self._image_override_weak_roi_button is not None:
-            self._image_override_weak_roi_button.configure(state=override_state)
-
-    def _image_build_weak_roi_override_risk_context(self):
-        last_roi = self._image_last_roi_verify_result
-        current_frame_time_s = getattr(self, '_image_monitor_last_frame_time_s', None)
-        if not isinstance(last_roi, dict) or current_frame_time_s is None:
-            return None
-        score = last_roi.get('score')
-        dx_px = last_roi.get('dx_px')
-        dy_px = last_roi.get('dy_px')
-        verify_time_s = last_roi.get('verify_time_s')
-        if score is None or dx_px is None or dy_px is None or verify_time_s is None:
-            return None
-        try:
-            frame_gap_s = abs(float(current_frame_time_s) - float(verify_time_s))
-        except Exception:
-            return None
-        freshness_bucket = 'stale'
-        freshness_hint = 'visual lock may be too old'
-        override_risk = 'high'
-        override_risk_hint = 'reacquire the seed unless the live overlay is unmistakably correct'
-        recommended_action = 'refresh the seed first unless the current overlay is obviously correct'
-        if frame_gap_s <= 10.0:
-            freshness_bucket = 'fresh'
-            freshness_hint = 'good for visual comparison'
-            override_risk = 'low'
-            override_risk_hint = 'live frame and weak verify are still closely aligned'
-            recommended_action = 'override is reasonable if the locked target still looks right by eye'
-        elif frame_gap_s <= 30.0:
-            freshness_bucket = 'aging'
-            freshness_hint = 'review with caution'
-            override_risk = 'moderate'
-            override_risk_hint = 'overlay may still be usable, but operator review matters'
-            recommended_action = 'inspect the overlay carefully before overriding'
-        return {
-            'frame_gap_s': frame_gap_s,
-            'freshness_bucket': freshness_bucket,
-            'freshness_hint': freshness_hint,
-            'override_risk': override_risk,
-            'override_risk_hint': override_risk_hint,
-            'recommended_action': recommended_action,
-        }
-
-    def _image_override_weak_roi_block(self):
-        if not self._image_move_requires_review_after_weak_roi:
-            self._manual_status_var.set('Weak ROI block is not active')
-            return
-        self._image_refresh_move_gate_status()
-        move_gate_context = ''
-        current_move_gate = str(self._image_move_gate_status_var.get() or '').strip()
-        if current_move_gate:
-            move_gate_context = f'Current move gate: {current_move_gate}.\n\n'
-        live_frame_context = ''
-        current_frame_time_s = getattr(self, '_image_monitor_last_frame_time_s', None)
-        if current_frame_time_s is not None:
-            try:
-                live_frame_context = (
-                    f"Current live frame: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime(float(current_frame_time_s)))}.\n\n"
-                )
-            except Exception:
-                live_frame_context = ''
-        target_context = ''
-        if self._image_selected_target is not None:
-            target = self._image_selected_target
-            target_lines = [
-                f"Locked target: R{int(target['row_index'])}C{int(target['col_index'])} at "
-                f"({float(target['x_px']):.1f}, {float(target['y_px']):.1f}) px."
-            ]
-            design_target = self._image_match_target_to_design()
-            if design_target is not None:
-                sample_x = _parse_optional_float(design_target.get('sample_x_mm'))
-                sample_y = _parse_optional_float(design_target.get('sample_y_mm'))
-                if sample_x is not None and sample_y is not None:
-                    target_lines.append(
-                        f"Design sample: ({float(sample_x):.2f}, {float(sample_y):.2f}) mm."
-                    )
-                projected_stage_xy = self._image_compute_stage_xy_for_design_target(design_target)
-                if projected_stage_xy is not None:
-                    target_lines.append(
-                        f"Projected stage XY: ({float(projected_stage_xy[0]):.3f}, {float(projected_stage_xy[1]):.3f}) mm."
-                    )
-                    projection_source = self._image_stage_projection_provenance_label()
-                    if projection_source:
-                        target_lines.append(
-                            f"Projection source: {projection_source}."
-                        )
-            target_context = '\n'.join(target_lines) + '\n\n'
-        last_roi_context = ''
-        frame_gap_text = ''
-        high_risk_warning_text = ''
-        high_risk_requires_second_confirm = False
-        risk_context = self._image_build_weak_roi_override_risk_context()
-        if (
-            risk_context
-            and risk_context.get('override_risk') == 'high'
-            and not bool(self._image_allow_stale_high_override_var.get())
-        ):
-            self._manual_status_var.set(
-                'Stale/high weak ROI override is disabled until Allow stale/high override is enabled'
-            )
-            self._image_hint_var.set(
-                'Hint: stale/high weak ROI evidence is blocked by default. Enable Allow stale/high override only if the live overlay is clearly trustworthy by eye.'
-            )
-            self._image_refresh_move_gate_status()
-            return
-        last_roi = self._image_last_roi_verify_result
-        if isinstance(last_roi, dict):
-            score = last_roi.get('score')
-            dx_px = last_roi.get('dx_px')
-            dy_px = last_roi.get('dy_px')
-            row_index = last_roi.get('row_index')
-            col_index = last_roi.get('col_index')
-            verify_time_s = last_roi.get('verify_time_s')
-            if score is not None and dx_px is not None and dy_px is not None:
-                label = 'the last weak ROI verify'
-                if row_index is not None and col_index is not None:
-                    label = f'the last weak ROI verify for R{int(row_index)}C{int(col_index)}'
-                recency_text = ''
-                absolute_time_text = ''
-                if verify_time_s is not None:
-                    try:
-                        age_s = max(0.0, float(time.time()) - float(verify_time_s))
-                        recency_text = f' ({age_s:.1f} s ago)'
-                        absolute_time_text = (
-                            f" at {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime(float(verify_time_s)))}"
-                        )
-                    except Exception:
-                        recency_text = ''
-                        absolute_time_text = ''
-                if risk_context is not None:
-                    try:
-                        if risk_context['override_risk'] == 'high':
-                            high_risk_requires_second_confirm = True
-                            high_risk_warning_text = (
-                                'WARNING: the current weak-ROI evidence is stale enough that refreshing the seed '
-                                'is strongly preferred before overriding.\n\n'
-                            )
-                        frame_gap_text = (
-                            f"Frame vs weak ROI verify gap: {float(risk_context['frame_gap_s']):.1f} s.\n"
-                            f"Frame freshness bucket: {risk_context['freshness_bucket']} ({risk_context['freshness_hint']}).\n\n"
-                            f"Override risk: {risk_context['override_risk']} ({risk_context['override_risk_hint']}).\n"
-                            f"Recommended action: {risk_context['recommended_action']}.\n\n"
-                        )
-                    except Exception:
-                        frame_gap_text = ''
-                last_roi_context = (
-                    f'Last weak ROI context: {label}{recency_text}{absolute_time_text} had '
-                    f'score={float(score):.3f}, dx={float(dx_px):+.1f}, dy={float(dy_px):+.1f} px.\n\n'
-                )
-        confirmed = messagebox.askyesno(
-            'Override weak ROI block?',
-            'This allows exactly one guarded move even though the last ROI verification was weak.\n\n'
-            f'{move_gate_context}'
-            f'{live_frame_context}'
-            f'{target_context}'
-            f'{high_risk_warning_text}'
-            f'{frame_gap_text}'
-            f'{last_roi_context}'
-            'Use this only if the current overlay still looks trustworthy by eye.\n\n'
-            'Continue with a one-shot override?',
-            parent=self,
-        )
-        if not confirmed:
-            self._manual_status_var.set('Weak ROI block override cancelled')
-            return
-        if high_risk_requires_second_confirm:
-            second_confirmed = messagebox.askyesno(
-                'Confirm stale high-risk override',
-                'The latest weak ROI evidence is still classified as stale/high risk.\n\n'
-                'Only continue if the live overlay clearly looks correct and you deliberately want to spend '
-                'the one-shot override on this move.\n\n'
-                'Arm the one-shot override anyway?',
-                parent=self,
-            )
-            if not second_confirmed:
-                self._manual_status_var.set('Weak ROI block override cancelled at stale high-risk confirmation')
-                return
-        self._image_allow_one_safe_move_after_weak_roi_override = True
-        self._image_refresh_move_gate_status()
-        self._manual_status_var.set(
-            'Weak ROI block overridden: the next safe move only is allowed without refreshing the seed'
-        )
-        self._image_hint_var.set(
-            'Hint: weak ROI block was manually overridden for one safe move only. Use the next move carefully, or refresh the seed first if the overlay still looks unreliable.'
-        )
-
     def _image_promote_current_overlay_to_seed(self, *, status_text=None, hint_text=None):
-        if (
-            self._image_monitor_last_frame_rgb is None
-            or self._image_tracking_map is None
-            or self._image_tracking_map.empty
-        ):
+        if self._image_tracking_map is None or self._image_tracking_map.empty:
             return False
-        self._image_seed_reference_rgb = self._image_monitor_last_frame_rgb.copy()
-        self._image_seed_map = self._image_tracking_map.copy()
+        seed_table = self._image_tracking_map.copy()
+        self._image_seed_map = seed_table
+        # Template space is the seed frame's own pixel coordinates -- there's
+        # no CAD-derived canonical geometry for a frozen-overlay seed, so the
+        # transform starts as identity and vision.electrode_drift.detect_and_refit_frame
+        # re-fits it (seed-frame pixels -> current-frame pixels) from
+        # confidently-redetected electrodes each tick, same as DXF-layout
+        # tracking below.
+        self._image_seed_layout = LayoutModel(
+            seed_table[['x_px', 'y_px']].to_numpy(dtype=np.float32),
+            seed_table['radius_px'].to_numpy(dtype=np.float32),
+        )
+        self._image_seed_layout.transform = np.array(
+            [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], dtype=np.float32
+        )
+        self._image_seed_tracked = [
+            Circle(
+                x=float(row.x_px),
+                y=float(row.y_px),
+                radius=float(row.radius_px),
+                layout_index=i,
+                on_image=True,
+            )
+            for i, row in enumerate(seed_table.itertuples())
+        ]
         if status_text is None:
             status_text = f'Frozen current frame as tracking seed ({len(self._image_seed_map)} electrodes)'
         if hint_text is None:
             hint_text = (
                 'Hint: frozen-seed tracking is active. If the layout drifts too far or the wrong candidates were frozen, use Clear Seed and reacquire.'
             )
-        self._image_move_requires_review_after_weak_roi = False
-        self._image_allow_one_safe_move_after_weak_roi_override = False
-        self._image_allow_stale_high_override_var.set(False)
-        self._image_refresh_move_gate_status()
         self._image_status_var.set(status_text)
         self._image_hint_var.set(hint_text)
         return True
 
-    def _image_apply_pending_roi_seed_promotion(self):
-        if not self._image_pending_roi_seed_promotion:
-            return False
-        promoted = self._image_promote_current_overlay_to_seed(
-            status_text=(
-                f'ROI-verified frame promoted to tracking seed '
-                f'({0 if self._image_tracking_map is None else len(self._image_tracking_map)} electrodes)'
-            ),
-            hint_text=(
-                'Hint: post-move ROI verification succeeded, so the current live overlay was promoted to the new frozen seed for downstream tracking.'
-            ),
-        )
-        self._image_pending_roi_seed_promotion = False
-        return promoted
-
-    def _image_arm_post_move_roi_verification(self, reference_rgb, target, *, wait_frames=1):
-        if reference_rgb is None or target is None:
-            return False
-        self._image_pending_roi_verification = {
-            'reference_rgb': reference_rgb.copy(),
-            'expected_center_x_px': float(target['x_px']),
-            'expected_center_y_px': float(target['y_px']),
-            'half_size_px': int(max(24, round(float(target.get('radius_px', 12.0)) * 2.0))),
-            'search_radius_px': int(max(18, round(float(target.get('radius_px', 12.0)) * 2.0))),
-            'wait_frames': int(max(wait_frames, 0)),
-            'row_index': int(target.get('row_index', 0)),
-            'col_index': int(target.get('col_index', 0)),
-        }
-        self._image_roi_verify_status_var.set(
-            f"ROI verify: armed for R{int(target.get('row_index', 0))}C{int(target.get('col_index', 0))} after safe move"
-        )
-        return True
-
-    def _image_process_pending_roi_verification(self, frame_rgb):
-        pending = self._image_pending_roi_verification
-        if pending is None or frame_rgb is None:
-            return False
-        wait_frames = int(pending.get('wait_frames', 0))
-        if wait_frames > 0:
-            pending['wait_frames'] = wait_frames - 1
-            return False
-        try:
-            result = verify_roi_revisit(
-                pending['reference_rgb'],
-                frame_rgb,
-                expected_center_x_px=float(pending['expected_center_x_px']),
-                expected_center_y_px=float(pending['expected_center_y_px']),
-                half_size_px=int(pending['half_size_px']),
-                search_radius_px=int(pending['search_radius_px']),
-            )
-            ok = (
-                float(result.score) >= 0.35
-                and abs(float(result.dx_px)) <= float(pending['search_radius_px'])
-                and abs(float(result.dy_px)) <= float(pending['search_radius_px'])
-            )
-            state = 'OK' if ok else 'weak'
-            self._image_last_roi_verify_result = {
-                'state': state,
-                'row_index': int(pending['row_index']),
-                'col_index': int(pending['col_index']),
-                'score': float(result.score),
-                'dx_px': float(result.dx_px),
-                'dy_px': float(result.dy_px),
-                'search_radius_px': int(pending['search_radius_px']),
-                'verify_time_s': float(time.time()),
-            }
-            self._image_roi_verify_status_var.set(
-                f"ROI verify: {state} for R{int(pending['row_index'])}C{int(pending['col_index'])} "
-                f"(score={float(result.score):.3f}, dx={float(result.dx_px):+.1f}, dy={float(result.dy_px):+.1f} px)"
-            )
-            if ok:
-                self._image_hint_var.set(
-                    'Hint: post-move ROI verification matched the expected neighborhood, so the locked electrode remained visually consistent after motion.'
-                )
-                self._image_pending_roi_seed_promotion = True
-                self._image_move_requires_review_after_weak_roi = False
-                self._image_allow_one_safe_move_after_weak_roi_override = False
-            else:
-                self._image_move_requires_review_after_weak_roi = True
-                self._image_allow_one_safe_move_after_weak_roi_override = False
-                self._image_hint_var.set(
-                    'Hint: post-move ROI verification was weak. Recheck the locked electrode overlay or reacquire a frozen seed before trusting the next projection; further safe moves are blocked until you refresh the seed.'
-                )
-            self._image_refresh_move_gate_status()
-        except Exception as exc:
-            self._image_last_roi_verify_result = None
-            self._image_roi_verify_status_var.set(f'ROI verify failed: {exc}')
-        finally:
-            self._image_pending_roi_verification = None
-        return True
-
-    def _image_clear_stage_affine_calibration(self):
-        self._image_stage_calibration_refs = []
-        self._image_stage_affine_calibration = None
-        self._image_stage_affine_status_var.set('Stage calibration: not solved')
-        self._image_reset_stale_high_override_for_context_change()
-        if self._image_selected_target is not None:
-            self._image_update_target_status()
-
-    def _image_stage_calibration_payload(self):
-        refs = [
-            {
-                'sample_x_mm': float(ref.sample_x_mm),
-                'sample_y_mm': float(ref.sample_y_mm),
-                'stage_x_mm': float(ref.stage_x_mm),
-                'stage_y_mm': float(ref.stage_y_mm),
-            }
-            for ref in self._image_stage_calibration_refs
-        ]
-        payload = {
-            'refs': refs,
-            'swap_xy': bool(self._image_stage_swap_xy_var.get()),
-            'invert_x': bool(self._image_stage_invert_x_var.get()),
-            'invert_y': bool(self._image_stage_invert_y_var.get()),
-            'anchor': None,
-        }
-        if self._image_stage_anchor is not None:
-            payload['anchor'] = {
-                'stage_x_mm': float(self._image_stage_anchor['stage_x_mm']),
-                'stage_y_mm': float(self._image_stage_anchor['stage_y_mm']),
-                'sample_x_mm': float(self._image_stage_anchor['sample_x_mm']),
-                'sample_y_mm': float(self._image_stage_anchor['sample_y_mm']),
-                'row_index': int(self._image_stage_anchor['row_index']),
-                'col_index': int(self._image_stage_anchor['col_index']),
-            }
-        return payload
-
-    def _image_save_stage_affine_calibration(self, path=None):
-        if path is None:
-            path = filedialog.asksaveasfilename(
-                title='Save stage calibration',
-                defaultextension='.json',
-                filetypes=[('JSON files', '*.json'), ('All files', '*.*')],
-            )
-        if not path:
-            return False
-        payload = self._image_stage_calibration_payload()
-        try:
-            with open(path, 'w', encoding='utf-8') as fh:
-                json.dump(payload, fh, ensure_ascii=False, indent=2)
-        except Exception as exc:
-            self._image_stage_affine_status_var.set(f'Stage calibration save failed: {exc}')
-            return False
-        self._image_stage_affine_status_var.set(
-            f"Stage calibration: saved {len(self._image_stage_calibration_refs)} refs to {os.path.basename(path)}"
-        )
-        if self._image_selected_target is not None:
-            self._image_update_target_status()
-        return True
-
-    def _image_load_stage_affine_calibration(self, path=None):
-        if path is None:
-            path = filedialog.askopenfilename(
-                title='Load stage calibration',
-                filetypes=[('JSON files', '*.json'), ('All files', '*.*')],
-            )
-        if not path:
-            return False
-        try:
-            with open(path, 'r', encoding='utf-8') as fh:
-                payload = json.load(fh)
-            refs_payload = payload.get('refs', [])
-            refs = [
-                SampleStageReference(
-                    sample_x_mm=float(item['sample_x_mm']),
-                    sample_y_mm=float(item['sample_y_mm']),
-                    stage_x_mm=float(item['stage_x_mm']),
-                    stage_y_mm=float(item['stage_y_mm']),
-                )
-                for item in refs_payload
-            ]
-            swap_xy = bool(payload.get('swap_xy', False))
-            invert_x = bool(payload.get('invert_x', False))
-            invert_y = bool(payload.get('invert_y', False))
-            anchor_payload = payload.get('anchor')
-            if anchor_payload:
-                anchor = {
-                    'stage_x_mm': float(anchor_payload['stage_x_mm']),
-                    'stage_y_mm': float(anchor_payload['stage_y_mm']),
-                    'sample_x_mm': float(anchor_payload['sample_x_mm']),
-                    'sample_y_mm': float(anchor_payload['sample_y_mm']),
-                    'row_index': int(anchor_payload['row_index']),
-                    'col_index': int(anchor_payload['col_index']),
-                }
-            else:
-                anchor = None
-            affine = None
-            if len(refs) >= 3:
-                affine = solve_sample_to_stage_affine_calibration(refs)
-                loaded_status = (
-                    f"Stage calibration: loaded affine from {len(refs)} refs ({os.path.basename(path)})"
-                )
-            else:
-                loaded_status = (
-                    f"Stage calibration: loaded {len(refs)} refs ({os.path.basename(path)})"
-                )
-            self._image_stage_calibration_refs = refs
-            self._image_stage_affine_calibration = affine
-            self._image_stage_swap_xy_var.set(swap_xy)
-            self._image_stage_invert_x_var.set(invert_x)
-            self._image_stage_invert_y_var.set(invert_y)
-            self._image_stage_anchor = anchor
-            self._image_reset_stale_high_override_for_context_change()
-            self._image_refresh_stage_projection_status()
-            self._image_stage_affine_status_var.set(loaded_status)
-            if self._image_selected_target is not None:
-                self._image_update_target_status()
-        except Exception as exc:
-            self._image_stage_affine_calibration = None
-            self._image_stage_affine_status_var.set(f'Stage calibration load failed: {exc}')
-            if self._image_selected_target is not None:
-                self._image_update_target_status()
-            return False
-        return True
-
-    def _image_transform_sample_delta_to_stage_delta(self, dx_mm, dy_mm):
-        stage_dx = float(dx_mm)
-        stage_dy = float(dy_mm)
-        if self._image_stage_swap_xy_var.get():
-            stage_dx, stage_dy = stage_dy, stage_dx
-        if self._image_stage_invert_x_var.get():
-            stage_dx = -stage_dx
-        if self._image_stage_invert_y_var.get():
-            stage_dy = -stage_dy
-        return float(stage_dx), float(stage_dy)
-
-    def _image_refresh_stage_projection_status(self):
-        if self._image_stage_anchor is not None:
-            anchor = self._image_stage_anchor
-            mapping_terms = []
-            if self._image_stage_swap_xy_var.get():
-                mapping_terms.append('swap xy')
-            if self._image_stage_invert_x_var.get():
-                mapping_terms.append('invert x')
-            if self._image_stage_invert_y_var.get():
-                mapping_terms.append('invert y')
-            mapping_text = ', '.join(mapping_terms) if mapping_terms else 'aligned axes'
-            self._image_stage_anchor_status_var.set(
-                'Stage anchor: '
-                f"R{int(anchor['row_index'])}C{int(anchor['col_index'])} "
-                f"sample ({float(anchor['sample_x_mm']):.2f}, {float(anchor['sample_y_mm']):.2f}) mm "
-                f"-> stage ({float(anchor['stage_x_mm']):.3f}, {float(anchor['stage_y_mm']):.3f}) mm "
-                f"[{mapping_text}]"
-            )
-        if self._image_stage_affine_calibration is not None:
-            self._image_stage_affine_status_var.set(
-                f'Stage calibration: affine solved from {len(self._image_stage_calibration_refs)} points'
-            )
-        if self._image_selected_target is not None:
-            self._image_update_target_status()
 
     def _image_clear_target(self):
         self._image_selected_target = None
-        self._image_selected_design_target = None
-        self._image_allow_stale_high_override_var.set(False)
         self._image_target_status_var.set('Target: not locked')
-        self._image_refresh_move_gate_status()
+        self._image_refresh_z_seed_status()
 
     def _image_get_current_stage_xy(self):
         stage_x = _parse_optional_float(self._manual_current['x'].get())
@@ -6393,292 +7348,1881 @@ class MicroprobGUI(tk.Tk):
             return None
         return float(stage_x), float(stage_y)
 
-    def _image_compute_stage_xy_for_design_target(self, design_target):
-        if design_target is None:
-            return None
-        sample_x = _parse_optional_float(design_target.get('sample_x_mm'))
-        sample_y = _parse_optional_float(design_target.get('sample_y_mm'))
-        if sample_x is None or sample_y is None:
-            return None
-        if self._image_stage_affine_calibration is not None:
-            return sample_to_stage_xy(
-                self._image_stage_affine_calibration,
-                float(sample_x),
-                float(sample_y),
-            )
-        if self._image_stage_anchor is None:
-            return None
-        anchor = self._image_stage_anchor
-        stage_dx, stage_dy = self._image_transform_sample_delta_to_stage_delta(
-            float(sample_x) - float(anchor['sample_x_mm']),
-            float(sample_y) - float(anchor['sample_y_mm']),
-        )
-        return (
-            float(anchor['stage_x_mm']) + float(stage_dx),
-            float(anchor['stage_y_mm']) + float(stage_dy),
-        )
+    def _image_note_manual_move_target_match(self, moved_x_mm, moved_y_mm):
+        """
+        Called after "Move Tip" actually drives the stage, while an Image
+        Monitor target is locked, to decide whether that move still
+        satisfies the lock or invalidates it. The target's expected stage
+        position is re-derived fresh here (not read back from the possibly-
+        stale Move to: fields) so a target that has drifted since it was
+        locked is still checked accurately. If the driven XY doesn't match,
+        the fields must have been edited manually after locking, so the
+        lock is cleared automatically -- this is what makes a separate
+        Clear Target button unnecessary.
 
-    def _image_stage_projection_provenance_label(self):
-        if self._image_stage_affine_calibration is not None:
-            return 'affine calibration'
-        if self._image_stage_anchor is not None:
-            return 'stage anchor mapping'
-        return None
-
-    def _image_set_stage_anchor(self, design_target, stage_x, stage_y):
-        sample_x = _parse_optional_float(design_target.get('sample_x_mm'))
-        sample_y = _parse_optional_float(design_target.get('sample_y_mm'))
-        if sample_x is None or sample_y is None:
-            return False
-        self._image_stage_anchor = {
-            'stage_x_mm': float(stage_x),
-            'stage_y_mm': float(stage_y),
-            'sample_x_mm': float(sample_x),
-            'sample_y_mm': float(sample_y),
-            'row_index': int(design_target['row_index']),
-            'col_index': int(design_target['col_index']),
-        }
-        self._image_refresh_stage_projection_status()
-        if self._image_selected_target is not None:
-            self._image_update_target_status()
-        return True
-
-    def _image_set_stage_anchor_from_current_xy(self):
-        design_target = self._image_match_target_to_design()
-        if design_target is None:
-            self._image_stage_anchor_status_var.set(
-                'Stage anchor failed: lock a target with a loaded design first'
-            )
-            return
-        sample_x = _parse_optional_float(design_target.get('sample_x_mm'))
-        sample_y = _parse_optional_float(design_target.get('sample_y_mm'))
-        if sample_x is None or sample_y is None:
-            self._image_stage_anchor_status_var.set(
-                'Stage anchor failed: selected design target has no sample-mm coordinates'
-            )
-            return
-        current_stage_xy = self._image_get_current_stage_xy()
-        if current_stage_xy is None:
-            self._image_stage_anchor_status_var.set(
-                'Stage anchor failed: refresh current Motor X/Y first'
-            )
-            return
-        stage_x, stage_y = current_stage_xy
-        self._image_set_stage_anchor(design_target, stage_x, stage_y)
-        self._image_reset_stale_high_override_for_context_change()
-
-    def _image_add_stage_calibration_point_from_current_target(self):
-        design_target = self._image_match_target_to_design()
-        if design_target is None:
-            self._image_stage_affine_status_var.set(
-                'Stage calibration failed: lock a target with a loaded design first'
-            )
-            return
-        sample_x = _parse_optional_float(design_target.get('sample_x_mm'))
-        sample_y = _parse_optional_float(design_target.get('sample_y_mm'))
-        if sample_x is None or sample_y is None:
-            self._image_stage_affine_status_var.set(
-                'Stage calibration failed: selected design target has no sample-mm coordinates'
-            )
-            return
-        current_stage_xy = self._image_get_current_stage_xy()
-        if current_stage_xy is None:
-            self._image_stage_affine_status_var.set(
-                'Stage calibration failed: refresh current Motor X/Y first'
-            )
-            return
-        stage_x, stage_y = current_stage_xy
-        row_index = int(design_target['row_index'])
-        col_index = int(design_target['col_index'])
-        new_ref = SampleStageReference(
-            sample_x_mm=float(sample_x),
-            sample_y_mm=float(sample_y),
-            stage_x_mm=float(stage_x),
-            stage_y_mm=float(stage_y),
-        )
-        replaced = False
-        for idx, existing in enumerate(self._image_stage_calibration_refs):
-            if (
-                abs(existing.sample_x_mm - new_ref.sample_x_mm) < 1e-9
-                and abs(existing.sample_y_mm - new_ref.sample_y_mm) < 1e-9
-            ):
-                self._image_stage_calibration_refs[idx] = new_ref
-                replaced = True
-                break
-        if not replaced:
-            self._image_stage_calibration_refs.append(new_ref)
-        self._image_stage_affine_calibration = None
-        action = 'updated' if replaced else 'added'
-        self._image_stage_affine_status_var.set(
-            f'Stage calibration: {action} R{row_index}C{col_index} '
-            f'sample ({float(sample_x):.2f}, {float(sample_y):.2f}) -> '
-            f'stage ({float(stage_x):.3f}, {float(stage_y):.3f}) mm '
-            f'[{len(self._image_stage_calibration_refs)} refs]'
-        )
-
-    def _image_apply_projected_stage_xy_to_manual_target(self):
-        design_target = self._image_match_target_to_design()
-        if design_target is None:
-            self._image_target_status_var.set(
-                'Target apply failed: lock a target with a loaded design first'
-            )
-            return
-        stage_xy = self._image_compute_stage_xy_for_design_target(design_target)
-        if stage_xy is None:
-            self._image_target_status_var.set(
-                'Target apply failed: solve affine calibration or set a stage anchor first'
-            )
-            return
-        stage_x, stage_y = stage_xy
-        self._manual_target['x'].set(f'{float(stage_x):.3f}')
-        self._manual_target['y'].set(f'{float(stage_y):.3f}')
-        self._manual_status_var.set(
-            f'Image Monitor projected stage XY copied to target: X={float(stage_x):.3f} mm, Y={float(stage_y):.3f} mm'
-        )
-        self._image_target_status_var.set(
-            f"{self._image_target_status_var.get()} [copied to target X/Y]"
-        )
-
-    def _image_move_target_safe(self):
-        if self.motor is None:
-            self._manual_status_var.set('Motor controller is not connected')
-            return
-        if self._image_move_requires_review_after_weak_roi and not self._image_allow_one_safe_move_after_weak_roi_override:
-            self._manual_status_var.set(
-                'Safe move blocked: previous ROI verify was weak. Reacquire/freeze the current seed before moving again.'
-            )
-            self._image_hint_var.set(
-                'Hint: a weak post-move ROI verify blocks the next safe move until you refresh the seed or obtain a successful ROI-verified promotion.'
-            )
-            return
-        if self._image_allow_one_safe_move_after_weak_roi_override:
-            self._image_allow_one_safe_move_after_weak_roi_override = False
-            self._image_refresh_move_gate_status()
-        reference_rgb = None if self._image_monitor_last_frame_rgb is None else self._image_monitor_last_frame_rgb.copy()
-        selected_target = None if self._image_selected_target is None else self._image_selected_target.copy()
-        design_target = self._image_match_target_to_design()
-        if design_target is None:
-            self._manual_status_var.set('Safe move failed: lock a target with a loaded design first')
-            return
-        stage_xy = self._image_compute_stage_xy_for_design_target(design_target)
-        if stage_xy is None:
-            self._manual_status_var.set(
-                'Safe move failed: solve affine calibration or set a stage anchor first'
-            )
-            return
-        current_positions = {}
-        for axis in ('X', 'Y', 'Z'):
-            try:
-                current_positions[axis] = float(self.motor.get_position(axis))
-            except Exception:
-                current_positions[axis] = None
-        current_z = current_positions.get('Z')
-        self._manual_target['x'].set(f'{float(stage_xy[0]):.3f}')
-        self._manual_target['y'].set(f'{float(stage_xy[1]):.3f}')
-        if current_z is not None:
-            self._manual_target['z'].set(f'{float(current_z):.3f}')
-        self._manual_status_var.set(
-            f"Moving to locked target via safe path: X={float(stage_xy[0]):.3f} mm, Y={float(stage_xy[1]):.3f} mm"
-        )
-        self.motor.move_xyz_safe(
-            x_mm=float(stage_xy[0]),
-            y_mm=float(stage_xy[1]),
-            z_mm=None if current_z is None else float(current_z),
-            current_positions=current_positions,
-            log_fn=self._log,
-        )
-        self._image_set_stage_anchor(design_target, float(stage_xy[0]), float(stage_xy[1]))
-        self._manual_refresh_state()
-        self._manual_status_var.set(
-            f"Safe target move complete: X={float(stage_xy[0]):.3f} mm, Y={float(stage_xy[1]):.3f} mm"
-        )
-        self._image_arm_post_move_roi_verification(reference_rgb, selected_target)
-        self._image_allow_stale_high_override_var.set(False)
-        self._image_refresh_move_gate_status()
-        self._image_target_status_var.set(
-            f"{self._image_target_status_var.get()} [safe move sent; anchor updated]"
-        )
-
-    def _image_solve_stage_affine_calibration(self):
-        if len(self._image_stage_calibration_refs) < 3:
-            self._image_stage_affine_calibration = None
-            self._image_stage_affine_status_var.set(
-                f'Stage calibration failed: need at least 3 reference points ({len(self._image_stage_calibration_refs)} present)'
-            )
-            if self._image_selected_target is not None:
-                self._image_update_target_status()
+        Search Z's own "is the stage at the target" precondition
+        (_image_target_within_move_tolerance) is checked fresh, live,
+        whenever it's actually needed, rather than relying on a flag set
+        here -- so this method's only remaining job is the auto-clear
+        above; it no longer gates anything itself.
+        """
+        target = self._image_selected_target
+        if self._image_pixel_stage_affine_calibration is None:
             return
         try:
-            self._image_stage_affine_calibration = solve_sample_to_stage_affine_calibration(
-                self._image_stage_calibration_refs
+            expected_xy = self._image_project_pixel_to_stage_xy(
+                float(target['x_px']), float(target['y_px']), target=target,
             )
-        except Exception as exc:
-            self._image_stage_affine_calibration = None
-            self._image_stage_affine_status_var.set(f'Stage calibration solve failed: {exc}')
-            if self._image_selected_target is not None:
-                self._image_update_target_status()
+        except Exception:
             return
-        self._image_stage_affine_status_var.set(
-            f'Stage calibration: affine solved from {len(self._image_stage_calibration_refs)} points'
+        try:
+            tol = float(self._contact_search['target_xy_tolerance_mm'].get())
+        except Exception:
+            tol = IMAGE_TARGET_MOVE_MATCH_TOL_MM
+        matched = (
+            abs(float(expected_xy[0]) - moved_x_mm) <= tol
+            and abs(float(expected_xy[1]) - moved_y_mm) <= tol
         )
-        self._image_reset_stale_high_override_for_context_change()
-        if self._image_selected_target is not None:
-            self._image_update_target_status()
+        if not matched:
+            self._image_clear_target()
+            return
+        self._image_update_target_status()
+        self._image_refresh_z_seed_status()
 
-    def _image_match_target_to_design(self):
-        if (
-            self._image_selected_target is None
-            or self._image_design_map is None
-            or self._image_design_map.empty
-        ):
-            self._image_selected_design_target = None
+    def _image_target_within_move_tolerance(self):
+        """
+        True if the stage's CURRENT XY (read live from the motor) is within
+        Target XY tolerance (mm) of the locked target's expected stage
+        position -- the live replacement for the old "did the last Move Tip
+        click happen to match" flag, checked fresh every time it's actually
+        needed (Search Z, and the Z-seed status line) instead of trusting a
+        snapshot from whenever Move Tip was last clicked. Deliberately
+        compares stage positions in mm, not camera pixel positions: the
+        electrode's expected stage XY (via _image_project_pixel_to_stage_xy)
+        only depends on the electrode's own known height, never on the
+        probe's current/target Z, but a PIXEL-space comparison (e.g.
+        against a live probe-tip detection) would not have that property --
+        the probe's own detected pixel position shifts with its own Z, so
+        it and the electrode's expected pixel position would only coincide
+        when the probe happens to be at the electrode's exact height, not
+        merely above it. Comparing stage mm avoids that entirely.
+
+        False (not an error) if there's no locked target, no motor, no
+        pixel<->stage calibration yet, or the projection fails -- all
+        "not ready to check this yet," same as every other vision fallback
+        in this file.
+        """
+        target = self._image_selected_target
+        if target is None or self.motor is None or self._image_pixel_stage_affine_calibration is None:
+            return False
+        try:
+            expected_xy = self._image_project_pixel_to_stage_xy(
+                float(target['x_px']), float(target['y_px']), target=target,
+            )
+            current_x = float(self.motor.get_position('X'))
+            current_y = float(self.motor.get_position('Y'))
+        except Exception:
+            return False
+        try:
+            tol = float(self._contact_search['target_xy_tolerance_mm'].get())
+        except Exception:
+            tol = IMAGE_TARGET_MOVE_MATCH_TOL_MM
+        return (
+            abs(float(expected_xy[0]) - current_x) <= tol
+            and abs(float(expected_xy[1]) - current_y) <= tol
+        )
+
+    # ══════════════════════════════════════════════════════════════════════
+    # Probe-based pixel<->stage calibration
+    # ══════════════════════════════════════════════════════════════════════
+
+    def _image_current_frame_bgr(self):
+        if self._image_monitor_last_frame_rgb is None:
+            return None
+        if cv2 is None:
+            _vision_unavailable()
+        return cv2.cvtColor(self._image_monitor_last_frame_rgb, cv2.COLOR_RGB2BGR)
+
+    def _image_detect_probe_tip(self):
+        frame_bgr = self._image_current_frame_bgr()
+        if frame_bgr is None:
+            self._image_probe_status_var.set('Probe: no live frame yet')
+            return
+        if self._image_probe_detector is None:
+            clahe_clip = getattr(_config, 'VISION_PROBE_CLAHE_CLIP', 4.0)
+            self._image_probe_detector = ProbeDetector(clahe_clip=clahe_clip)
+        try:
+            tip = self._image_probe_detector.detect(frame_bgr, roi=self._image_probe_roi)
+        except Exception as exc:
+            self._image_probe_status_var.set(f'Probe detection failed: {exc}')
+            return
+        if tip is None or not tip.detected:
+            self._image_probe_tip_candidate = None
+            self._image_probe_status_var.set('Probe: not detected in current frame')
+            return
+        self._image_probe_tip_candidate = (float(tip.x), float(tip.y))
+        self._image_probe_status_var.set(
+            f'Probe: detected at ({tip.x:.1f}, {tip.y:.1f}) px'
+        )
+
+    def _image_draw_probe_tip_overlay(self, frame_bgr):
+        if self._image_probe_tip_candidate is None or cv2 is None:
+            return frame_bgr
+        canvas = frame_bgr.copy()
+        x, y = int(round(self._image_probe_tip_candidate[0])), int(round(self._image_probe_tip_candidate[1]))
+        cv2.drawMarker(
+            canvas, (x, y), (0, 0, 255),
+            markerType=cv2.MARKER_CROSS, markerSize=20, thickness=2,
+        )
+        return canvas
+
+    def _image_add_pixel_stage_calibration_point(self):
+        # Capture whatever tip location is currently displayed rather than
+        # re-detecting -- re-detecting here could land on a different pixel
+        # than the crosshair the user is looking at (live frame moved on,
+        # detector jitter/reflection lock), silently capturing a point that
+        # doesn't match what was shown. Require an explicit "Detect Probe
+        # Tip" click first.
+        if self._image_probe_tip_candidate is None:
+            self._image_pixel_stage_affine_status_var.set(
+                'Probe calibration failed: detect the probe tip first'
+            )
+            return
+        current_stage_xy = self._image_get_current_stage_xy()
+        if current_stage_xy is None:
+            self._image_pixel_stage_affine_status_var.set(
+                'Probe calibration failed: refresh current Motor X/Y first'
+            )
+            return
+        current_z = _parse_optional_float(self._manual_current['z'].get())
+        pixel_x, pixel_y = self._image_probe_tip_candidate
+        stage_x, stage_y = current_stage_xy
+        self._image_pixel_stage_calibration_refs.append(
+            PixelStageReference(
+                pixel_x=float(pixel_x),
+                pixel_y=float(pixel_y),
+                stage_x_mm=float(stage_x),
+                stage_y_mm=float(stage_y),
+                z_mm=None if current_z is None else float(current_z),
+            )
+        )
+        self._image_pixel_stage_affine_calibration = None
+        self._image_pixel_stage_z_ref_mm = None
+        self._image_pixel_stage_affine_status_var.set(
+            f'Probe calibration: {len(self._image_pixel_stage_calibration_refs)} point(s) captured, not yet solved'
+        )
+
+    def _image_solve_pixel_stage_affine_calibration(self):
+        refs = self._image_pixel_stage_calibration_refs
+        if len(refs) < 3:
+            self._image_pixel_stage_affine_calibration = None
+            self._image_pixel_stage_z_ref_mm = None
+            self._image_pixel_stage_affine_status_var.set(
+                f'Probe calibration failed: need at least 3 points '
+                f'({len(refs)} present)'
+            )
+            return
+        z_values = [ref.z_mm for ref in refs]
+        if any(z is None for z in z_values):
+            self._image_pixel_stage_affine_calibration = None
+            self._image_pixel_stage_z_ref_mm = None
+            self._image_pixel_stage_affine_status_var.set(
+                'Probe calibration failed: every point needs a valid Z readback '
+                '(refresh current Motor Z before adding each point) -- recapture all points'
+            )
+            return
+        z_tolerance = getattr(_config, 'VISION_PROBE_CALIBRATION_Z_TOLERANCE_MM', 0.05)
+        z_spread = max(z_values) - min(z_values)
+        if z_spread > z_tolerance:
+            self._image_pixel_stage_affine_calibration = None
+            self._image_pixel_stage_z_ref_mm = None
+            self._image_pixel_stage_affine_status_var.set(
+                f'Probe calibration failed: Z varied by {z_spread:.3f} mm across points '
+                f'(max allowed {z_tolerance:.3f} mm) -- recapture all points at a consistent Z height'
+            )
+            return
+        try:
+            self._image_pixel_stage_affine_calibration = solve_stage_affine_calibration(refs)
+        except Exception as exc:
+            self._image_pixel_stage_affine_calibration = None
+            self._image_pixel_stage_z_ref_mm = None
+            self._image_pixel_stage_affine_status_var.set(f'Probe calibration solve failed: {exc}')
+            return
+        self._image_pixel_stage_z_ref_mm = sum(z_values) / len(z_values)
+        self._image_pixel_stage_affine_status_var.set(
+            f'Probe calibration: affine solved from {len(refs)} points, Z ref = '
+            f'{self._image_pixel_stage_z_ref_mm:.3f} mm (spread {z_spread:.3f} mm)'
+        )
+
+    def _image_clear_pixel_stage_affine_calibration(self):
+        self._image_pixel_stage_calibration_refs = []
+        self._image_pixel_stage_affine_calibration = None
+        self._image_pixel_stage_z_ref_mm = None
+        self._image_pixel_stage_affine_status_var.set('Probe calibration: not solved')
+
+    def _image_pixel_stage_calibration_payload(self):
+        return {
+            'refs': [
+                {
+                    'pixel_x': float(ref.pixel_x),
+                    'pixel_y': float(ref.pixel_y),
+                    'stage_x_mm': float(ref.stage_x_mm),
+                    'stage_y_mm': float(ref.stage_y_mm),
+                    'z_mm': None if ref.z_mm is None else float(ref.z_mm),
+                }
+                for ref in self._image_pixel_stage_calibration_refs
+            ],
+            'solved_at': time.strftime('%Y-%m-%d %H:%M:%S'),
+        }
+
+    def _image_save_pixel_stage_affine_calibration(self, path=None):
+        if path is None:
+            path = filedialog.asksaveasfilename(
+                title='Save probe pixel<->stage calibration',
+                defaultextension='.json',
+                initialfile=os.path.basename(
+                    getattr(_config, 'VISION_PIXEL_STAGE_CALIBRATION_PATH', 'pixel_stage_calibration.json')
+                ),
+                filetypes=[('JSON files', '*.json'), ('All files', '*.*')],
+            )
+        if not path:
+            return False
+        try:
+            with open(path, 'w', encoding='utf-8') as fh:
+                json.dump(self._image_pixel_stage_calibration_payload(), fh, ensure_ascii=False, indent=2)
+        except Exception as exc:
+            self._image_pixel_stage_affine_status_var.set(f'Probe calibration save failed: {exc}')
+            return False
+        self._image_pixel_stage_affine_status_var.set(
+            f"Probe calibration: saved {len(self._image_pixel_stage_calibration_refs)} refs to {os.path.basename(path)}"
+        )
+        return True
+
+    def _image_load_pixel_stage_affine_calibration(self, path=None):
+        if path is None:
+            path = filedialog.askopenfilename(
+                title='Load probe pixel<->stage calibration',
+                filetypes=[('JSON files', '*.json'), ('All files', '*.*')],
+            )
+        if not path:
+            return False
+        try:
+            with open(path, 'r', encoding='utf-8') as fh:
+                payload = json.load(fh)
+            refs = [
+                PixelStageReference(
+                    pixel_x=float(item['pixel_x']),
+                    pixel_y=float(item['pixel_y']),
+                    stage_x_mm=float(item['stage_x_mm']),
+                    stage_y_mm=float(item['stage_y_mm']),
+                    z_mm=None if item.get('z_mm') is None else float(item['z_mm']),
+                )
+                for item in payload.get('refs', [])
+            ]
+        except Exception as exc:
+            self._image_pixel_stage_affine_status_var.set(f'Probe calibration load failed: {exc}')
+            return False
+        self._image_pixel_stage_calibration_refs = refs
+        if len(refs) >= 3:
+            # Reuse the same Z-consistency enforcement as a fresh solve --
+            # an old calibration file predating per-point Z capture (no
+            # z_mm at all) or one with an inconsistent Z will be refused
+            # here just as it would be if solved interactively.
+            self._image_solve_pixel_stage_affine_calibration()
+            if self._image_pixel_stage_affine_calibration is None:
+                return False
+            self._image_pixel_stage_affine_status_var.set(
+                f"{self._image_pixel_stage_affine_status_var.get()} (loaded from {os.path.basename(path)})"
+            )
+        else:
+            self._image_pixel_stage_affine_calibration = None
+            self._image_pixel_stage_z_ref_mm = None
+            self._image_pixel_stage_affine_status_var.set(
+                f"Probe calibration: loaded {len(refs)} refs ({os.path.basename(path)})"
+            )
+        return True
+
+    # ══════════════════════════════════════════════════════════════════════
+    # Electrode Z-seed store: per-electrode real height + pooled Z-parallax
+    # slope, fed by AutoContactZ contact searches (see vision/electrode_z_seed.py)
+    # ══════════════════════════════════════════════════════════════════════
+
+    def _image_probe_tip_pixel_now(self, layout_index=None):
+        """Probe-tip pixel sampler passed as the contact-search hook (see
+        _execute_contact_z_search's probe_pixel_sample_fn) -- grabs the
+        current live frame and runs the same detector "Detect Probe Tip"
+        already uses. Returns (pixel_x, pixel_y) or None on any failure;
+        never raises.
+
+        layout_index, if given and currently tracked, searches a tight ROI
+        centered on that electrode's own tracked pixel position and sized
+        to its tracked radius -- same idea as
+        _image_recalibrate_xy_bias_from_contact's electrode-sized ROI,
+        applied here to the parallax samples too (the probe tip should
+        already be at that electrode's XY by the time a contact search
+        runs, both at the search-start height and at confirmed contact, so
+        a tight box around the electrode's tracked position is a more
+        reliable search area than the generic user-drawn _image_probe_roi).
+        Falls back to _image_probe_roi whenever layout_index isn't given or
+        isn't currently tracked -- same best-effort-fallback style as every
+        other vision helper in this file.
+        """
+        self._image_last_probe_roi_debug = None
+        try:
+            frame_bgr = self._image_current_frame_bgr()
+            if frame_bgr is None:
+                return None
+            if self._image_probe_detector is None:
+                clahe_clip = getattr(_config, 'VISION_PROBE_CLAHE_CLIP', 4.0)
+                self._image_probe_detector = ProbeDetector(clahe_clip=clahe_clip)
+            roi = self._image_probe_roi
+            if (
+                layout_index is not None
+                and self._image_layout_tracked is not None
+                and 0 <= layout_index < len(self._image_layout_tracked)
+            ):
+                # _image_layout_tracked's Circle objects are mutated in
+                # place by _image_monitor_tick on the main thread every
+                # tick -- see _image_tracked_lock's definition comment.
+                with self._image_tracked_lock:
+                    circle = self._image_layout_tracked[layout_index]
+                    r = float(circle.radius)
+                    smoothed_x, smoothed_y = circle.smoothed_x, circle.smoothed_y
+                roi = (
+                    int(smoothed_x - r), int(smoothed_y - r),
+                    int(smoothed_x + r), int(smoothed_y + r),
+                )
+            tip = self._image_probe_detector.detect(frame_bgr, roi=roi)
+            self._image_stash_probe_roi_debug(frame_bgr, roi, tip)
+            if tip is None or not tip.detected:
+                return None
+            return float(tip.x), float(tip.y)
+        except Exception:
             return None
 
-        target = self._image_selected_target
-        design = self._image_design_map
+    def _image_stash_probe_roi_debug(self, frame_bgr, roi, tip):
+        """Side-channel snapshot of the last probe-tip search: the actual
+        ROI crop searched and the detected tip's position local to that
+        crop (or None if nothing was found there). Purely diagnostic --
+        read by _image_update_parallax_debug_display; never affects
+        _image_probe_tip_pixel_now's own (pixel_x, pixel_y)/None contract.
+        Never raises.
+        """
+        try:
+            h, w = frame_bgr.shape[:2]
+            x1, y1 = max(0, int(roi[0])), max(0, int(roi[1]))
+            x2, y2 = min(w, int(roi[2])), min(h, int(roi[3]))
+            crop = frame_bgr[y1:y2, x1:x2].copy()
+            # A zero-width/height crop (roi clamped entirely off-frame, or
+            # degenerate to begin with) would otherwise reach _make_panel's
+            # scale = cell / w division and blow up -- treat it the same as
+            # "no crop" here instead of stashing something that later
+            # display code has to guard against.
+            if crop.size == 0 or crop.shape[0] == 0 or crop.shape[1] == 0:
+                self._image_last_probe_roi_debug = None
+                return
+            tip_local = None
+            if tip is not None and tip.detected:
+                tip_local = (float(tip.x) - x1, float(tip.y) - y1)
+            self._image_last_probe_roi_debug = {'crop_bgr': crop, 'tip_local': tip_local}
+        except Exception:
+            self._image_last_probe_roi_debug = None
 
-        row_index = int(target.get('row_index', 0))
-        col_index = int(target.get('col_index', 0))
-        exact = design[
-            (design['row_index'].astype(int) == row_index) &
-            (design['col_index'].astype(int) == col_index)
+    # Sized to actually use the right half of the canvas (contact_right)
+    # rather than staying small enough to squeeze in next to the fields --
+    # see the Z Contact Search section's contact_left/contact_right split.
+    _PARALLAX_PANEL_CELL_PX = 200
+
+    def _image_update_parallax_debug_display(self):
+        """Refreshes the Z Contact Search panel's Start/Contact ROI +
+        crosshair preview and numeric summary from
+        self._image_last_parallax_debug. Reuses ProbeTuningWindow's own
+        crosshair/panel-compositing code (vision/tuning_gui/probe_gui.py)
+        rather than duplicating it here. Best-effort: never raises, and
+        silently leaves the display as-is if vision/Tk pieces aren't
+        available (matches this file's other vision fallbacks).
+        """
+        debug = self._image_last_parallax_debug
+        if debug is not None:
+            start_pixel = debug.get('start_pixel')
+            contact_pixel = debug.get('contact_pixel')
+            if start_pixel is not None and contact_pixel is not None:
+                delta_px = contact_pixel[0] - start_pixel[0]
+                delta_py = contact_pixel[1] - start_pixel[1]
+                verdict = 'accepted' if debug.get('accepted') else f"rejected: {debug.get('reject_reason')}"
+                self._image_parallax_debug_var.set(
+                    f"Last parallax sample: Δpixel=({delta_px:+.2f}, {delta_py:+.2f}) {verdict}"
+                )
+            else:
+                self._image_parallax_debug_var.set(
+                    f"Last parallax sample: rejected: {debug.get('reject_reason', 'no sample')}"
+                )
+        if not hasattr(self, '_image_parallax_panel_canvas'):
+            return
+        if cv2 is None or Image is None or ImageTk is None:
+            return
+        canvas = self._image_parallax_panel_canvas
+        canvas.delete('all')
+        width = max(canvas.winfo_width(), 320)
+        height = max(canvas.winfo_height(), 190)
+        start_roi = debug.get('start_roi') if debug is not None else None
+        contact_roi = debug.get('contact_roi') if debug is not None else None
+        if start_roi is None and contact_roi is None:
+            # Same bordered-box-with-centered-text placeholder style as
+            # self._image_dxf_layout_preview_canvas's "No layout loaded",
+            # instead of composing a two-cell panel of blank gray boxes
+            # with baked-in captions (which reads as visually inconsistent
+            # with the rest of this tab).
+            canvas.create_text(
+                width / 2, height / 2, text='No parallax sample yet',
+                fill='#888', font=('Segoe UI', 10),
+            )
+            self._image_parallax_panel_photo = None
+            return
+        try:
+            cell = self._PARALLAX_PANEL_CELL_PX
+            blank = np.full((cell, cell, 3), 60, dtype=np.uint8)
+            imgs_labels = []
+            for roi_debug, caption in ((start_roi, 'Start'), (contact_roi, 'Contact')):
+                if roi_debug is None or roi_debug.get('crop_bgr') is None:
+                    imgs_labels.append((blank.copy(), f'{caption}: no sample'))
+                    continue
+                crop = roi_debug['crop_bgr']
+                # ProbeTuningWindow._make_panel only ever shrinks to fit a
+                # cell (its own scale is capped at 1.0), so a real ROI crop
+                # -- typically much smaller than the cell -- stays tiny
+                # inside it. Upscale here first (aspect-preserving, no cap)
+                # so the image actually fills the space, then draw the
+                # crosshair on the UPSCALED image at a fixed pixel size --
+                # drawing it before scaling would stretch the crosshair
+                # itself along with the image. Handing _make_panel an
+                # already cell-sized image makes its own resize a no-op.
+                ch, cw = crop.shape[:2]
+                scale = min(cell / cw, cell / ch) if cw and ch else 1.0
+                out_w, out_h = max(int(round(cw * scale)), 1), max(int(round(ch * scale)), 1)
+                interp = cv2.INTER_NEAREST if scale >= 1.0 else cv2.INTER_AREA
+                crop = cv2.resize(crop, (out_w, out_h), interpolation=interp)
+                tip_local = roi_debug.get('tip_local')
+                if tip_local is not None:
+                    ProbeTuningWindow._draw_crosshair(crop, tip_local[0] * scale, tip_local[1] * scale)
+                    label = caption
+                else:
+                    label = f'{caption}: tip not found'
+                imgs_labels.append((crop, label))
+            panel_bgr = ProbeTuningWindow._make_panel(imgs_labels, cell_w=cell, cell_h=cell)
+            panel_rgb = cv2.cvtColor(panel_bgr, cv2.COLOR_BGR2RGB)
+            photo = ImageTk.PhotoImage(Image.fromarray(panel_rgb))
+            self._image_parallax_panel_photo = photo
+            canvas.create_image(width / 2, height / 2, image=photo, anchor='center')
+        except Exception as exc:
+            # This panel exists specifically to diagnose probe-detection
+            # problems -- a silently-swallowed failure here would defeat
+            # that purpose (previously this branch was a bare `pass`,
+            # which is exactly why a broken panel gave no clue why).
+            self._image_parallax_panel_photo = None
+            canvas.create_text(
+                width / 2, height / 2, text=f'Panel render failed: {exc}',
+                fill='#c0392b', font=('Segoe UI', 9), width=width - 20,
+            )
+
+    def _image_layout_index_for_target(self, target):
+        if target is None:
+            return None
+        try:
+            if target.get('source') != 'dxf_layout':
+                return None
+            return int(target['col_index']) - 1
+        except Exception:
+            return None
+
+    def _image_set_combined_z_seed_status(self, z_status, xy_status):
+        """
+        One contact-search success feeds two separate calibration stores
+        (Z-seed/parallax and XY-bias), but the Z Contact Search panel only
+        has a single status line (self._image_z_seed_status_var). Setting
+        it twice in a row means only the second .set() is ever actually
+        seen -- the first is overwritten before there's any real chance to
+        read it. Combine both short fragments into one line instead.
+        Either may be None (nothing to report for that half -- e.g.
+        XY-bias's own "not enough information yet" early-outs stay
+        silent, as before); if both are None, nothing is set at all.
+        """
+        parts = [p for p in (z_status, xy_status) if p]
+        if parts:
+            self._image_z_seed_status_var.set(' | '.join(parts))
+
+    def _image_record_electrode_z_contact(self, row, measure_z, parallax_sample):
+        """
+        Common glue for every contact-search success path (manual "Search
+        Z" and the full-auto tab's _auto_contact_z_for_row): derive the
+        electrode identity,
+        update its Z seed, and contribute a parallax sample if one was
+        captured. row is a CSV row dict (electrode identified via Label's
+        E<N>, same convention as run_automation.py) or None if the caller
+        doesn't have one (see _image_record_electrode_z_contact_for_target
+        for the target-lock-based variant). Never raises -- returns a
+        short status fragment for the caller to combine with the XY-bias
+        fragment (see _image_set_combined_z_seed_status), or None if
+        there's no electrode identity to report against at all.
+        """
+        layout_index = None
+        if row is not None:
+            electrode_id = self._extract_electrode_id(str(row.get('Label', '')))
+            if electrode_id is not None:
+                layout_index = electrode_id - 1
+        if layout_index is None:
+            return None
+        return self._image_record_electrode_z_contact_for_layout_index(layout_index, measure_z, parallax_sample)
+
+    def _image_record_electrode_z_contact_for_target(self, target, measure_z, parallax_sample):
+        layout_index = self._image_layout_index_for_target(target)
+        if layout_index is None:
+            return 'Z seed: target is not a DXF-layout electrode -- nothing to seed'
+        return self._image_record_electrode_z_contact_for_layout_index(layout_index, measure_z, parallax_sample)
+
+    def _image_layout_xy_mm_for_layout_index(self, layout_index):
+        """This electrode's physical position in the DXF layout's own
+        template coordinate frame, or None if no layout is loaded or the
+        index is out of range. Feeds the Z-surface plane fit -- see
+        vision/electrode_z_seed.py::ZPlaneFit."""
+        layout = self._image_layout_model
+        if layout is None or layout_index is None:
+            return None
+        try:
+            if not (0 <= int(layout_index) < layout.n):
+                return None
+            u, v = layout.template[int(layout_index)]
+            return float(u), float(v)
+        except Exception:
+            return None
+
+    def _image_layout_diameter_um_for_layout_index(self, layout_index):
+        """This electrode's diameter in microns, from the DXF layout's own
+        per-circle radii (physical CAD mm units -- see LayoutModel's own
+        docstring in vision/layout_alignment.py), or None if no layout is
+        loaded, the index is out of range, or the DXF file didn't specify
+        per-circle radii at all (template_radii is then None)."""
+        layout = self._image_layout_model
+        if layout is None or layout_index is None or layout.template_radii is None:
+            return None
+        try:
+            if not (0 <= int(layout_index) < len(layout.template_radii)):
+                return None
+            radius_mm = float(layout.template_radii[int(layout_index)])
+            return radius_mm * 2.0 * 1000.0
+        except Exception:
+            return None
+
+    def _image_record_electrode_z_contact_for_layout_index(self, layout_index, measure_z, parallax_sample):
+        """Never raises -- returns a short status fragment (see
+        _image_set_combined_z_seed_status), always non-empty."""
+        try:
+            fit_happened = self._image_electrode_z_store.record_contact(
+                layout_index, float(measure_z), source='manual', parallax_sample=parallax_sample,
+                xy_mm=self._image_layout_xy_mm_for_layout_index(layout_index),
+            )
+            self._image_electrode_z_store.save(
+                getattr(_config, 'VISION_ELECTRODE_Z_SEED_PATH', 'vision_calibration/electrode_z_seed.json')
+            )
+        except Exception as exc:
+            return f'Z seed: record failed ({exc})'
+        n_samples = len(self._image_electrode_z_store.parallax_samples)
+        z_plane = self._image_electrode_z_store.z_plane
+        plane_suffix = f', plane({z_plane.n_points})' if z_plane is not None else ''
+        parallax_word = 'refit' if fit_happened else 'so far'
+        return (
+            f'Z seed: E{layout_index + 1}={float(measure_z):.3f}mm'
+            f', parallax {parallax_word}({n_samples})'
+            + plane_suffix
+        )
+
+    def _image_current_temperature_c_for_bias(self, *, allow_live_read=False):
+        """
+        Best available "current furnace temperature" for tagging/evaluating
+        the XY-bias correction -- prefers the active run row's stabilized
+        target (self._active_temperature_target_c, set once a row's
+        temperature step completes; see _run_worker) over a fresh serial
+        read, since this is called from vision-processing hot paths where
+        hitting the temperature controller's serial port on every call
+        would be both slow and unnecessary (the row already waited for
+        stability). Falls back to the temperature-safety monitor's last
+        polled reading (self._temp_safety_last_pv_c, updated periodically
+        during any run with TEMP_SAFETY_ENABLED) for the gap before a row's
+        first temperature step completes.
+
+        Both of those sources are automated-run-only -- outside of
+        _run_worker, neither is ever populated. allow_live_read, if True,
+        falls back to one real self.tc.get_temperature() serial read in
+        that case, so manual "Search Z" (which now also collects XY-bias
+        samples, not just Z-seed/parallax -- see
+        _image_recalibrate_xy_bias_from_contact) still tags its samples
+        with the furnace's actual temperature instead of always recording
+        temperature_c=None when used outside a run. Only pass True from a
+        call site that isn't a per-frame hot path -- e.g.
+        _image_recalibrate_xy_bias_from_contact (once per confirmed
+        contact) is fine; _image_project_pixel_to_stage_xy is NOT (called
+        every camera tick via _image_probe_occluded_layout_indices), so it
+        must keep the default False.
+
+        None if nothing is available (or the live read itself fails) --
+        callers must treat that as "temperature unknown," not an error.
+        """
+        if self._active_temperature_target_c is not None:
+            return float(self._active_temperature_target_c)
+        if self._temp_safety_last_pv_c is not None:
+            return float(self._temp_safety_last_pv_c)
+        if allow_live_read and self.tc is not None:
+            try:
+                return float(self.tc.get_temperature())
+            except Exception:
+                return None
+        return None
+
+    def _image_recalibrate_xy_bias_from_contact(self, layout_index):
+        """
+        Called right after a confirmed contact for layout_index -- both
+        the automated run's AutoContactZ (_auto_contact_z_for_row) and
+        manual "Search Z" (_image_seed_z_from_contact) call this, matching
+        _image_record_electrode_z_contact's own "common glue for every
+        contact-search success path" framing for Z-seed/parallax; XY-bias
+        collection now follows that same pattern instead of being
+        automated-run-only. At contact, the probe tip is physically
+        co-located with the electrode, so a
+        tight ROI probe search -- sized to this electrode's own tracked
+        radius, not the generic user-drawn _image_probe_roi -- centered on
+        its tracked pixel position gives a fresh, trustworthy (observed
+        probe pixel, electrode's own tracked pixel) correspondence, both
+        measured in the same frame at the same actual Z. (Deliberately NOT
+        stage_to_pixel_xy(motor XY): that assumes the electrode's contact Z
+        matches whatever Z the pixel<->stage affine calibration was solved
+        at, which is Z-parallax-shaped error being folded into what should
+        be a pure probe-vs-electrode pixel offset.) Rejected outright if
+        the detection is implausibly far from the electrode's tracked
+        pixel (see VISION_XY_BIAS_MAX_SAMPLE_PIXEL_DELTA_PX) -- more
+        likely a false detection than a real offset, and with small
+        per-temperature sample counts (see
+        ElectrodeZCalibrationStore.get_xy_bias) one bad sample has more
+        leverage than it used to when every temperature was pooled
+        together. Otherwise accumulated into that temperature setpoint's
+        own XY-bias correction, layered on top of the pixel<->stage affine
+        calibration (see vision_stage_mapper.py::ProbeXYBiasCalibration) --
+        never overwrites the base calibration itself. Never raises --
+        returns a short status fragment for the caller to combine with
+        the Z-seed fragment (see _image_set_combined_z_seed_status), or
+        None for the "not enough information yet" early-outs below
+        (silent, as before this was made returnable).
+        """
+        if self._image_pixel_stage_affine_calibration is None:
+            return None
+        if self._image_layout_tracked is None or not (0 <= layout_index < len(self._image_layout_tracked)):
+            return None
+        frame_bgr = self._image_current_frame_bgr()
+        if frame_bgr is None:
+            return None
+        # _image_layout_tracked's Circle objects are mutated in place by
+        # _image_monitor_tick on the main thread every tick -- see
+        # _image_tracked_lock's definition comment.
+        with self._image_tracked_lock:
+            circle = self._image_layout_tracked[layout_index]
+            r = float(circle.radius)
+            smoothed_x, smoothed_y = circle.smoothed_x, circle.smoothed_y
+        roi = (
+            int(smoothed_x - r), int(smoothed_y - r),
+            int(smoothed_x + r), int(smoothed_y + r),
+        )
+        try:
+            if self._image_probe_detector is None:
+                clahe_clip = getattr(_config, 'VISION_PROBE_CLAHE_CLIP', 4.0)
+                self._image_probe_detector = ProbeDetector(clahe_clip=clahe_clip)
+            tip = self._image_probe_detector.detect(frame_bgr, roi=roi)
+            if tip is None or not tip.detected:
+                return 'XY bias: probe not found'
+            # Raw, as-observed residual -- used for the outlier-plausibility
+            # check below, which is deliberately about "is the probe roughly
+            # where we expected to find it" (a question about this touch's
+            # own observation), not about the reconstructed absolute bias
+            # (see stored_delta_x_px/stored_delta_y_px further down).
+            raw_delta_x_px = tip.x - smoothed_x
+            raw_delta_y_px = tip.y - smoothed_y
+            # At true confirmed contact the probe tip and electrode center
+            # should coincide almost exactly -- a detection much farther
+            # than that is far more likely a false detection (e.g.
+            # ProbeDetector locking onto a reflection, a known limitation)
+            # than a genuine offset, and would otherwise corrupt this
+            # setpoint's whole bucket (small per-temperature sample counts
+            # give one bad sample a lot of leverage over the fit). A fixed
+            # pixel distance, not scaled by the electrode's own tracked
+            # radius (radius varies per electrode/DXF layout/camera zoom,
+            # which would make the threshold itself hard to reason about).
+            max_dist_px = getattr(_config, 'VISION_XY_BIAS_MAX_SAMPLE_PIXEL_DELTA_PX', None)
+            if max_dist_px is not None:
+                dist_px = math.hypot(raw_delta_x_px, raw_delta_y_px)
+                if dist_px > float(max_dist_px):
+                    return f'XY bias: rejected ({dist_px:.0f}px)'
+            # Not a hot path (once per confirmed contact) -- safe to fall
+            # back to a live temperature read when neither of the cheap
+            # automated-run-only sources is available (e.g. manual Search
+            # Z used outside of a run), so samples still get tagged with
+            # the real furnace temperature instead of always None.
+            temperature_c = self._image_current_temperature_c_for_bias(allow_live_read=True)
+            bucket_tol_c = getattr(_config, 'XY_BIAS_TEMPERATURE_BUCKET_TOL_C', 1.0)
+            # Once >= 3 samples exist for this bucket, the target this
+            # electrode was actually aimed at was already shifted by the
+            # bias fit active at that time (_image_last_applied_correction)
+            # -- so tip.x/tip.y here measures the RESIDUAL left after that
+            # correction, not the same targeting-independent quantity the
+            # first (uncorrected) samples measured. A converged correction
+            # legitimately drives that residual toward 0, and pooling
+            # those near-zero residuals into the same median as the
+            # original raw samples erodes the fit back toward "no
+            # correction" even though the true underlying bias hasn't
+            # changed. Back the applied shift back out of the recorded
+            # "observed" pixel so every sample -- corrected touch or not --
+            # estimates the same constant.
+            applied_correction = self._image_last_applied_correction.get(layout_index) or {}
+            applied_dx, applied_dy = applied_correction.get('xy_bias_px') or (0.0, 0.0)
+            fit_happened = self._image_electrode_z_store.record_xy_bias_sample(
+                observed_px=tip.x - applied_dx, observed_py=tip.y - applied_dy,
+                expected_px=smoothed_x, expected_py=smoothed_y,
+                temperature_c=temperature_c,
+                bucket_tol_c=bucket_tol_c,
+            )
+            self._image_electrode_z_store.save(
+                getattr(_config, 'VISION_ELECTRODE_Z_SEED_PATH', 'vision_calibration/electrode_z_seed.json')
+            )
+        except Exception as exc:
+            return f'XY bias: failed ({exc})'
+        temp_text = '?C' if temperature_c is None else f'{temperature_c:.0f}C'
+        bucket_n = self._image_electrode_z_store.xy_bias_sample_count_near(
+            temperature_c, bucket_tol_c=bucket_tol_c,
+        )
+        fit_word = 'refit' if fit_happened else 'so far'
+        self._image_log_xy_correction_sample(
+            layout_index=layout_index, temperature_c=temperature_c,
+            delta_x_px=raw_delta_x_px - applied_dx, delta_y_px=raw_delta_y_px - applied_dy,
+            raw_delta_x_px=raw_delta_x_px, raw_delta_y_px=raw_delta_y_px,
+            bucket_n=bucket_n,
+        )
+        return f'XY bias: {fit_word}({bucket_n}) {temp_text}'
+
+    def _image_log_xy_correction_sample(
+        self, *, layout_index, temperature_c, delta_x_px, delta_y_px,
+        raw_delta_x_px=None, raw_delta_y_px=None, bucket_n,
+    ):
+        """
+        Append one row to VISION_XY_CORRECTION_LOG_CSV_PATH and one summary
+        line to the run log, combining this touch's own XY-bias sample
+        (delta_x_px/delta_y_px -- the same values just folded into
+        electrode_z_seed.json's xy_bias_samples, i.e. with any already-
+        applied correction backed back out -- see the comment at this
+        function's call site) with whatever parallax/XY-bias correction
+        was actually applied the last time this electrode was targeted
+        (stashed by _image_resolve_live_tracked_xy /
+        _image_sync_manual_target_from_selected into
+        self._image_last_applied_correction). raw_delta_x_px/
+        raw_delta_y_px, if given, are the as-observed residual BEFORE that
+        back-out -- included so a run can be reviewed to confirm the
+        applied correction is actually shrinking the real, raw
+        misalignment over time, since sample_delta_x_px/y_px alone
+        (the reconstructed, correction-independent value) won't visibly
+        change just because targeting is working. Lets a run be reviewed
+        afterward to see whether the applied correction tracked the real,
+        observed drift over time, or lagged/diverged from it. Missing
+        applied-correction data (e.g. this electrode was targeted from raw
+        CSV X_mm/Y_mm, never through the live-tracked projection) is logged
+        as blank/"none applied", not an error. Never raises -- a logging
+        failure must not block XY-bias sample recording, which has already
+        succeeded by the time this is called.
+        """
+        applied = self._image_last_applied_correction.get(layout_index) or {}
+        parallax_shift = applied.get('parallax_shift_px')
+        parallax_delta_z = applied.get('parallax_delta_z_mm')
+        xy_bias_applied = applied.get('xy_bias_px')
+        row = {
+            'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
+            'layout_index': layout_index,
+            'electrode_id': layout_index + 1,
+            'temperature_c': '' if temperature_c is None else f'{temperature_c:.2f}',
+            'parallax_shift_x_px': '' if parallax_shift is None else f'{parallax_shift[0]:.3f}',
+            'parallax_shift_y_px': '' if parallax_shift is None else f'{parallax_shift[1]:.3f}',
+            'parallax_delta_z_mm': '' if parallax_delta_z is None else f'{parallax_delta_z:.4f}',
+            'xy_bias_applied_x_px': '' if xy_bias_applied is None else f'{xy_bias_applied[0]:.3f}',
+            'xy_bias_applied_y_px': '' if xy_bias_applied is None else f'{xy_bias_applied[1]:.3f}',
+            'xy_bias_bucket_n': bucket_n,
+            'sample_delta_x_px': f'{delta_x_px:.3f}',
+            'sample_delta_y_px': f'{delta_y_px:.3f}',
+            'raw_sample_delta_x_px': '' if raw_delta_x_px is None else f'{raw_delta_x_px:.3f}',
+            'raw_sample_delta_y_px': '' if raw_delta_y_px is None else f'{raw_delta_y_px:.3f}',
+        }
+        if self._image_xy_correction_csv_log_enabled:
+            try:
+                path = getattr(
+                    _config, 'VISION_XY_CORRECTION_LOG_CSV_PATH', 'vision_calibration/xy_correction_log.csv'
+                )
+                parent = os.path.dirname(path)
+                if parent:
+                    os.makedirs(parent, exist_ok=True)
+                write_header = not os.path.exists(path)
+                with open(path, 'a', newline='', encoding='utf-8') as fh:
+                    writer = csv.DictWriter(fh, fieldnames=list(row.keys()))
+                    if write_header:
+                        writer.writeheader()
+                    writer.writerow(row)
+            except Exception as exc:
+                self._log(f"  [XY correction log] CSV write failed: {exc}")
+
+        parallax_text = (
+            f"parallax=({parallax_shift[0]:+.1f}, {parallax_shift[1]:+.1f})px"
+            if parallax_shift is not None else "parallax=none applied"
+        )
+        bias_text = (
+            f"bias=({xy_bias_applied[0]:+.1f}, {xy_bias_applied[1]:+.1f})px"
+            if xy_bias_applied is not None else "bias=none applied"
+        )
+        self._log(
+            f"  [XY correction] E{layout_index + 1}: {parallax_text}, {bias_text}, "
+            f"sample delta=({delta_x_px:+.1f}, {delta_y_px:+.1f})px"
+        )
+
+    def _image_seed_z_from_contact(self):
+        if self._image_selected_target is None:
+            self._image_z_seed_status_var.set('Z seed failed: lock a target first')
+            return
+        if not self._image_target_within_move_tolerance():
+            self._image_z_seed_status_var.set(
+                'Z seed failed: stage XY is not within tolerance of the locked target -- '
+                'the contact search runs at the stage\'s current XY, so it would '
+                'measure the wrong electrode otherwise'
+            )
+            return
+        if self.motor is None:
+            self._image_z_seed_status_var.set('Z seed failed: motor is not connected')
+            return
+        target = self._image_selected_target.copy()
+        layout_index = self._image_layout_index_for_target(target)
+        self._image_z_seed_status_var.set('Z seed: searching...')
+        self._image_set_mode_button_active(self._image_search_z_button, True)
+        try:
+            found_z, measure_z, parallax_sample = self._execute_contact_z_search(
+                base_z=float(self.motor.get_position('Z')),
+                start_offset=float(self._contact_search['start_offset'].get()),
+                step_mm=float(self._contact_search['step_mm'].get()),
+                max_beyond_seed_mm=float(self._contact_search['max_beyond_seed_mm'].get()),
+                ocv_threshold=float(self._contact_search['ocv_threshold'].get()),
+                settle_s=float(self._contact_search['settle_s'].get()),
+                engage_mm=float(self._contact_search['engage_mm'].get()),
+                status_prefix='Search Z',
+                probe_pixel_sample_fn=lambda: self._image_probe_tip_pixel_now(layout_index=layout_index),
+                ocv_status_var=self._image_z_seed_ocv_var,
+                z_status_var=self._image_z_seed_status_var,
+                track_manual_target_z=not self._image_lock_z_var.get(),
+            )
+        except Exception as exc:
+            self._image_z_seed_status_var.set(f'Z seed failed: {exc}')
+            return
+        finally:
+            self._image_set_mode_button_active(self._image_search_z_button, False)
+        z_status = self._image_record_electrode_z_contact_for_target(target, measure_z, parallax_sample)
+        # Matches _auto_contact_z_for_row's own call after a confirmed
+        # contact -- manual "Search Z" is otherwise a full contact-search
+        # success path too (see _image_record_electrode_z_contact's
+        # docstring), so it should build up the same XY-bias calibration
+        # an automated run would, not just Z-seed/parallax.
+        xy_status = None
+        if layout_index is not None:
+            xy_status = self._image_recalibrate_xy_bias_from_contact(layout_index)
+        self._image_set_combined_z_seed_status(z_status, xy_status)
+
+    def _image_save_z_seed_store(self, path=None):
+        if path is None:
+            path = filedialog.asksaveasfilename(
+                title='Save Z seed',
+                defaultextension='.json',
+                initialfile=os.path.basename(
+                    getattr(_config, 'VISION_ELECTRODE_Z_SEED_PATH', 'vision_calibration/electrode_z_seed.json')
+                ),
+                filetypes=[('JSON files', '*.json'), ('All files', '*.*')],
+            )
+        if not path:
+            return False
+        try:
+            self._image_electrode_z_store.save(path)
+            n = len(self._image_electrode_z_store.electrode_z_seeds)
+            self._image_z_seed_status_var.set(f'Z seed: saved ({n} electrode(s)) to {os.path.basename(path)}')
+        except Exception as exc:
+            self._image_z_seed_status_var.set(f'Z seed: save failed ({exc})')
+            return False
+        return True
+
+    def _image_load_z_seed_store(self, path=None):
+        # Browse for a file, matching every other "Load ..." button in
+        # this tab (Load DXF Layout, Load Circle Params, Load Alignment,
+        # Load probe pixel<->stage calibration) instead of always reading
+        # from the fixed default config path. Uses ElectrodeZCalibrationStore.from_dict
+        # directly (not the tolerant .load() classmethod, which silently
+        # returns an empty store on any failure) so a bad path/corrupt
+        # file actually reports "load failed" instead of quietly wiping
+        # the current store with an empty one.
+        if path is None:
+            path = filedialog.askopenfilename(
+                title='Load Z seed',
+                filetypes=[('JSON files', '*.json'), ('All files', '*.*')],
+            )
+        if not path:
+            return False
+        try:
+            with open(path, 'r', encoding='utf-8') as fh:
+                payload = json.load(fh)
+            store = ElectrodeZCalibrationStore.from_dict(payload)
+        except Exception as exc:
+            self._image_z_seed_status_var.set(f'Z seed: load failed ({exc})')
+            return False
+        self._image_electrode_z_store = store
+        n = len(store.electrode_z_seeds)
+        n_parallax = len(store.parallax_samples)
+        if n_parallax:
+            parallax_suffix = f', {n_parallax} parallax sample(s)'
+            parallax_suffix += ' (slope fit)' if store.z_parallax is not None else ' (not enough for a slope fit)'
+        else:
+            parallax_suffix = ', no parallax samples'
+        self._image_z_seed_status_var.set(
+            f'Z seed: loaded {os.path.basename(path)} ({n} electrode(s){parallax_suffix})'
+        )
+        return True
+
+    def _image_clear_z_seed_store(self):
+        if not messagebox.askyesno(
+            'Clear Z Seed',
+            'Clear every recorded electrode Z seed, parallax sample, XY-bias '
+            'sample, and Z-surface fit? This cannot be undone.',
+        ):
+            return
+        try:
+            self._image_electrode_z_store.clear()
+            self._image_electrode_z_store.save(
+                getattr(_config, 'VISION_ELECTRODE_Z_SEED_PATH', 'vision_calibration/electrode_z_seed.json')
+            )
+            self._image_z_seed_status_var.set('Z seed: cleared')
+        except Exception as exc:
+            self._image_z_seed_status_var.set(f'Z seed: clear failed ({exc})')
+
+    def _image_refit_z_surface(self):
+        try:
+            store = self._image_electrode_z_store
+            fit_ok = store.refit_z_plane()
+            store.save(
+                getattr(_config, 'VISION_ELECTRODE_Z_SEED_PATH', 'vision_calibration/electrode_z_seed.json')
+            )
+        except Exception as exc:
+            self._image_z_seed_status_var.set(f'Z surface fit failed: {exc}')
+            return
+        if fit_ok and store.z_plane is not None:
+            z = store.z_plane
+            self._image_z_seed_status_var.set(
+                f'Z surface fit: a={z.a:.5f}, b={z.b:.5f}, c={z.c:.5f} '
+                f'from {z.n_points} electrode(s)'
+            )
+        else:
+            n_with_xy = sum(
+                1 for seed in store.electrode_z_seeds.values() if seed.xy_mm is not None
+            )
+            self._image_z_seed_status_var.set(
+                f'Z surface fit: not enough non-collinear seeded electrodes '
+                f'({n_with_xy} with known XY, need >= 3)'
+            )
+
+    def _image_project_pixel_to_stage_xy(self, pixel_x, pixel_y, target=None, layout_index=None, debug_out=None):
+        """
+        Project an electrode pixel to stage XY, correcting for Z-parallax
+        using that specific electrode's own known Z (not the probe's
+        current Z -- see the plan history in docs/IMAGE_MONITOR_GUIDE.md for why),
+        then for the probe's XY bias (a small constant pixel offset measured
+        at AutoContactZ touches -- see
+        vision_stage_mapper.py::ProbeXYBiasCalibration).
+
+        layout_index, if given, is used directly instead of being resolved
+        from target via _image_layout_index_for_target (callers that already
+        know the electrode identity -- e.g. the run-worker row loop, which
+        has no `target` Series at all -- can skip that target-shaped-object
+        requirement entirely). "Known Z" is the electrode's own contact
+        measurement if it has one, else a Z-surface plane estimate (fit from
+        3+ OTHER electrodes' measurements across the layout) if one is
+        available -- see
+        vision/electrode_z_seed.py::ElectrodeZCalibrationStore.get_seed_or_estimate.
+        Falls back to today's uncorrected projection whenever a correction
+        isn't fitted yet or this electrode has neither an exact seed nor a
+        plane estimate -- all "not enough information yet," not errors.
+
+        debug_out, if given a dict, is populated in place with a
+        human-readable 'message' key describing whether the Z-parallax
+        correction was applied and why/why not -- every one of the gates
+        below silently falls through to the uncorrected projection with no
+        other visible signal, which made a real "parallax isn't doing
+        anything" report impossible to diagnose without this. Callers that
+        don't pass debug_out are completely unaffected (unchanged return
+        contract).
+
+        debug_out is also populated with structured (non-string) fields for
+        callers that want to log/record the actual applied correction, not
+        just a human-readable summary: 'parallax_shift_px' (dx, dy) or None,
+        'parallax_delta_z_mm' or None, 'xy_bias_px' (bias_x, bias_y) or
+        None, 'xy_bias_temperature_c' (the temperature used to select the
+        bucket) or None. See _image_log_xy_correction_sample, which reads
+        these back (stashed by layout_index) when a touch's own XY-bias
+        sample gets recorded, to log what correction was actually in effect
+        for that touch.
+        """
+        corrected_x, corrected_y = float(pixel_x), float(pixel_y)
+        if layout_index is None:
+            layout_index = self._image_layout_index_for_target(target)
+        parallax = self._image_electrode_z_store.z_parallax
+        if debug_out is not None:
+            debug_out['message'] = 'parallax: no DXF-layout electrode'
+            debug_out['parallax_shift_px'] = None
+            debug_out['parallax_delta_z_mm'] = None
+        if layout_index is not None and parallax is not None and self._image_pixel_stage_z_ref_mm is not None:
+            xy_mm = self._image_layout_xy_mm_for_layout_index(layout_index)
+            seed_z = self._image_electrode_z_store.get_seed_or_estimate(layout_index, xy_mm=xy_mm)
+            if seed_z is not None:
+                delta_z = seed_z - self._image_pixel_stage_z_ref_mm
+                max_extrapolation = getattr(_config, 'VISION_Z_PARALLAX_MAX_EXTRAPOLATION_MM', 1.0)
+                if parallax_within_trusted_range(parallax, delta_z, max_extrapolation):
+                    corrected_x, corrected_y = correct_pixel_for_z_parallax(
+                        parallax, pixel_x, pixel_y, delta_z,
+                    )
+                    if debug_out is not None:
+                        dx, dy = corrected_x - float(pixel_x), corrected_y - float(pixel_y)
+                        debug_out['message'] = (
+                            f'parallax: Δz={delta_z:+.3f}mm, shift=({dx:+.1f}, {dy:+.1f})px'
+                        )
+                        debug_out['parallax_shift_px'] = (dx, dy)
+                        debug_out['parallax_delta_z_mm'] = delta_z
+                elif debug_out is not None:
+                    debug_out['message'] = (
+                        f'parallax: Δz={delta_z:+.3f} > '
+                        f'max {max_extrapolation:.3f}mm)'
+                    )
+            elif debug_out is not None:
+                debug_out['message'] = 'parallax: no Z seed'
+        elif debug_out is not None and layout_index is not None:
+            if parallax is None:
+                debug_out['message'] = 'parallax: not calibrated'
+            elif self._image_pixel_stage_z_ref_mm is None:
+                debug_out['message'] = (
+                    'parallax: no stage calibration'
+                )
+        temperature_c = self._image_current_temperature_c_for_bias()
+        xy_bias = self._image_electrode_z_store.get_xy_bias(
+            temperature_c,
+            bucket_tol_c=getattr(_config, 'XY_BIAS_TEMPERATURE_BUCKET_TOL_C', 1.0),
+        )
+        pre_bias_x, pre_bias_y = corrected_x, corrected_y
+        corrected_x, corrected_y = correct_pixel_for_xy_bias(xy_bias, corrected_x, corrected_y)
+        if debug_out is not None:
+            # The actual signed shift correct_pixel_for_xy_bias applied to
+            # the pixel -- NOT the same thing as (bias.bias_x_px,
+            # bias.bias_y_px). That raw fitted value never changes sign on
+            # its own; only how it combines with the pixel does (see
+            # correct_pixel_for_xy_bias's docstring for why it subtracts).
+            # Logging the raw bias here previously made a real sign fix in
+            # that function invisible in this debug_out/the CSV log, since
+            # the logged number stayed identical before and after the fix.
+            debug_out['xy_bias_px'] = (
+                (corrected_x - pre_bias_x, corrected_y - pre_bias_y) if xy_bias is not None else None
+            )
+            debug_out['xy_bias_temperature_c'] = temperature_c
+        return pixel_to_stage_xy(self._image_pixel_stage_affine_calibration, corrected_x, corrected_y)
+
+    def _image_resolve_live_tracked_xy(self, row, csv_x, csv_y):
+        """
+        Resolve a run row's target X/Y from the electrode's live-tracked,
+        parallax- and bias-corrected pixel position when available and
+        plausible, falling back to the row's own CSV X_mm/Y_mm otherwise --
+        same gate-and-fallback idiom as run_automation.py's headless
+        AutoTrackXY row loop.
+
+        "Plausible" is judged against the LAST position this run actually
+        trusted for this electrode (self._image_run_trusted_positions), not
+        the static CSV value: comparing against a fixed original baseline
+        would eventually reject genuine, gradual, cumulative drift once
+        enough of it has accumulated over a long run, even though each
+        individual step was a small, plausible continuation of the last.
+        Falls back to the CSV value as the comparison baseline only for an
+        electrode's first touch this run, when no trusted position exists
+        yet.
+
+        Returns (x, y, source) where source is 'live-tracked' or 'csv'.
+        Never raises.
+        """
+        electrode_id = self._extract_electrode_id(str(row.get('Label', '')))
+        if electrode_id is None:
+            return csv_x, csv_y, 'csv'
+        layout_index = electrode_id - 1
+        if (
+            self._image_layout_tracked is None
+            or not (0 <= layout_index < len(self._image_layout_tracked))
+            or self._image_pixel_stage_affine_calibration is None
+        ):
+            return csv_x, csv_y, 'csv'
+        try:
+            # _image_layout_tracked's Circle objects are mutated in place
+            # by _image_monitor_tick on the main thread every tick -- see
+            # _image_tracked_lock's definition comment.
+            with self._image_tracked_lock:
+                circle = self._image_layout_tracked[layout_index]
+                smoothed_x, smoothed_y = circle.smoothed_x, circle.smoothed_y
+            correction_debug = {}
+            tracked_x, tracked_y = self._image_project_pixel_to_stage_xy(
+                smoothed_x, smoothed_y, layout_index=layout_index, debug_out=correction_debug,
+            )
+            self._image_last_applied_correction[layout_index] = correction_debug
+        except Exception as exc:
+            self._log(f"  Live tracking: projection failed for E{electrode_id} ({exc}); using CSV X_mm/Y_mm")
+            return csv_x, csv_y, 'csv'
+
+        trusted_xy = self._image_run_trusted_positions.get(layout_index)
+        reference_xy = trusted_xy if trusted_xy is not None else (csv_x, csv_y)
+        dist_mm = (
+            ((tracked_x - reference_xy[0]) ** 2 + (tracked_y - reference_xy[1]) ** 2) ** 0.5
+            if reference_xy[0] is not None and reference_xy[1] is not None else None
+        )
+        max_correction = getattr(_config, 'VISION_DRIFT_MAX_CORRECTION_MM', 0.5)
+        if dist_mm is not None and dist_mm > max_correction:
+            self._log(
+                f"  Live tracking: E{electrode_id} correction is {dist_mm:.3f} mm from "
+                f"{'last-trusted' if trusted_xy is not None else 'CSV'} position "
+                f"(> {max_correction} mm sanity bound); falling back to CSV X_mm/Y_mm"
+            )
+            return csv_x, csv_y, 'csv'
+
+        self._image_run_trusted_positions[layout_index] = (tracked_x, tracked_y)
+        self._log(
+            f"  Live tracking: E{electrode_id} position corrected to "
+            f"X={tracked_x:.3f} mm, Y={tracked_y:.3f} mm (vision-tracked)"
+        )
+        return tracked_x, tracked_y, 'live-tracked'
+
+    def _image_seeded_electrode_rows_source(self, omit_layout_indices=None):
+        """
+        List of (layout_index, stage_x_mm, stage_y_mm, seed_z_mm) for every
+        electrode in the loaded DXF layout that has at least a Z seed --
+        an exact AutoContactZ measurement or a Z-surface-plane estimate
+        (ElectrodeZCalibrationStore.get_seed_or_estimate) -- for the
+        condition generators' "Image Monitor seeded electrodes" tip-
+        position-source mode.
+
+        omit_layout_indices, if given, is a set/collection of 0-based
+        layout indices to exclude from the result (electrodes inside it are
+        skipped even if seeded) -- lets the generator UI omit a specific
+        electrode subset instead of always using every seeded electrode.
+        None (the default) means no filter: every seeded electrode, same as
+        before this parameter existed.
+
+        Nominal X/Y come from the electrode's current tracked pixel
+        position (already parallax+bias corrected via
+        _image_project_pixel_to_stage_xy) when live tracking is active,
+        falling back to the DXF layout's own projected template position
+        otherwise -- either way this is only a *starting* nominal value:
+        the run-worker row loop re-corrects it live via
+        _image_resolve_live_tracked_xy at move time regardless.
+
+        Raises RuntimeError with a message suitable for showing the user
+        directly (messagebox) if the layout/calibration aren't ready, or if
+        no (selected) electrode has a seed yet.
+        """
+        if self._image_layout_model is None:
+            raise RuntimeError('Load and accept a DXF layout in the Image Monitor tab first.')
+        if self._image_pixel_stage_affine_calibration is None:
+            raise RuntimeError('Solve the probe pixel<->stage calibration in the Image Monitor tab first.')
+        layout = self._image_layout_model
+        projected = None
+        rows = []
+        for layout_index in range(layout.n):
+            if omit_layout_indices is not None and layout_index in omit_layout_indices:
+                continue
+            xy_mm = self._image_layout_xy_mm_for_layout_index(layout_index)
+            seed_z = self._image_electrode_z_store.get_seed_or_estimate(layout_index, xy_mm=xy_mm)
+            if seed_z is None:
+                continue
+            if self._image_layout_tracked is not None and layout_index < len(self._image_layout_tracked):
+                circle = self._image_layout_tracked[layout_index]
+                px, py = circle.smoothed_x, circle.smoothed_y
+            else:
+                if projected is None:
+                    projected = layout.project_all()
+                px, py = projected[layout_index]
+            stage_x, stage_y = self._image_project_pixel_to_stage_xy(px, py, layout_index=layout_index)
+            rows.append((layout_index, float(stage_x), float(stage_y), float(seed_z)))
+        if not rows:
+            raise RuntimeError(
+                'No (selected) electrodes have a Z seed yet -- touch at least one electrode first '
+                '(AutoContactZ or Search Z).'
+            )
+        return rows
+
+    # ══════════════════════════════════════════════════════════════════════
+    # DXF-layout-driven semi-manual electrode alignment
+    # ══════════════════════════════════════════════════════════════════════
+
+    def _image_reset_layout_alignment_state(self):
+        self._image_layout_drawn_circles = []
+        self._image_layout_alignment_pairs = []
+        self._image_layout_base_transform = None
+        self._image_layout_nudge_scale_x_var.set(0)
+        self._image_layout_nudge_scale_y_var.set(0)
+        self._image_layout_nudge_angle_var.set(0)
+        self._image_layout_nudge_translate_x_var.set(0)
+        self._image_layout_nudge_translate_y_var.set(0)
+        self._image_layout_nudge_shear_x_var.set(0)
+        self._image_layout_nudge_shear_y_var.set(0)
+        self._image_layout_alignment_status_var.set('Alignment: not fit')
+        # A previously-accepted seed's tracked Circles carry layout_index
+        # values into the OLD self._image_layout_model.template -- loading a
+        # new DXF replaces that model wholesale, so a stale seed here would
+        # feed detect_and_refit_frame indices that no longer match anything.
+        self._image_layout_seed_map = None
+        self._image_layout_tracked = None
+        self._image_populate_layout_pair_combo()
+
+    def _image_load_dxf_layout(self, path=None):
+        if not VISION_DXF_LAYOUT_AVAILABLE:
+            self._image_layout_status_var.set(
+                'Layout load failed: ezdxf is not installed (see requirements-win7-optional-vision.txt)'
+            )
+            return
+        if path is None:
+            path = filedialog.askopenfilename(
+                title='Select DXF layout file',
+                filetypes=[('DXF files', '*.dxf'), ('All files', '*.*')],
+            )
+        if not path:
+            return
+        try:
+            circles = extract_circles_from_dxf(path)
+            circles = shift_to_origin(circles)
+            if not circles:
+                raise RuntimeError('no circles found in DXF')
+            warning = warn_if_spacing_implausible(circles)
+        except Exception as exc:
+            self._image_layout_model = None
+            self._image_layout_status_var.set(f'Layout load failed: {exc}')
+            self._image_draw_dxf_layout_preview()
+            return
+        positions = np.array([[c['x'], c['y']] for c in circles], dtype=np.float32)
+        radii = np.array([c['radius'] for c in circles], dtype=np.float32)
+        self._image_layout_model = LayoutModel(positions, radii)
+        self._image_reset_layout_alignment_state()
+        status = f'Layout: loaded {len(circles)} electrode(s) from {os.path.basename(path)}'
+        if warning:
+            status += f' -- WARNING: {warning}'
+        save_error = self._image_auto_save_layout_json()
+        if save_error is not None:
+            status += f' -- WARNING: auto-save failed ({save_error})'
+        self._image_layout_status_var.set(status)
+        self._image_draw_dxf_layout_preview()
+
+    def _image_draw_dxf_layout_preview(self):
+        """
+        Schematic top-down (mm-space) plot of the raw loaded DXF layout
+        geometry -- independent of transform/Fit Transform, a fixed
+        reference view of what was loaded, shown next to the alignment
+        controls so the operator can sanity-check it before ever aligning
+        to the camera.
+        """
+        canvas = getattr(self, '_image_dxf_layout_preview_canvas', None)
+        if canvas is None:
+            return
+        canvas.delete('all')
+        width = max(canvas.winfo_width(), 220)
+        height = max(canvas.winfo_height(), 220)
+        layout = self._image_layout_model
+        if layout is None or layout.n == 0:
+            canvas.create_text(
+                width / 2, height / 2, text='No layout loaded',
+                fill='#888', font=('Segoe UI', 10),
+            )
+            return
+        template = layout.template
+        if layout.template_radii is not None:
+            radii = layout.template_radii
+        elif len(template) > 1:
+            radii = []
+            for i in range(len(template)):
+                dists = np.linalg.norm(template - template[i], axis=1)
+                dists = dists[dists > 0]
+                nn_dist = float(dists.min()) if len(dists) else 1.0
+                radii.append(nn_dist * 0.35)
+            radii = np.array(radii, dtype=np.float32)
+        else:
+            radii = np.array([1.0], dtype=np.float32)
+
+        xs, ys = template[:, 0], template[:, 1]
+        max_r = float(radii.max())
+        x_min, x_max = float(xs.min()) - max_r, float(xs.max()) + max_r
+        y_min, y_max = float(ys.min()) - max_r, float(ys.max()) + max_r
+        span_x = max(x_max - x_min, 1e-6)
+        span_y = max(y_max - y_min, 1e-6)
+        scale = 0.9 * min(width / span_x, height / span_y)
+        cx_data, cy_data = (x_min + x_max) / 2.0, (y_min + y_max) / 2.0
+        cx_canvas, cy_canvas = width / 2.0, height / 2.0
+
+        for i in range(len(template)):
+            x, y = float(template[i, 0]), float(template[i, 1])
+            # No Y flip here: extract_circles_from_dxf() already negates Y
+            # at load time (DXF is Y-up, image/pixel space is Y-down; see
+            # its flip_y docstring), so layout.template's Y is already in
+            # image convention, same as project_all()/every other consumer
+            # of this array. Flipping again here would just re-mirror it.
+            px = cx_canvas + (x - cx_data) * scale
+            py = cy_canvas + (y - cy_data) * scale
+            r = max(float(radii[i]) * scale, 2.0)
+            canvas.create_oval(
+                px - r, py - r, px + r, py + r, outline='#1976d2', width=1.5,
+            )
+            # Always label, even a tiny circle -- placed just outside it
+            # (not centered inside) so the number stays legible instead of
+            # being squeezed into/overflowing a small circle.
+            canvas.create_text(
+                px + r + 3, py, text=str(i + 1), anchor='w',
+                font=('Segoe UI', 7), fill='#1976d2',
+            )
+
+    def _image_auto_save_layout_json(self):
+        """
+        Best-effort write of the just-loaded layout to
+        config.VISION_ELECTRODE_LAYOUT_PATH -- headless run_automation.py's
+        AutoTrackXY drift correction hard-requires a layout JSON at that
+        fixed path (LayoutModel.from_json(VISION_ELECTRODE_LAYOUT_PATH),
+        run_automation.py) to reconstruct the layout alongside a saved
+        alignment. This replaces a manual "Save Layout JSON" step -- it
+        always runs right after a DXF loads successfully, so the file stays
+        in sync with whatever layout is currently active. Returns None on
+        success, or the exception as a string on failure (never raises --
+        a failed auto-save shouldn't block using the layout in this
+        session, it only affects the separate headless workflow).
+        """
+        layout = self._image_layout_model
+        if layout is None:
+            return 'no layout loaded'
+        path = getattr(_config, 'VISION_ELECTRODE_LAYOUT_PATH', 'vision_calibration/electrode_layout.json')
+        circles = [
+            {'x': float(x), 'y': float(y), 'radius': float(r)}
+            for (x, y), r in zip(
+                layout.template.tolist(),
+                (layout.template_radii.tolist() if layout.template_radii is not None else [10.0] * layout.n),
+            )
         ]
-        if not exact.empty:
-            matched = exact.iloc[0].copy()
-            self._image_selected_design_target = matched
-            return matched
+        try:
+            write_layout_json(circles, path)
+        except Exception as exc:
+            return str(exc)
+        return None
 
-        def _normalized_position(df, row, col):
-            max_row = max(float(df['row_index'].max()), 1.0)
-            max_col = max(float(df['col_index'].max()), 1.0)
-            row_norm = 0.0 if max_row <= 1.0 else (float(row) - 1.0) / (max_row - 1.0)
-            col_norm = 0.0 if max_col <= 1.0 else (float(col) - 1.0) / (max_col - 1.0)
-            return row_norm, col_norm
+    def _image_load_circle_params_file(self):
+        path = filedialog.askopenfilename(
+            title='Load Circle params',
+            filetypes=[('JSON files', '*.json'), ('All files', '*.*')],
+        )
+        if not path:
+            return
+        try:
+            self._image_circle_params = load_hough_params(path)
+        except Exception as exc:
+            self._image_circle_params = None
+            self._image_layout_status_var.set(f'Circle params load failed: {exc}')
+            return
+        self._image_layout_status_var.set(
+            f'Layout: Circle params loaded from {os.path.basename(path)}'
+        )
 
-        target_row_norm, target_col_norm = _normalized_position(
-            self._image_tracking_map,
-            target.get('row_index', 1),
-            target.get('col_index', 1),
+    def _image_save_tuning_snapshot(self, frame_bgr, image_filename):
+        """
+        Write frame_bgr to vision_calibration/ (this project's existing
+        convention for calibration artifacts) and return the path. Purely
+        for record-keeping/reproducibility -- the tuning windows
+        themselves use the in-memory frame directly, they don't need to
+        re-read this file. Raises on failure; callers decide how to report
+        that.
+        """
+        frame_dir = os.path.join(os.path.dirname(__file__), 'vision_calibration')
+        os.makedirs(frame_dir, exist_ok=True)
+        image_path = os.path.join(frame_dir, image_filename)
+        if cv2.imwrite(image_path, frame_bgr) is False:
+            raise RuntimeError(f'could not write {image_path}')
+        return image_path
+
+    def _image_open_circle_tuning_window(self):
+        frame_bgr = self._image_current_frame_bgr()
+        if frame_bgr is None:
+            self._image_layout_status_var.set('Tuning GUI failed: start the camera first')
+            return
+        try:
+            image_path = self._image_save_tuning_snapshot(frame_bgr, 'circle.png')
+        except Exception as exc:
+            self._image_layout_status_var.set(f'Tuning GUI failed: {exc}')
+            return
+        CircleTuningWindow(self, frame_bgr, image_path=image_path, status_var=self._image_layout_status_var)
+
+    def _image_open_probe_tuning_window(self):
+        frame_bgr = self._image_current_frame_bgr()
+        if frame_bgr is None:
+            self._image_probe_status_var.set('Tuning GUI failed: start the camera first')
+            return
+        try:
+            image_path = self._image_save_tuning_snapshot(frame_bgr, 'probe.png')
+        except Exception as exc:
+            self._image_probe_status_var.set(f'Tuning GUI failed: {exc}')
+            return
+        ProbeTuningWindow(self, frame_bgr, image_path=image_path, status_var=self._image_probe_status_var)
+
+    def _image_load_probe_params_file(self):
+        path = filedialog.askopenfilename(
+            title='Load probe params',
+            filetypes=[('JSON files', '*.json'), ('All files', '*.*')],
         )
-        design_norm = design[['row_index', 'col_index']].copy()
-        max_design_row = max(float(design_norm['row_index'].max()), 1.0)
-        max_design_col = max(float(design_norm['col_index'].max()), 1.0)
-        design_norm['row_norm'] = (
-            0.0 if max_design_row <= 1.0
-            else (design_norm['row_index'].astype(float) - 1.0) / (max_design_row - 1.0)
+        if not path:
+            return
+        try:
+            kwargs = load_probe_params(path)
+        except Exception as exc:
+            self._image_probe_status_var.set(f'Probe params load failed: {exc}')
+            return
+        self._image_probe_detector = ProbeDetector(**kwargs)
+        self._image_probe_status_var.set(
+            f'Probe: params loaded from {os.path.basename(path)}'
         )
-        design_norm['col_norm'] = (
-            0.0 if max_design_col <= 1.0
-            else (design_norm['col_index'].astype(float) - 1.0) / (max_design_col - 1.0)
+
+    def _image_resolve_live_detector_params(self):
+        """
+        Kwargs for detect_live_microscope_electrode_map_rgb from the loaded
+        circle params (one "Load Circle Params" file retunes both the live
+        detection loop and seeded live tracking's redetection search -- see
+        _image_resolve_drift_refit_params), or {} to use that function's
+        own built-in defaults when nothing has been loaded.
+
+        Deliberately does NOT fall back to any config default when unset --
+        there's no longer anywhere else in this file with a validated
+        default for these parameters to borrow (the DXF-alignment click
+        used to snap to a nearby detected circle via one; it now just uses
+        the raw click), so inventing one here would silently change
+        live-detection behavior for every user who has never touched Load
+        Circle Params.
+        """
+        if self._image_circle_params is None:
+            return {}
+        params = self._image_circle_params
+        expected_radius = float(params['expected_radius'])
+        radius_tolerance = float(params['radius_tolerance'])
+        # cv2.HoughCircles (called downstream in
+        # detect_live_microscope_electrode_map_rgb) requires minRadius/
+        # maxRadius to be actual Python int -- passing a float here (even
+        # a whole number like 30.0) raises "Argument 'minRadius' is
+        # required to be an integer". expected_radius/radius_tolerance are
+        # always floats (see vision/circle_detector.py::load_hough_params),
+        # so these must be explicitly rounded to int, not just left as the
+        # result of float arithmetic.
+        return {
+            'clahe_clip': params['clahe_clip'],
+            'clahe_tile': params['clahe_tile'],
+            'param1': params['param1'],
+            'param2': params['param2'],
+            'min_radius_px': int(round(max(1, expected_radius - radius_tolerance))),
+            'max_radius_px': int(round(expected_radius + radius_tolerance)),
+        }
+
+    def _image_resolve_drift_refit_params(self):
+        """
+        Kwargs for vision.electrode_drift.detect_and_refit_frame's
+        preprocessing/ROI-search parameters, from the same loaded circle
+        params as _image_resolve_live_detector_params (one "Load Circle
+        Params" file retunes seeded live tracking's redetection search
+        too), or {} to use that function's own built-in defaults (which
+        already match this file's config fallback defaults) when nothing
+        has been loaded.
+        """
+        if self._image_circle_params is None:
+            return {}
+        params = self._image_circle_params
+        return {
+            'clahe_clip': params['clahe_clip'],
+            'clahe_tile': params['clahe_tile'],
+            'bilateral_d': params['bilateral_d'],
+            'bilateral_sigma': params['bilateral_sigma'],
+            'param1': params['param1'],
+            'param2_roi': params['param2'],
+        }
+
+    def _image_tracked_circles_to_table(self, tracked, seed_meta, occluded_layout_indices=None):
+        """
+        Build a detections DataFrame from a vision.electrode_drift-tracked
+        Circle list, carrying forward each electrode's row_index/col_index/
+        size_group/source unchanged from the seed table tracking started
+        from (indexed by layout_index, which always matches seed_meta's row
+        order by construction -- see _image_promote_current_overlay_to_seed/
+        _image_accept_layout_alignment). This keeps e.g. DXF-layout
+        col_index stable for the Z-seed workflow's target->layout_index
+        lookup (_image_layout_index_for_target) for the whole tracking
+        session, unlike refine_circular_electrode_map_rgb's old behavior of
+        appending "_tracked" to source on every redetection.
+
+        occluded_layout_indices, if given, marks electrodes currently
+        skipped as probe-occluded (see _image_probe_occluded_layout_indices)
+        with their own 'occluded' column so annotate_detections can color
+        them distinctly from an ordinary detection failure -- temporary
+        visual aid for verifying the occlusion region is computed
+        correctly, not meant to be permanent.
+        """
+        rows = []
+        for c in tracked:
+            meta_row = seed_meta.iloc[c.layout_index]
+            rows.append({
+                'x_px': c.smoothed_x,
+                'y_px': c.smoothed_y,
+                'radius_px': c.radius,
+                'row_index': meta_row['row_index'],
+                'col_index': meta_row['col_index'],
+                'size_group': meta_row['size_group'],
+                'source': meta_row['source'],
+                # True if Hough actually re-found this electrode this
+                # cycle, False if its position was only carried forward
+                # from tracking -- lets annotate_detections color
+                # genuinely-detected vs. merely-projected circles
+                # differently.
+                'detected': bool(c.detected),
+                'occluded': bool(occluded_layout_indices and c.layout_index in occluded_layout_indices),
+            })
+        return pd.DataFrame(rows)
+
+    def _image_populate_layout_pair_combo(self):
+        if not hasattr(self, '_image_layout_pair_combo'):
+            return
+        if self._image_layout_model is None:
+            self._image_layout_pair_combo.configure(values=())
+            return
+        # 1-based to match the DXF layout preview's electrode labels
+        # (_image_draw_dxf_layout_preview) -- _image_confirm_layout_pair
+        # converts back to a 0-based layout_idx when parsing this.
+        values = [
+            f'{i + 1} ({x:.1f}, {y:.1f})'
+            for i, (x, y) in enumerate(self._image_layout_model.template.tolist())
+        ]
+        self._image_layout_pair_combo.configure(values=values)
+
+    def _run_on_main_thread(self, fn, *args, **kwargs):
+        """
+        Runs fn(*args, **kwargs) immediately if already on the Tkinter
+        mainloop thread, otherwise marshals it via self.after(0, ...).
+
+        Covers the non-Variable half of the cross-thread Tk hazard (see
+        _ThreadSafeVariableMixin's docstring for the .set() half):
+        Button.configure(), Canvas create_*/delete, PhotoImage, or any
+        other direct widget method call is undefined behavior from a
+        background thread and can corrupt Tcl's interpreter state.
+        Building the check into the callee (here) rather than trusting
+        every call site to remember self.after(0, ...) protects future
+        callers too.
+        """
+        if threading.current_thread() is threading.main_thread():
+            return fn(*args, **kwargs)
+        # tkinter's after(ms, func, *args) only forwards positional args
+        # to func -- it has no **kwargs of its own, so kwargs must be
+        # bound into the callable first. A plain closure is used instead
+        # of functools.partial because tkinter's after() internally does
+        # callit.__name__ = func.__name__, which raises AttributeError
+        # for a partial object (no __name__ attribute).
+        def _call():
+            fn(*args, **kwargs)
+        self.after(0, _call)
+
+    def _image_set_mode_button_active(self, button, active):
+        """
+        Recolor a mode/process button to signal it's currently active
+        (Select Probe ROI while dragging, Draw Electrode Circles while
+        placing, Search Z while a search is running). Best-effort -- a
+        missing button reference or a style error should never break the
+        mode/process itself.
+        """
+        if button is None:
+            return
+
+        def _apply():
+            try:
+                button.configure(style='ImageModeActive.TButton' if active else 'TButton')
+            except Exception:
+                pass
+
+        self._run_on_main_thread(_apply)
+
+    def _image_toggle_layout_draw_mode(self):
+        if self._image_layout_model is None:
+            self._image_layout_status_var.set('Draw failed: load a DXF/layout first')
+            return
+        self._image_layout_draw_mode = not self._image_layout_draw_mode
+        self._image_layout_alignment_status_var.set(
+            f"Alignment: {'draw mode ON -- click the live view to add electrode circles' if self._image_layout_draw_mode else 'draw mode off'}"
         )
-        scores = np.sqrt(
-            (design_norm['row_norm'].to_numpy(dtype=float) - float(target_row_norm)) ** 2 +
-            (design_norm['col_norm'].to_numpy(dtype=float) - float(target_col_norm)) ** 2
+        self._image_set_mode_button_active(self._image_draw_circles_button, self._image_layout_draw_mode)
+        if self._image_layout_draw_mode:
+            self._image_populate_layout_pair_combo()
+
+    def _image_undo_last_drawn_circle(self):
+        if self._image_layout_drawn_circles:
+            self._image_layout_drawn_circles.pop()
+            self._image_layout_alignment_pairs = [
+                (d, l) for d, l in self._image_layout_alignment_pairs
+                if d < len(self._image_layout_drawn_circles)
+            ]
+
+    def _image_clear_drawn_circles(self):
+        self._image_layout_drawn_circles = []
+        self._image_layout_alignment_pairs = []
+        self._image_layout_alignment_status_var.set('Alignment: not fit')
+
+    def _image_confirm_layout_pair(self):
+        drawn_text = (self._image_layout_pair_drawn_var.get() or '').strip()
+        layout_text = self._image_layout_pair_combo.get() or ''
+        if not drawn_text or not layout_text:
+            self._image_layout_alignment_status_var.set(
+                'Pair failed: enter a drawn circle # and pick a layout electrode #'
+            )
+            return
+        try:
+            # Both the drawn-circle # field and the layout electrode #
+            # dropdown are 1-based (matching the live overlay's "#N" labels
+            # and the DXF layout preview's numbers) -- convert to the
+            # 0-based indices used internally.
+            drawn_number = int(drawn_text)
+            drawn_idx = drawn_number - 1
+            layout_idx = int(layout_text.split(' ', 1)[0]) - 1
+        except Exception:
+            self._image_layout_alignment_status_var.set('Pair failed: could not parse indices')
+            return
+        if drawn_idx < 0 or drawn_idx >= len(self._image_layout_drawn_circles):
+            self._image_layout_alignment_status_var.set(
+                f'Pair failed: drawn circle #{drawn_number} does not exist'
+            )
+            return
+        self._image_layout_alignment_pairs = [
+            (d, l) for d, l in self._image_layout_alignment_pairs
+            if d != drawn_idx and l != layout_idx
+        ]
+        self._image_layout_alignment_pairs.append((drawn_idx, layout_idx))
+        self._image_layout_alignment_status_var.set(
+            f'Alignment: {len(self._image_layout_alignment_pairs)} pair(s) confirmed'
         )
-        idx = int(np.argmin(scores))
-        matched = design.iloc[idx].copy()
-        self._image_selected_design_target = matched
-        return matched
+
+    def _image_undo_last_layout_pair(self):
+        if self._image_layout_alignment_pairs:
+            self._image_layout_alignment_pairs.pop()
+            self._image_layout_alignment_status_var.set(
+                f'Alignment: {len(self._image_layout_alignment_pairs)} pair(s) confirmed'
+            )
+
+    def _image_fit_layout_alignment(self):
+        if self._image_layout_model is None:
+            self._image_layout_alignment_status_var.set('Fit failed: load a DXF/layout first')
+            return
+        if len(self._image_layout_alignment_pairs) < 3:
+            self._image_layout_alignment_status_var.set(
+                f'Fit failed: need at least 3 pairs ({len(self._image_layout_alignment_pairs)} present)'
+            )
+            return
+
+        image_points = []
+        layout_indices = []
+        for drawn_idx, layout_idx in self._image_layout_alignment_pairs:
+            cx, cy = self._image_layout_drawn_circles[drawn_idx]['center']
+            image_points.append((float(cx), float(cy)))
+            layout_indices.append(layout_idx)
+
+        fit_result = fit_layout_affine(self._image_layout_model, image_points, layout_indices)
+        if fit_result is None:
+            self._image_layout_alignment_status_var.set('Fit failed: affine solve did not converge')
+            return
+        matrix, _inliers = fit_result
+        self._image_layout_base_transform = matrix
+        self._image_layout_nudge_scale_x_var.set(0)
+        self._image_layout_nudge_scale_y_var.set(0)
+        self._image_layout_nudge_angle_var.set(0)
+        self._image_layout_nudge_translate_x_var.set(0)
+        self._image_layout_nudge_translate_y_var.set(0)
+        self._image_layout_nudge_shear_x_var.set(0)
+        self._image_layout_nudge_shear_y_var.set(0)
+        self._image_layout_alignment_status_var.set(
+            f'Alignment: fit from {len(image_points)} pair(s); review overlay and nudge if needed, then Accept'
+        )
+
+    def _image_apply_layout_nudge(self):
+        if self._image_layout_base_transform is None or self._image_layout_model is None:
+            return
+        frame_shape = self._image_render_shape
+        center = (frame_shape[1] / 2.0, frame_shape[0] / 2.0) if frame_shape else (320.0, 240.0)
+        nudged = apply_manual_nudge(
+            self._image_layout_base_transform,
+            scale_x_permille=int(self._image_layout_nudge_scale_x_var.get()),
+            scale_y_permille=int(self._image_layout_nudge_scale_y_var.get()),
+            angle_deg_x10=int(self._image_layout_nudge_angle_var.get()),
+            translate_x_px=int(self._image_layout_nudge_translate_x_var.get()),
+            translate_y_px=int(self._image_layout_nudge_translate_y_var.get()),
+            shear_x_permille=int(self._image_layout_nudge_shear_x_var.get()),
+            shear_y_permille=int(self._image_layout_nudge_shear_y_var.get()),
+            center=center,
+        )
+        self._image_layout_model.transform = nudged
+
+    def _image_layout_circles_to_seed_table(self, projected_circles):
+        """Convert project_all_circles() output into the DataFrame schema the
+        live-tracking pipeline (_image_tracked_circles_to_table /
+        annotate_detections) expects. col_index is 1-based and directly
+        matches the E<N> electrode-number convention used elsewhere in this
+        project (layout_index + 1)."""
+        rows = [
+            {
+                'x_px': float(entry['center'][0]),
+                'y_px': float(entry['center'][1]),
+                'radius_px': float(entry['radius']),
+                'row_index': 1,
+                'col_index': layout_index + 1,
+                'size_group': 'dxf_layout',
+                'source': 'dxf_layout',
+            }
+            for layout_index, entry in enumerate(projected_circles)
+        ]
+        return pd.DataFrame(rows)
+
+    def _image_accept_layout_alignment(self):
+        if self._image_layout_model is None or self._image_layout_model.transform is None:
+            self._image_layout_alignment_status_var.set('Accept failed: fit a transform first')
+            return
+        try:
+            circles = project_all_circles(self._image_layout_model)
+        except Exception as exc:
+            self._image_layout_alignment_status_var.set(f'Accept failed: {exc}')
+            return
+        # Seed live tracking with the DXF-derived, CAD-accurate electrode
+        # positions -- no manual annotation or reference frame needed.
+        # self._image_layout_model is reused directly (not copied) as the
+        # tracking layout, so detect_and_refit_frame's periodic affine
+        # re-fit keeps this same model's transform current with observed
+        # drift, benefiting every other reader of it (Z-seed projection,
+        # the alignment overlay) too.
+        self._image_layout_seed_map = self._image_layout_circles_to_seed_table(circles)
+        self._image_layout_tracked = [
+            Circle(
+                x=float(entry['center'][0]),
+                y=float(entry['center'][1]),
+                radius=float(entry['radius']),
+                layout_index=i,
+                on_image=True,
+            )
+            for i, entry in enumerate(circles)
+        ]
+        # The manual-click markers used to fit/preview the transform are
+        # redundant now that live tracking is seeded from the accepted DXF
+        # layout itself -- clear them so they stop cluttering the overlay
+        # (same pairing _image_clear_drawn_circles uses).
+        self._image_layout_drawn_circles = []
+        self._image_layout_alignment_pairs = []
+        self._image_layout_alignment_status_var.set(
+            f'Alignment: accepted, {len(circles)} electrode(s) projected and seeded for live tracking'
+        )
+
+    def _image_draw_layout_alignment_overlay(self, frame_bgr):
+        if cv2 is None:
+            return frame_bgr
+        canvas = frame_bgr.copy()
+        for idx, entry in enumerate(self._image_layout_drawn_circles):
+            cx, cy = int(entry['center'][0]), int(entry['center'][1])
+            r = int(entry['radius'])
+            cv2.circle(canvas, (cx, cy), r, (0, 220, 80), 2)
+            cv2.putText(
+                canvas, f'#{idx + 1}', (cx + r + 2, cy),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 220, 80), 1,
+            )
+        if self._image_layout_model is not None and self._image_layout_model.transform is not None:
+            try:
+                projected_circles = project_all_circles(self._image_layout_model)
+            except Exception:
+                projected_circles = None
+            if projected_circles is not None:
+                for entry in projected_circles:
+                    px_i, py_i = int(entry['center'][0]), int(entry['center'][1])
+                    r = int(entry['radius'])
+                    cv2.circle(canvas, (px_i, py_i), r, (0, 200, 255), 2)
+        return canvas
+
+    def _image_electrode_alignment_payload(self):
+        layout = self._image_layout_model
+        if layout is None or layout.transform is None:
+            return None
+        projected = project_all_circles(layout)
+        return {
+            'transform': np.asarray(layout.transform, dtype=float).tolist(),
+            'layout_path': getattr(_config, 'VISION_ELECTRODE_LAYOUT_PATH', 'vision_calibration/electrode_layout.json'),
+            'electrodes': [
+                {
+                    'layout_index': i,
+                    'x_px': float(entry['center'][0]),
+                    'y_px': float(entry['center'][1]),
+                    'radius_px': float(entry['radius']),
+                    'on_image': True,
+                }
+                for i, entry in enumerate(projected)
+            ],
+            'saved_at': time.strftime('%Y-%m-%d %H:%M:%S'),
+        }
+
+    def _image_save_electrode_alignment(self, path=None):
+        payload = self._image_electrode_alignment_payload()
+        if payload is None:
+            self._image_layout_alignment_status_var.set('Save failed: accept a fitted alignment first')
+            return False
+        if path is None:
+            path = filedialog.asksaveasfilename(
+                title='Save electrode alignment',
+                defaultextension='.json',
+                initialfile=os.path.basename(
+                    getattr(_config, 'VISION_ELECTRODE_ALIGNMENT_PATH', 'electrode_alignment.json')
+                ),
+                filetypes=[('JSON files', '*.json'), ('All files', '*.*')],
+            )
+        if not path:
+            return False
+        try:
+            with open(path, 'w', encoding='utf-8') as fh:
+                json.dump(payload, fh, ensure_ascii=False, indent=2)
+        except Exception as exc:
+            self._image_layout_alignment_status_var.set(f'Save failed: {exc}')
+            return False
+        self._image_layout_alignment_status_var.set(
+            f"Alignment: saved {len(payload['electrodes'])} electrode(s) to {os.path.basename(path)}"
+        )
+        return True
+
+    def _image_load_electrode_alignment(self, path=None):
+        if path is None:
+            path = filedialog.askopenfilename(
+                title='Load electrode alignment',
+                filetypes=[('JSON files', '*.json'), ('All files', '*.*')],
+            )
+        if not path:
+            return False
+        try:
+            with open(path, 'r', encoding='utf-8') as fh:
+                payload = json.load(fh)
+            if self._image_layout_model is None:
+                layout_path = payload.get('layout_path') or ''
+                if not layout_path:
+                    raise RuntimeError('no layout loaded and alignment has no layout_path')
+                self._image_layout_model = LayoutModel.from_json(layout_path)
+            self._image_layout_model.transform = np.asarray(payload['transform'], dtype=np.float32)
+        except Exception as exc:
+            self._image_layout_alignment_status_var.set(f'Load failed: {exc}')
+            return False
+        self._image_layout_alignment_status_var.set(
+            f"Alignment: loaded {len(payload.get('electrodes', []))} electrode(s) from {os.path.basename(path)}"
+        )
+        return True
 
     def _image_update_target_status(self):
         if self._image_selected_target is None:
@@ -6689,22 +9233,94 @@ class MicroprobGUI(tk.Tk):
             f"Target: locked R{int(target['row_index'])}C{int(target['col_index'])} "
             f"at ({target['x_px']:.1f}, {target['y_px']:.1f}) px"
         )
-        design_target = self._image_match_target_to_design()
-        if design_target is not None:
-            message += (
-                f" -> Design R{int(design_target['row_index'])}C{int(design_target['col_index'])}"
-            )
-            sample_x = design_target.get('sample_x_mm')
-            sample_y = design_target.get('sample_y_mm')
-            if sample_x is not None and sample_y is not None:
-                try:
-                    message += f" sample (~{float(sample_x):.2f}, {float(sample_y):.2f}) mm"
-                except Exception:
-                    pass
-            stage_xy = self._image_compute_stage_xy_for_design_target(design_target)
-            if stage_xy is not None:
+        if self._image_pixel_stage_affine_calibration is not None:
+            try:
+                debug_out = {}
+                stage_xy = self._image_project_pixel_to_stage_xy(
+                    float(target['x_px']),
+                    float(target['y_px']),
+                    target=target,
+                    debug_out=debug_out,
+                )
                 message += f" -> Stage (~{float(stage_xy[0]):.3f}, {float(stage_xy[1]):.3f}) mm"
+                if debug_out.get('message'):
+                    message += f" | {debug_out['message']}"
+                xy_bias_px = debug_out.get('xy_bias_px')
+                if xy_bias_px is not None:
+                    temp_c = debug_out.get('xy_bias_temperature_c')
+                    temp_text = '?C' if temp_c is None else f'{temp_c:.0f}C'
+                    message += f" | xy bias: ({xy_bias_px[0]:+.1f}, {xy_bias_px[1]:+.1f})px, {temp_text})"
+                else:
+                    message += " | xy bias: not calibrated"
+            except Exception:
+                pass
         self._image_target_status_var.set(message)
+
+    def _image_sync_manual_target_from_selected(self):
+        """
+        Fill the "Move to:" X/Y/Z fields (shared with Manual Control, shown
+        in the Camera & Stage section) from the just-locked target
+        electrode's known position, as an aide for the user -- they can see
+        where the tip is about to go before clicking Move Tip, which is now
+        the only move path (drives to whatever is in these fields, and
+        marks the target "moved to" for Search Z if the driven XY still
+        matches it -- see _image_note_manual_move_target_match).
+        Best-effort: X/Y only fill in if the pixel<->stage calibration is
+        solved, Z only fills in if this target is a DXF-layout electrode
+        with a known Z seed or Z-surface estimate AND "Lock Z" is
+        unchecked (Lock Z defaults to checked, leaving Z exactly as-is on
+        every target lock -- see self._image_lock_z_var) -- leaves
+        whatever was there before otherwise, same as every other vision
+        fallback in this file.
+        """
+        target = self._image_selected_target
+        if target is None:
+            return
+        if self._image_pixel_stage_affine_calibration is not None:
+            try:
+                correction_debug = {}
+                stage_x, stage_y = self._image_project_pixel_to_stage_xy(
+                    float(target['x_px']),
+                    float(target['y_px']),
+                    target=target,
+                    debug_out=correction_debug,
+                )
+                layout_index_for_debug = self._image_layout_index_for_target(target)
+                if layout_index_for_debug is not None:
+                    self._image_last_applied_correction[layout_index_for_debug] = correction_debug
+                self._manual_target['x'].set(f'{stage_x:.3f}')
+                self._manual_target['y'].set(f'{stage_y:.3f}')
+            except Exception:
+                pass
+        if self._image_lock_z_var.get():
+            return
+        layout_index = self._image_layout_index_for_target(target)
+        if layout_index is not None:
+            xy_mm = self._image_layout_xy_mm_for_layout_index(layout_index)
+            seed_z = self._image_electrode_z_store.get_seed_or_estimate(layout_index, xy_mm=xy_mm)
+            if seed_z is not None:
+                self._manual_target['z'].set(f'{float(seed_z):.3f}')
+
+    def _image_refresh_z_seed_status(self):
+        """
+        Keep the Z-seed status line reflecting whether the CURRENTLY locked
+        target is actually safe to seed from right now -- "Search Z"
+        searches at the stage's current XY, so it only measures the locked
+        electrode's real height if the stage is currently within tolerance
+        of it (see _image_target_within_move_tolerance, checked fresh here
+        rather than trusting a "did you click Move Tip" flag). Called
+        whenever locking, moving, or clearing a target could change that
+        answer, not just on a failed seed attempt, so the status is always
+        current rather than only updating in response to a mistake.
+        """
+        if self._image_selected_target is None:
+            self._image_z_seed_status_var.set('Z seed: lock a target and move to it first')
+        elif not self._image_target_within_move_tolerance():
+            self._image_z_seed_status_var.set(
+                'Z seed: target locked -- move the stage within tolerance before seeding'
+            )
+        else:
+            self._image_z_seed_status_var.set('Z seed: ready -- stage is at the locked target')
 
     def _image_select_target_from_frame_xy(self, x_px, y_px):
         if self._image_tracking_map is None or self._image_tracking_map.empty:
@@ -6716,24 +9332,179 @@ class MicroprobGUI(tk.Tk):
         idx = int(np.argmin(dists))
         target = self._image_tracking_map.iloc[idx].copy()
         self._image_selected_target = target
-        self._image_allow_stale_high_override_var.set(False)
-        self._image_refresh_move_gate_status()
         self._image_update_target_status()
+        self._image_refresh_z_seed_status()
+        self._image_sync_manual_target_from_selected()
         return True
 
-    def _image_monitor_click_select_target(self, event):
+    def _image_frame_xy_from_event(self, event):
+        """Map a live-view widget-space mouse event to frame-pixel
+        coordinates, or None if there's no rendered frame yet or the event
+        fell outside the rendered image (e.g. in the letterboxed margin)."""
         if self._image_render_shape is None or self._image_render_size is None:
-            self._image_target_status_var.set('Target lock failed: no rendered frame yet')
-            return
+            return None
         render_w, render_h = self._image_render_size
         offset_x, offset_y = self._image_render_offset
         local_x = event.x - offset_x
         local_y = event.y - offset_y
         if local_x < 0 or local_y < 0 or local_x >= render_w or local_y >= render_h:
-            return
+            return None
         frame_h, frame_w = self._image_render_shape
         frame_x = float(local_x) * float(frame_w) / max(float(render_w), 1.0)
         frame_y = float(local_y) * float(frame_h) / max(float(render_h), 1.0)
+        return frame_x, frame_y
+
+    def _image_monitor_press(self, event):
+        if self._image_probe_roi_select_mode:
+            frame_xy = self._image_frame_xy_from_event(event)
+            if frame_xy is None:
+                return
+            self._image_probe_roi_drag_start = frame_xy
+            self._image_probe_roi_drag_current = frame_xy
+            return
+        self._image_monitor_click_select_target(event)
+
+    def _image_monitor_drag(self, event):
+        if not self._image_probe_roi_select_mode or self._image_probe_roi_drag_start is None:
+            return
+        frame_xy = self._image_frame_xy_from_event(event)
+        if frame_xy is not None:
+            self._image_probe_roi_drag_current = frame_xy
+
+    def _image_monitor_release(self, event):
+        if not self._image_probe_roi_select_mode or self._image_probe_roi_drag_start is None:
+            return
+        frame_xy = self._image_frame_xy_from_event(event) or self._image_probe_roi_drag_current
+        if frame_xy is not None:
+            x1, y1 = self._image_probe_roi_drag_start
+            x2, y2 = frame_xy
+            self._image_probe_roi = (
+                int(round(min(x1, x2))), int(round(min(y1, y2))),
+                int(round(max(x1, x2))), int(round(max(y1, y2))),
+            )
+            self._image_probe_status_var.set(
+                f'Probe ROI set: ({self._image_probe_roi[0]}, {self._image_probe_roi[1]}) - '
+                f'({self._image_probe_roi[2]}, {self._image_probe_roi[3]})'
+            )
+        self._image_probe_roi_drag_start = None
+        self._image_probe_roi_drag_current = None
+
+    def _image_toggle_probe_roi_select_mode(self):
+        self._image_probe_roi_select_mode = not self._image_probe_roi_select_mode
+        self._image_probe_roi_drag_start = None
+        self._image_probe_roi_drag_current = None
+        self._image_probe_status_var.set(
+            'Probe: drag a rectangle on the live view around the probe/electrode area'
+            if self._image_probe_roi_select_mode else 'Probe: ROI select mode off'
+        )
+        self._image_set_mode_button_active(self._image_probe_roi_button, self._image_probe_roi_select_mode)
+
+    def _image_clear_probe_roi(self):
+        self._image_probe_roi = None
+        self._image_probe_roi_select_mode = False
+        self._image_set_mode_button_active(self._image_probe_roi_button, False)
+        self._image_probe_roi_drag_start = None
+        self._image_probe_roi_drag_current = None
+        # Otherwise a stale crosshair from a previous "Detect Probe Tip"
+        # keeps being redrawn every frame (_image_draw_probe_tip_overlay is
+        # gated purely on this candidate, independent of the ROI).
+        self._image_probe_tip_candidate = None
+        self._image_probe_status_var.set('Probe: ROI cleared (searching full frame)')
+
+    def _image_draw_probe_roi_overlay(self, frame_bgr):
+        rect = None
+        if self._image_probe_roi_drag_start is not None and self._image_probe_roi_drag_current is not None:
+            x1, y1 = self._image_probe_roi_drag_start
+            x2, y2 = self._image_probe_roi_drag_current
+            rect = (min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2))
+        elif self._image_probe_roi is not None:
+            rect = self._image_probe_roi
+        if rect is None or cv2 is None:
+            return frame_bgr
+        canvas = frame_bgr.copy()
+        x1, y1, x2, y2 = (int(round(v)) for v in rect)
+        cv2.rectangle(canvas, (x1, y1), (x2, y2), (80, 200, 255), 2)
+        return canvas
+
+    def _image_draw_axis_arrows_overlay(self, frame_bgr):
+        """
+        Compass-style arrows in the bottom-left corner showing which way
+        positive stage X/Y point in this camera view -- derived from the
+        pixel<->stage affine calibration (not a fixed on-screen direction,
+        since that depends on how the camera happens to be mounted).
+        Best-effort: no calibration yet -> no arrows, matching every other
+        vision fallback in this file.
+        """
+        calib = self._image_pixel_stage_affine_calibration
+        if calib is None or cv2 is None:
+            return frame_bgr
+        h, w = frame_bgr.shape[:2]
+        origin_px = (55.0, h - 55.0)
+        length_px = 45.0
+        try:
+            origin_stage = pixel_to_stage_xy(calib, origin_px[0], origin_px[1])
+            # 1mm is only a probe delta to sample direction -- renormalized
+            # to a fixed on-screen length below, so its exact size doesn't
+            # matter.
+            x_tip_stage = (origin_stage[0] + 1.0, origin_stage[1])
+            y_tip_stage = (origin_stage[0], origin_stage[1] + 1.0)
+            x_tip_px = stage_to_pixel_xy(calib, *x_tip_stage)
+            y_tip_px = stage_to_pixel_xy(calib, *y_tip_stage)
+        except Exception:
+            return frame_bgr
+
+        def _normalized_tip(tip_px):
+            dx, dy = tip_px[0] - origin_px[0], tip_px[1] - origin_px[1]
+            norm = (dx ** 2 + dy ** 2) ** 0.5
+            if norm < 1e-9:
+                return None
+            scale = length_px / norm
+            return (origin_px[0] + dx * scale, origin_px[1] + dy * scale)
+
+        x_tip = _normalized_tip(x_tip_px)
+        y_tip = _normalized_tip(y_tip_px)
+        if x_tip is None and y_tip is None:
+            return frame_bgr
+        canvas = frame_bgr.copy()
+        origin_i = (int(round(origin_px[0])), int(round(origin_px[1])))
+        if x_tip is not None:
+            tip_i = (int(round(x_tip[0])), int(round(x_tip[1])))
+            cv2.arrowedLine(canvas, origin_i, tip_i, (0, 0, 255), 2, tipLength=0.3)
+            cv2.putText(
+                canvas, '+X', (tip_i[0] + 4, tip_i[1] + 4),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 255), 1, cv2.LINE_AA,
+            )
+        if y_tip is not None:
+            tip_i = (int(round(y_tip[0])), int(round(y_tip[1])))
+            cv2.arrowedLine(canvas, origin_i, tip_i, (0, 220, 0), 2, tipLength=0.3)
+            cv2.putText(
+                canvas, '+Y', (tip_i[0] + 4, tip_i[1] - 16),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 220, 0), 1, cv2.LINE_AA,
+            )
+        return canvas
+
+    def _image_monitor_click_select_target(self, event):
+        frame_xy = self._image_frame_xy_from_event(event)
+        if frame_xy is None:
+            if self._image_render_shape is None or self._image_render_size is None:
+                self._image_target_status_var.set('Target lock failed: no rendered frame yet')
+            return
+        frame_x, frame_y = frame_xy
+        if self._image_layout_draw_mode:
+            # Use the raw click position directly -- no Hough re-detection.
+            # This used to snap to a nearby detected circle, left over from
+            # an earlier rubber-band (two-click) placement process; with a
+            # single click placing the marker directly, snapping only risked
+            # jumping to a neighbouring electrode's circle instead of the
+            # one actually clicked. A fixed radius is used purely for the
+            # overlay marker's cosmetic size.
+            self._image_layout_drawn_circles.append(
+                {'center': [float(frame_x), float(frame_y)], 'radius': _IMAGE_LAYOUT_DRAWN_MARKER_RADIUS_PX}
+            )
+            self._image_layout_alignment_status_var.set(
+                f'Alignment: {len(self._image_layout_drawn_circles)} circle(s) drawn'
+            )
+            return
         self._image_select_target_from_frame_xy(frame_x, frame_y)
 
     def _image_update_selected_target_from_overlay(self):
@@ -6762,15 +9533,7 @@ class MicroprobGUI(tk.Tk):
         x = int(round(float(self._image_selected_target['x_px'])))
         y = int(round(float(self._image_selected_target['y_px'])))
         r = int(round(float(self._image_selected_target.get('radius_px', 12.0))))
-        cv2.circle(canvas, (x, y), max(r + 6, 10), (0, 255, 255), 3)
-        cv2.drawMarker(
-            canvas,
-            (x, y),
-            (255, 255, 0),
-            markerType=cv2.MARKER_CROSS,
-            markerSize=max(r + 12, 18),
-            thickness=2,
-        )
+        cv2.circle(canvas, (x, y), max(r + 6, 10), (255, 255, 0), 3)
         return canvas
 
     def _apply_monitor_event(self, event, payload):
@@ -6999,6 +9762,10 @@ class MicroprobGUI(tk.Tk):
             return 'Pre-PEIS Hold Current'
         if step_name.startswith('post_peis_ca_sequence'):
             return 'Post-PEIS CA Current'
+        if step_name.startswith('ca_pre_scout'):
+            return 'OLE-COM Pre+Scout CA Current'
+        if step_name.startswith('ca_post_hold'):
+            return 'OLE-COM Post Hold Current'
         return 'CA / CP Current Monitor'
 
     def _refresh_monitor_labels(self):
@@ -7050,6 +9817,13 @@ class MicroprobGUI(tk.Tk):
             )
 
     def _redraw_monitor(self):
+        # Reached directly (not via self.after) from the Manual Control
+        # tab's quick-EIS background-thread worker -- Canvas mutation from
+        # a background thread is undefined behavior for Tcl (see
+        # _run_on_main_thread's docstring), so marshal the whole body.
+        self._run_on_main_thread(self._redraw_monitor_now)
+
+    def _redraw_monitor_now(self):
         if hasattr(self, '_dc_canvas'):
             dc_points = self._monitor_dc_points
             if (
@@ -7256,7 +10030,18 @@ class MicroprobGUI(tk.Tk):
     # ══════════════════════════════════════════════════════════════════════
     def _log(self, msg: str):
         ts  = time.strftime('%H:%M:%S')
-        self.log_queue.put(f"[{ts}] {msg}\n")
+        line = f"[{ts}] {msg}\n"
+        self.log_queue.put(line)
+        if self._log_file is not None:
+            # _log is called from both the main thread and background
+            # measurement/worker threads -- serialize file writes so
+            # concurrent calls can't interleave mid-line.
+            with self._log_file_lock:
+                try:
+                    self._log_file.write(line)
+                    self._log_file.flush()
+                except Exception:
+                    pass
 
     def _poll_log(self):
         try:
@@ -7275,11 +10060,91 @@ class MicroprobGUI(tk.Tk):
         self.log_text.delete('1.0', 'end')
         self.log_text.config(state='disabled')
 
+    def _condition_generator_settings_payload(self):
+        """
+        Snapshot of every Semi-auto/Full-auto tab field this GUI remembers
+        across restarts -- the plain (StringVar-backed) parameter dicts,
+        the temperature/gas/tip/CA enable toggles, tip-source mode, and
+        omit-electrodes text. Deliberately excludes per-DXF-layout-
+        dependent state (e.g. diameter-exclusion checkboxes), which
+        wouldn't make sense to carry over to a different layout in a
+        future session.
+        """
+        return {
+            'semi_auto': {key: var.get() for key, var in self._semi_auto.items()},
+            'semi_auto_use': {key: var.get() for key, var in self._semi_auto_use.items()},
+            'semi_auto_tip_source': self._semi_auto_tip_source_var.get(),
+            'semi_auto_image_monitor_omit_electrodes': self._semi_auto_image_monitor_omit_electrodes_var.get(),
+            'full_auto': {key: var.get() for key, var in self._full_auto.items()},
+            'full_auto_use': {key: var.get() for key, var in self._full_auto_use.items()},
+            'full_auto_tip_source': self._full_auto_tip_source_var.get(),
+            'full_auto_image_monitor_omit_electrodes': self._full_auto_image_monitor_omit_electrodes_var.get(),
+            'run_gas_mode': self._run_gas_mode_var.get(),
+            'run_contact_fail_policy': self._run_contact_fail_policy_var.get(),
+            'run_retract_tip_on_done': self._run_retract_tip_on_done_var.get(),
+            'run_retract_tip_mm': self._run_retract_tip_mm_var.get(),
+            'run_ramp_down_on_done': self._run_ramp_down_on_done_var.get(),
+            'run_ramp_down_end_temp_c': self._run_ramp_down_end_temp_c_var.get(),
+            'run_ramp_down_end_ramp_rate': self._run_ramp_down_end_ramp_rate_var.get(),
+        }
+
+    def _save_condition_generator_settings(self):
+        path = getattr(_config, 'GUI_LAST_SESSION_PATH', 'gui_last_session.json')
+        try:
+            with open(path, 'w', encoding='utf-8') as fh:
+                json.dump(self._condition_generator_settings_payload(), fh, indent=2)
+        except Exception:
+            pass
+
+    def _load_condition_generator_settings(self):
+        path = getattr(_config, 'GUI_LAST_SESSION_PATH', 'gui_last_session.json')
+        try:
+            with open(path, 'r', encoding='utf-8') as fh:
+                payload = json.load(fh)
+        except Exception:
+            return
+        for dict_key, var_dict in (
+            ('semi_auto', self._semi_auto),
+            ('semi_auto_use', self._semi_auto_use),
+            ('full_auto', self._full_auto),
+            ('full_auto_use', self._full_auto_use),
+        ):
+            saved = payload.get(dict_key)
+            if not isinstance(saved, dict):
+                continue
+            for key, value in saved.items():
+                var = var_dict.get(key)
+                if var is not None:
+                    try:
+                        var.set(value)
+                    except Exception:
+                        pass
+        for var_attr, payload_key in (
+            ('_semi_auto_tip_source_var', 'semi_auto_tip_source'),
+            ('_semi_auto_image_monitor_omit_electrodes_var', 'semi_auto_image_monitor_omit_electrodes'),
+            ('_full_auto_tip_source_var', 'full_auto_tip_source'),
+            ('_full_auto_image_monitor_omit_electrodes_var', 'full_auto_image_monitor_omit_electrodes'),
+            ('_run_gas_mode_var', 'run_gas_mode'),
+            ('_run_contact_fail_policy_var', 'run_contact_fail_policy'),
+            ('_run_retract_tip_on_done_var', 'run_retract_tip_on_done'),
+            ('_run_retract_tip_mm_var', 'run_retract_tip_mm'),
+            ('_run_ramp_down_on_done_var', 'run_ramp_down_on_done'),
+            ('_run_ramp_down_end_temp_c_var', 'run_ramp_down_end_temp_c'),
+            ('_run_ramp_down_end_ramp_rate_var', 'run_ramp_down_end_ramp_rate'),
+        ):
+            value = payload.get(payload_key)
+            if value is not None:
+                try:
+                    getattr(self, var_attr).set(value)
+                except Exception:
+                    pass
+
     def on_close(self):
         if self.running:
             if not messagebox.askyesno("종료", "측정 중입니다. 강제 종료하시겠습니까?"):
                 return
             self.stop_flag.set()
+        self._save_condition_generator_settings()
         try:
             self._disconnect_all()
         finally:
@@ -7296,10 +10161,31 @@ class MicroprobGUI(tk.Tk):
                 sys.stderr.flush()
             except Exception:
                 pass
+            if self._log_file is not None:
+                try:
+                    self._log_file.close()
+                except Exception:
+                    pass
             os._exit(0)
 
 
 if __name__ == '__main__':
+    # Diagnostic instrumentation for the still-unresolved Win7 0xc0000005
+    # crash: faulthandler installs a Windows unhandled-exception filter
+    # that, on a fatal access violation, dumps a Python-level stack trace
+    # of every thread to this file before the process dies -- unlike the
+    # generic Event Viewer report (module + byte offset only), this shows
+    # exactly which Python call was in flight on which thread (e.g. inside
+    # a COM call, inside tkinter, inside numpy) at the moment of the
+    # crash. The file object is kept referenced at module scope so it
+    # can't be garbage-collected out from under the installed handler.
+    os.makedirs('run_logs', exist_ok=True)
+    _faulthandler_log_path = os.path.join(
+        'run_logs', f'faulthandler_{time.strftime("%Y%m%d_%H%M%S")}.log'
+    )
+    _faulthandler_log_file = open(_faulthandler_log_path, 'w', encoding='utf-8')
+    faulthandler.enable(file=_faulthandler_log_file, all_threads=True)
+
     app = MicroprobGUI()
     app.protocol("WM_DELETE_WINDOW", app.on_close)
     app.mainloop()

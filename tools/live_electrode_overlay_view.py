@@ -21,14 +21,13 @@ import time
 
 import cv2
 
-
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))
 
+from vision.circle_detector import load_hough_params
 from vision.electrode_mapper import (
     annotate_detections,
-    detect_electrode_map_rgb,
     detect_live_microscope_electrode_map_rgb,
     filter_live_overlay_detections,
 )
@@ -49,20 +48,42 @@ def open_camera(index: int, backend_name: str):
     return cap
 
 
+def _detector_kwargs_from_params_file(path):
+    """
+    Map a *_params.json file (same format the sibling "Image Detection"
+    project's tuning GUI saves) into detect_live_microscope_electrode_map_rgb
+    kwargs. Returns {} (use the detector's own built-in defaults) if path is
+    None.
+    """
+    if path is None:
+        return {}
+    params = load_hough_params(path)
+    expected_radius = float(params["expected_radius"])
+    radius_tolerance = float(params["radius_tolerance"])
+    return {
+        "clahe_clip": params["clahe_clip"],
+        "clahe_tile": params["clahe_tile"],
+        "param1": params["param1"],
+        "param2": params["param2"],
+        "min_radius_px": max(1, expected_radius - radius_tolerance),
+        "max_radius_px": expected_radius + radius_tolerance,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description="Live microscope view with electrode overlay.")
     parser.add_argument("--index", type=int, default=0)
     parser.add_argument("--backend", choices=sorted(BACKENDS), default="dshow")
     parser.add_argument(
-        "--detector",
-        choices=["live", "generic"],
-        default="live",
-        help="Use the Swift/live-camera tuned detector preset by default; switch to generic for comparisons.",
+        "--params",
+        help=(
+            "Optional *_params.json file (from the sibling 'Image Detection' "
+            "project's tuning GUI) to retune the live detector's CLAHE/Hough "
+            "parameters. Omit to use the built-in live-camera-tuned defaults."
+        ),
     )
     parser.add_argument("--sample-side-mm", type=float, default=10.0)
     parser.add_argument("--detect-every", type=int, default=12, help="Run electrode detection every N frames.")
-    parser.add_argument("--min-radius-px", type=int, default=6)
-    parser.add_argument("--max-radius-px", type=int, default=80)
     parser.add_argument("--size-group", choices=["all", "large", "small"], default="all")
     parser.add_argument("--save-frame", help="Optional path to save the most recent frame on quit.")
     args = parser.parse_args()
@@ -75,11 +96,7 @@ def main():
     last_detection_count = 0
     window_name = f"Electrode Overlay ({args.backend}:{args.index})"
 
-    detector_fn = (
-        detect_live_microscope_electrode_map_rgb
-        if args.detector == "live"
-        else detect_electrode_map_rgb
-    )
+    detector_kwargs = _detector_kwargs_from_params_file(args.params)
 
     try:
         while True:
@@ -95,26 +112,17 @@ def main():
             if last_overlay is None or frame_idx % max(args.detect_every, 1) == 1:
                 try:
                     frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-                    if args.detector == "live":
-                        detections = detector_fn(
-                            frame_rgb,
-                            sample_side_mm=args.sample_side_mm,
-                            size_group=args.size_group,
-                        )
-                        overlay_detections = filter_live_overlay_detections(detections)
-                    else:
-                        detections = detector_fn(
-                            frame_rgb,
-                            sample_side_mm=args.sample_side_mm,
-                            size_group=args.size_group,
-                            min_radius_px=args.min_radius_px,
-                            max_radius_px=args.max_radius_px,
-                        )
-                        overlay_detections = detections
+                    detections = detect_live_microscope_electrode_map_rgb(
+                        frame_rgb,
+                        sample_side_mm=args.sample_side_mm,
+                        size_group=args.size_group,
+                        **detector_kwargs,
+                    )
+                    overlay_detections = filter_live_overlay_detections(detections)
                     annotated_rgb = annotate_detections(
                         frame_rgb,
                         overlay_detections,
-                        annotate_labels=(args.detector != "live"),
+                        annotate_labels=False,
                     )
                     last_overlay = cv2.cvtColor(annotated_rgb, cv2.COLOR_RGB2BGR)
                     last_detection_count = len(overlay_detections)

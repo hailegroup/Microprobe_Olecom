@@ -1,0 +1,1124 @@
+{
+  "electrode_z_seeds": {
+    "7": {
+      "z_mm": -0.9800050000000001,
+      "source": "manual",
+      "updated_at": "2026-07-28 23:57:52",
+      "xy_mm": [
+        1.1102230246251565e-15,
+        3.3499999046325684
+      ]
+    },
+    "33": {
+      "z_mm": -0.9900050000000002,
+      "source": "manual",
+      "updated_at": "2026-07-29 00:43:47",
+      "xy_mm": [
+        3.0,
+        2.4000000953674316
+      ]
+    },
+    "8": {
+      "z_mm": -0.9900050000000002,
+      "source": "manual",
+      "updated_at": "2026-07-29 00:01:28",
+      "xy_mm": [
+        0.744273841381073,
+        2.102339267730713
+      ]
+    },
+    "28": {
+      "z_mm": -1.0000050000000003,
+      "source": "manual",
+      "updated_at": "2026-07-29 00:36:31",
+      "xy_mm": [
+        2.2557260990142822,
+        1.2476608753204346
+      ]
+    },
+    "25": {
+      "z_mm": -1.060005,
+      "source": "manual",
+      "updated_at": "2026-07-28 22:42:30",
+      "xy_mm": [
+        0.744273841381073,
+        0.6976608633995056
+      ]
+    },
+    "30": {
+      "z_mm": -0.9500052709963941,
+      "source": "manual",
+      "updated_at": "2026-07-22 17:31:20",
+      "xy_mm": [
+        2.2557260990142822,
+        0.3226608335971832
+      ]
+    },
+    "12": {
+      "z_mm": -1.0000050000000003,
+      "source": "manual",
+      "updated_at": "2026-07-29 00:08:40",
+      "xy_mm": [
+        1.5,
+        0.18541008234024048
+      ]
+    },
+    "0": {
+      "z_mm": 10.05,
+      "source": "auto_contact",
+      "updated_at": "2026-08-10 13:37:28",
+      "xy_mm": null
+    },
+    "1": {
+      "z_mm": -0.9699950000000002,
+      "source": "manual",
+      "updated_at": "2026-07-28 23:47:16",
+      "xy_mm": [
+        0.0,
+        0.949999988079071
+      ]
+    },
+    "2": {
+      "z_mm": -0.9657350000000002,
+      "source": "manual",
+      "updated_at": "2026-07-28 23:50:54",
+      "xy_mm": [
+        0.0,
+        1.5
+      ]
+    },
+    "29": {
+      "z_mm": -1.060001,
+      "source": "manual",
+      "updated_at": "2026-07-28 22:49:18",
+      "xy_mm": [
+        2.2557260990142822,
+        0.6976608633995056
+      ]
+    },
+    "6": {
+      "z_mm": -0.9770980000000001,
+      "source": "manual",
+      "updated_at": "2026-07-28 23:54:24",
+      "xy_mm": [
+        1.1102230246251565e-15,
+        2.799999952316284
+      ]
+    },
+    "9": {
+      "z_mm": -0.9815760000000002,
+      "source": "manual",
+      "updated_at": "2026-07-29 00:05:02",
+      "xy_mm": [
+        0.744273841381073,
+        2.652339220046997
+      ]
+    },
+    "13": {
+      "z_mm": -0.964477,
+      "source": "manual",
+      "updated_at": "2026-07-29 00:12:16",
+      "xy_mm": [
+        1.5,
+        0.7354100942611694
+      ]
+    },
+    "16": {
+      "z_mm": -0.9968600000000001,
+      "source": "manual",
+      "updated_at": "2026-07-29 00:15:44",
+      "xy_mm": [
+        2.2557260990142822,
+        2.102339267730713
+      ]
+    },
+    "17": {
+      "z_mm": -0.9992520000000003,
+      "source": "manual",
+      "updated_at": "2026-07-29 00:19:08",
+      "xy_mm": [
+        2.2557260990142822,
+        2.652339220046997
+      ]
+    },
+    "20": {
+      "z_mm": -0.9899950000000001,
+      "source": "manual",
+      "updated_at": "2026-07-29 00:22:36",
+      "xy_mm": [
+        1.5,
+        3.1645898818969727
+      ]
+    },
+    "21": {
+      "z_mm": -0.9955920000000003,
+      "source": "manual",
+      "updated_at": "2026-07-29 00:26:07",
+      "xy_mm": [
+        1.5,
+        2.6145899295806885
+      ]
+    },
+    "24": {
+      "z_mm": -0.9982170000000001,
+      "source": "manual",
+      "updated_at": "2026-07-29 00:29:42",
+      "xy_mm": [
+        0.744273841381073,
+        1.2476608753204346
+      ]
+    },
+    "34": {
+      "z_mm": -0.9899970000000001,
+      "source": "manual",
+      "updated_at": "2026-07-29 00:47:13",
+      "xy_mm": [
+        3.0,
+        1.850000023841858
+      ]
+    },
+    "38": {
+      "z_mm": -1.059995,
+      "source": "manual",
+      "updated_at": "2026-07-28 22:59:20",
+      "xy_mm": [
+        3.0,
+        0.550000011920929
+      ]
+    },
+    "39": {
+      "z_mm": -0.9955710000000002,
+      "source": "manual",
+      "updated_at": "2026-07-29 00:54:18",
+      "xy_mm": [
+        3.0,
+        0.0
+      ]
+    },
+    "35": {
+      "z_mm": -1.1199951940915231,
+      "source": "manual",
+      "updated_at": "2026-07-28 18:06:54",
+      "xy_mm": [
+        3.0,
+        1.475000023841858
+      ]
+    }
+  },
+  "parallax_samples": [
+    {
+      "delta_z_mm": 0.22999999999999998,
+      "delta_pixel_x": -1.0,
+      "delta_pixel_y": -1.0,
+      "recorded_at": "2026-07-28 17:37:53"
+    },
+    {
+      "delta_z_mm": 0.25,
+      "delta_pixel_x": -1.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 17:44:26"
+    },
+    {
+      "delta_z_mm": 0.21999999999999997,
+      "delta_pixel_x": -3.0,
+      "delta_pixel_y": -1.0,
+      "recorded_at": "2026-07-28 17:53:25"
+    },
+    {
+      "delta_z_mm": 0.22999999999999998,
+      "delta_pixel_x": -2.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 18:06:54"
+    },
+    {
+      "delta_z_mm": 0.08000000000000007,
+      "delta_pixel_x": -1.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 18:19:24"
+    },
+    {
+      "delta_z_mm": 0.1200000000000001,
+      "delta_pixel_x": -1.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 18:50:18"
+    },
+    {
+      "delta_z_mm": 0.1100000000000001,
+      "delta_pixel_x": -2.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 18:53:37"
+    },
+    {
+      "delta_z_mm": 0.10000000000000009,
+      "delta_pixel_x": -1.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 18:57:01"
+    },
+    {
+      "delta_z_mm": 0.1299999999999999,
+      "delta_pixel_x": -2.0,
+      "delta_pixel_y": -1.0,
+      "recorded_at": "2026-07-28 19:00:20"
+    },
+    {
+      "delta_z_mm": 0.06000000000000005,
+      "delta_pixel_x": 0.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 19:03:38"
+    },
+    {
+      "delta_z_mm": 0.13000000000000012,
+      "delta_pixel_x": -2.0,
+      "delta_pixel_y": -1.0,
+      "recorded_at": "2026-07-28 19:06:58"
+    },
+    {
+      "delta_z_mm": 0.1200000000000001,
+      "delta_pixel_x": -4.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 19:13:43"
+    },
+    {
+      "delta_z_mm": 0.14000000000000012,
+      "delta_pixel_x": -3.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 19:24:04"
+    },
+    {
+      "delta_z_mm": 0.1299999999999999,
+      "delta_pixel_x": -3.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 19:27:25"
+    },
+    {
+      "delta_z_mm": 0.13000000000000012,
+      "delta_pixel_x": -1.0,
+      "delta_pixel_y": -1.0,
+      "recorded_at": "2026-07-28 19:31:00"
+    },
+    {
+      "delta_z_mm": 0.10000000000000009,
+      "delta_pixel_x": -2.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 19:34:14"
+    },
+    {
+      "delta_z_mm": 0.10000000000000009,
+      "delta_pixel_x": -1.0,
+      "delta_pixel_y": -1.0,
+      "recorded_at": "2026-07-28 19:37:42"
+    },
+    {
+      "delta_z_mm": 0.1200000000000001,
+      "delta_pixel_x": 0.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 19:41:02"
+    },
+    {
+      "delta_z_mm": 0.15999999999999992,
+      "delta_pixel_x": -3.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 20:08:46"
+    },
+    {
+      "delta_z_mm": 0.1399999999999999,
+      "delta_pixel_x": -2.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 20:12:16"
+    },
+    {
+      "delta_z_mm": 0.0,
+      "delta_pixel_x": -1.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 20:15:19"
+    },
+    {
+      "delta_z_mm": 0.1399999999999999,
+      "delta_pixel_x": -2.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 20:22:27"
+    },
+    {
+      "delta_z_mm": 0.1399999999999999,
+      "delta_pixel_x": -2.0,
+      "delta_pixel_y": -1.0,
+      "recorded_at": "2026-07-28 20:25:52"
+    },
+    {
+      "delta_z_mm": 0.13000000000000012,
+      "delta_pixel_x": -2.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 20:29:25"
+    },
+    {
+      "delta_z_mm": 0.1399999999999999,
+      "delta_pixel_x": -2.0,
+      "delta_pixel_y": -1.0,
+      "recorded_at": "2026-07-28 20:32:46"
+    },
+    {
+      "delta_z_mm": 0.1499999999999999,
+      "delta_pixel_x": -3.0,
+      "delta_pixel_y": -2.0,
+      "recorded_at": "2026-07-28 20:36:22"
+    },
+    {
+      "delta_z_mm": 0.1399999999999999,
+      "delta_pixel_x": -2.0,
+      "delta_pixel_y": -1.0,
+      "recorded_at": "2026-07-28 20:39:45"
+    },
+    {
+      "delta_z_mm": 0.1399999999999999,
+      "delta_pixel_x": -2.0,
+      "delta_pixel_y": -1.0,
+      "recorded_at": "2026-07-28 20:43:15"
+    },
+    {
+      "delta_z_mm": 0.13000000000000012,
+      "delta_pixel_x": -3.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 20:46:36"
+    },
+    {
+      "delta_z_mm": 0.1299999999999999,
+      "delta_pixel_x": -2.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 20:50:07"
+    },
+    {
+      "delta_z_mm": 0.13000000000000012,
+      "delta_pixel_x": -1.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 20:57:02"
+    },
+    {
+      "delta_z_mm": 0.1399999999999999,
+      "delta_pixel_x": -3.0,
+      "delta_pixel_y": -1.0,
+      "recorded_at": "2026-07-28 21:00:28"
+    },
+    {
+      "delta_z_mm": 0.1399999999999999,
+      "delta_pixel_x": -1.0,
+      "delta_pixel_y": -1.0,
+      "recorded_at": "2026-07-28 21:04:10"
+    },
+    {
+      "delta_z_mm": 0.14000000000000012,
+      "delta_pixel_x": -1.0,
+      "delta_pixel_y": -1.0,
+      "recorded_at": "2026-07-28 21:07:36"
+    },
+    {
+      "delta_z_mm": 0.1499999999999999,
+      "delta_pixel_x": -1.0,
+      "delta_pixel_y": -1.0,
+      "recorded_at": "2026-07-28 21:11:17"
+    },
+    {
+      "delta_z_mm": 0.13000000000000012,
+      "delta_pixel_x": -3.0,
+      "delta_pixel_y": -6.0,
+      "recorded_at": "2026-07-28 21:14:39"
+    },
+    {
+      "delta_z_mm": 0.09000000000000008,
+      "delta_pixel_x": -1.0,
+      "delta_pixel_y": -1.0,
+      "recorded_at": "2026-07-28 21:48:42"
+    },
+    {
+      "delta_z_mm": 0.08000000000000007,
+      "delta_pixel_x": -1.0,
+      "delta_pixel_y": -1.0,
+      "recorded_at": "2026-07-28 21:56:12"
+    },
+    {
+      "delta_z_mm": 0.09000000000000008,
+      "delta_pixel_x": 0.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 21:59:37"
+    },
+    {
+      "delta_z_mm": 0.09000000000000008,
+      "delta_pixel_x": -1.0,
+      "delta_pixel_y": -1.0,
+      "recorded_at": "2026-07-28 22:02:46"
+    },
+    {
+      "delta_z_mm": 0.0,
+      "delta_pixel_x": 0.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 22:05:50"
+    },
+    {
+      "delta_z_mm": 0.07000000000000006,
+      "delta_pixel_x": -1.0,
+      "delta_pixel_y": -1.0,
+      "recorded_at": "2026-07-28 22:08:59"
+    },
+    {
+      "delta_z_mm": 0.09000000000000008,
+      "delta_pixel_x": -2.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 22:12:22"
+    },
+    {
+      "delta_z_mm": 0.07000000000000006,
+      "delta_pixel_x": -2.0,
+      "delta_pixel_y": -1.0,
+      "recorded_at": "2026-07-28 22:15:30"
+    },
+    {
+      "delta_z_mm": 0.09000000000000008,
+      "delta_pixel_x": -2.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 22:19:05"
+    },
+    {
+      "delta_z_mm": 0.09000000000000008,
+      "delta_pixel_x": -1.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 22:25:41"
+    },
+    {
+      "delta_z_mm": 0.09000000000000008,
+      "delta_pixel_x": -1.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 22:29:00"
+    },
+    {
+      "delta_z_mm": 0.09000000000000008,
+      "delta_pixel_x": -1.0,
+      "delta_pixel_y": -1.0,
+      "recorded_at": "2026-07-28 22:32:20"
+    },
+    {
+      "delta_z_mm": 0.10000000000000009,
+      "delta_pixel_x": -2.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 22:35:34"
+    },
+    {
+      "delta_z_mm": 0.10000000000000009,
+      "delta_pixel_x": -2.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 22:39:12"
+    },
+    {
+      "delta_z_mm": 0.10000000000000009,
+      "delta_pixel_x": -2.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 22:46:03"
+    },
+    {
+      "delta_z_mm": 0.09000000000000008,
+      "delta_pixel_x": -1.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 22:52:41"
+    },
+    {
+      "delta_z_mm": 0.09000000000000008,
+      "delta_pixel_x": 0.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 22:55:55"
+    },
+    {
+      "delta_z_mm": 0.08000000000000007,
+      "delta_pixel_x": 0.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 23:02:36"
+    },
+    {
+      "delta_z_mm": 0.17999999999999994,
+      "delta_pixel_x": -3.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-28 23:43:38"
+    },
+    {
+      "delta_z_mm": 0.17999999999999994,
+      "delta_pixel_x": 0.0,
+      "delta_pixel_y": -1.0,
+      "recorded_at": "2026-07-28 23:47:16"
+    },
+    {
+      "delta_z_mm": 0.17000000000000004,
+      "delta_pixel_x": -2.0,
+      "delta_pixel_y": -1.0,
+      "recorded_at": "2026-07-28 23:54:24"
+    },
+    {
+      "delta_z_mm": 0.17000000000000004,
+      "delta_pixel_x": -2.0,
+      "delta_pixel_y": -1.0,
+      "recorded_at": "2026-07-28 23:57:52"
+    },
+    {
+      "delta_z_mm": 0.15999999999999992,
+      "delta_pixel_x": -2.0,
+      "delta_pixel_y": -2.0,
+      "recorded_at": "2026-07-29 00:01:28"
+    },
+    {
+      "delta_z_mm": 0.15999999999999992,
+      "delta_pixel_x": -3.0,
+      "delta_pixel_y": -1.0,
+      "recorded_at": "2026-07-29 00:08:40"
+    },
+    {
+      "delta_z_mm": 0.1499999999999999,
+      "delta_pixel_x": -2.0,
+      "delta_pixel_y": -1.0,
+      "recorded_at": "2026-07-29 00:15:44"
+    },
+    {
+      "delta_z_mm": 0.1499999999999999,
+      "delta_pixel_x": 0.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-29 00:19:08"
+    },
+    {
+      "delta_z_mm": 0.15000000000000002,
+      "delta_pixel_x": -2.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-29 00:22:36"
+    },
+    {
+      "delta_z_mm": 0.1499999999999999,
+      "delta_pixel_x": -1.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-29 00:26:07"
+    },
+    {
+      "delta_z_mm": 0.1499999999999999,
+      "delta_pixel_x": -6.0,
+      "delta_pixel_y": -1.0,
+      "recorded_at": "2026-07-29 00:29:42"
+    },
+    {
+      "delta_z_mm": 0.1499999999999999,
+      "delta_pixel_x": -2.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-29 00:36:31"
+    },
+    {
+      "delta_z_mm": 0.15999999999999992,
+      "delta_pixel_x": -1.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-29 00:43:47"
+    },
+    {
+      "delta_z_mm": 0.16000000000000003,
+      "delta_pixel_x": -3.0,
+      "delta_pixel_y": 0.0,
+      "recorded_at": "2026-07-29 00:47:13"
+    },
+    {
+      "delta_z_mm": 0.17999999999999994,
+      "delta_pixel_x": 0.0,
+      "delta_pixel_y": -1.0,
+      "recorded_at": "2026-07-29 00:54:18"
+    }
+  ],
+  "xy_bias_samples": [
+    {
+      "delta_x_px": -0.10380661660275337,
+      "delta_y_px": 0.727026356840554,
+      "recorded_at": "2026-07-28 17:37:53",
+      "temperature_c": 150.05791558159723
+    },
+    {
+      "delta_x_px": 1.3693742419028467,
+      "delta_y_px": -0.708346222544094,
+      "recorded_at": "2026-07-28 17:44:26",
+      "temperature_c": 149.89015367296008
+    },
+    {
+      "delta_x_px": -2.1853689786378823,
+      "delta_y_px": -1.1202485646698506,
+      "recorded_at": "2026-07-28 17:53:25",
+      "temperature_c": 150.12356228298611
+    },
+    {
+      "delta_x_px": -0.12786865234375,
+      "delta_y_px": 0.7495269775390625,
+      "recorded_at": "2026-07-28 18:06:54",
+      "temperature_c": 150.0872802734375
+    },
+    {
+      "delta_x_px": -1.798999222514368,
+      "delta_y_px": 1.2217856826449633,
+      "recorded_at": "2026-07-28 18:19:24",
+      "temperature_c": 150.0
+    },
+    {
+      "delta_x_px": 1.7092656706059586,
+      "delta_y_px": 1.6763229284135832,
+      "recorded_at": "2026-07-28 18:46:47",
+      "temperature_c": 150.0
+    },
+    {
+      "delta_x_px": -2.786526171717867,
+      "delta_y_px": 0.8246892703882622,
+      "recorded_at": "2026-07-28 18:50:18",
+      "temperature_c": 150.0
+    },
+    {
+      "delta_x_px": -3.1103154488197333,
+      "delta_y_px": 1.8982078931007322,
+      "recorded_at": "2026-07-28 18:53:37",
+      "temperature_c": 150.0
+    },
+    {
+      "delta_x_px": -4.13068967366064,
+      "delta_y_px": 2.0459733903527706,
+      "recorded_at": "2026-07-28 18:57:01",
+      "temperature_c": 150.0
+    },
+    {
+      "delta_x_px": -4.258870213233081,
+      "delta_y_px": -0.43544853206498146,
+      "recorded_at": "2026-07-28 19:00:20",
+      "temperature_c": 150.0
+    },
+    {
+      "delta_x_px": -0.7697488117938178,
+      "delta_y_px": 1.0357842167164222,
+      "recorded_at": "2026-07-28 19:03:38",
+      "temperature_c": 150.0
+    },
+    {
+      "delta_x_px": -2.0039580449400773,
+      "delta_y_px": 1.171484434453987,
+      "recorded_at": "2026-07-28 19:06:58",
+      "temperature_c": 150.0
+    },
+    {
+      "delta_x_px": 0.6516576145466502,
+      "delta_y_px": 1.7017414086289477,
+      "recorded_at": "2026-07-28 19:10:18",
+      "temperature_c": 150.0
+    },
+    {
+      "delta_x_px": -0.7877837026069869,
+      "delta_y_px": 1.369451261341112,
+      "recorded_at": "2026-07-28 19:13:43",
+      "temperature_c": 150.0
+    },
+    {
+      "delta_x_px": -1.9705574626326836,
+      "delta_y_px": 3.034833288711468,
+      "recorded_at": "2026-07-28 19:17:16",
+      "temperature_c": 150.0
+    },
+    {
+      "delta_x_px": -1.4518096780374208,
+      "delta_y_px": 0.6536549605409334,
+      "recorded_at": "2026-07-28 19:20:29",
+      "temperature_c": 150.0
+    },
+    {
+      "delta_x_px": -2.575252546741524,
+      "delta_y_px": 1.444506897760391,
+      "recorded_at": "2026-07-28 19:24:04",
+      "temperature_c": 150.0
+    },
+    {
+      "delta_x_px": -1.86463973741553,
+      "delta_y_px": 0.21539011864354052,
+      "recorded_at": "2026-07-28 19:27:25",
+      "temperature_c": 150.0
+    },
+    {
+      "delta_x_px": 0.2035178834034923,
+      "delta_y_px": 2.1230371535258996,
+      "recorded_at": "2026-07-28 19:31:00",
+      "temperature_c": 150.0
+    },
+    {
+      "delta_x_px": -0.4359463927625029,
+      "delta_y_px": 1.4363172965538524,
+      "recorded_at": "2026-07-28 19:34:14",
+      "temperature_c": 150.0
+    },
+    {
+      "delta_x_px": -0.9637518220347374,
+      "delta_y_px": 0.640028027356351,
+      "recorded_at": "2026-07-28 19:37:42",
+      "temperature_c": 150.0
+    },
+    {
+      "delta_x_px": 0.8885761879017764,
+      "delta_y_px": 4.441316499472023,
+      "recorded_at": "2026-07-28 19:41:02",
+      "temperature_c": 150.0
+    },
+    {
+      "delta_x_px": -0.8399405779416611,
+      "delta_y_px": -1.0477673199811903,
+      "recorded_at": "2026-07-28 20:05:14",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -1.4083300371019902,
+      "delta_y_px": -0.9640667051633045,
+      "recorded_at": "2026-07-28 20:08:46",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -4.1288802836452305,
+      "delta_y_px": -0.04482237985158122,
+      "recorded_at": "2026-07-28 20:12:16",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": 0.2460802271840805,
+      "delta_y_px": -0.19681837416607095,
+      "recorded_at": "2026-07-28 20:15:19",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": 0.5706644043351048,
+      "delta_y_px": -0.8016113282773745,
+      "recorded_at": "2026-07-28 20:18:55",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -3.407608255481364,
+      "delta_y_px": -0.8893236316873754,
+      "recorded_at": "2026-07-28 20:22:27",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -3.2296637020236005,
+      "delta_y_px": -1.7290986657002918,
+      "recorded_at": "2026-07-28 20:25:52",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -5.578830731604967,
+      "delta_y_px": 0.10729393907188012,
+      "recorded_at": "2026-07-28 20:29:25",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -5.519913804020632,
+      "delta_y_px": -4.7566758944891205,
+      "recorded_at": "2026-07-28 20:32:46",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -3.7918098611502273,
+      "delta_y_px": -2.8678270821955607,
+      "recorded_at": "2026-07-28 20:36:22",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -3.7642054904789006,
+      "delta_y_px": -1.8775845759776644,
+      "recorded_at": "2026-07-28 20:39:45",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -2.207961680722917,
+      "delta_y_px": -3.426102149112978,
+      "recorded_at": "2026-07-28 20:43:15",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -1.2453776704833786,
+      "delta_y_px": -1.3367558167312836,
+      "recorded_at": "2026-07-28 20:46:36",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -2.518223770658267,
+      "delta_y_px": -1.2267362989500725,
+      "recorded_at": "2026-07-28 20:50:07",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -2.895623860494851,
+      "delta_y_px": -1.9705792139909875,
+      "recorded_at": "2026-07-28 20:53:33",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -4.5543787737760795,
+      "delta_y_px": -1.5330017611206017,
+      "recorded_at": "2026-07-28 20:57:02",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -4.756622074555423,
+      "delta_y_px": -1.3918984957232396,
+      "recorded_at": "2026-07-28 21:00:28",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -1.3729684638332742,
+      "delta_y_px": -1.95504537913871,
+      "recorded_at": "2026-07-28 21:04:10",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -1.2211248874983198,
+      "delta_y_px": -1.3740149074317856,
+      "recorded_at": "2026-07-28 21:07:36",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -0.8630200760786124,
+      "delta_y_px": -1.6269402859282138,
+      "recorded_at": "2026-07-28 21:11:17",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -1.5640391758984151,
+      "delta_y_px": -1.5233792024003208,
+      "recorded_at": "2026-07-28 21:14:40",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -2.492834907657823,
+      "delta_y_px": -2.3832218907641476,
+      "recorded_at": "2026-07-28 21:48:42",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -3.562857766273652,
+      "delta_y_px": -1.8525487488244892,
+      "recorded_at": "2026-07-28 21:56:12",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -3.103695622771113,
+      "delta_y_px": -2.62117948782236,
+      "recorded_at": "2026-07-28 21:59:37",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -3.692591868870039,
+      "delta_y_px": -2.557009586989693,
+      "recorded_at": "2026-07-28 22:02:46",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -0.19656703528750086,
+      "delta_y_px": -2.5161331226071866,
+      "recorded_at": "2026-07-28 22:05:50",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -0.6548018101883031,
+      "delta_y_px": -1.2846423072029438,
+      "recorded_at": "2026-07-28 22:08:59",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -4.09678919622678,
+      "delta_y_px": -0.5239087573922916,
+      "recorded_at": "2026-07-28 22:12:22",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -3.1643640671499043,
+      "delta_y_px": -1.2819083494503616,
+      "recorded_at": "2026-07-28 22:15:30",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -7.546625520386726,
+      "delta_y_px": 2.036582044522092,
+      "recorded_at": "2026-07-28 22:19:05",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -6.656103792299632,
+      "delta_y_px": -2.8942770436532896,
+      "recorded_at": "2026-07-28 22:22:15",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -1.6533096285687634,
+      "delta_y_px": -2.6389212405712215,
+      "recorded_at": "2026-07-28 22:25:41",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -2.4428765993886827,
+      "delta_y_px": -1.8913729321897108,
+      "recorded_at": "2026-07-28 22:29:00",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": 0.24937466055888535,
+      "delta_y_px": -2.087432043852914,
+      "recorded_at": "2026-07-28 22:32:20",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -1.0501919149315881,
+      "delta_y_px": -2.021670644579501,
+      "recorded_at": "2026-07-28 22:35:34",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -0.8291067276005322,
+      "delta_y_px": -0.09106337027142786,
+      "recorded_at": "2026-07-28 22:39:12",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -3.0678728966506696,
+      "delta_y_px": -2.4142519875075834,
+      "recorded_at": "2026-07-28 22:42:30",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -4.0394233819026795,
+      "delta_y_px": -0.6415202444755153,
+      "recorded_at": "2026-07-28 22:46:03",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -2.7314690576046132,
+      "delta_y_px": -2.6018646966778647,
+      "recorded_at": "2026-07-28 22:49:18",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -0.5781831831120599,
+      "delta_y_px": -1.6953786563477706,
+      "recorded_at": "2026-07-28 22:52:41",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -1.5580705770227041,
+      "delta_y_px": -1.2276769765722406,
+      "recorded_at": "2026-07-28 22:55:55",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -1.620508000812947,
+      "delta_y_px": -0.2472984894395438,
+      "recorded_at": "2026-07-28 22:59:20",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -0.20805921090288848,
+      "delta_y_px": 4.623937442492377,
+      "recorded_at": "2026-07-28 23:02:36",
+      "temperature_c": 100.0
+    },
+    {
+      "delta_x_px": -4.657143935095377,
+      "delta_y_px": -4.4635544995864365,
+      "recorded_at": "2026-07-28 23:43:38",
+      "temperature_c": 50.0
+    },
+    {
+      "delta_x_px": -2.9186338688148794,
+      "delta_y_px": -4.3148354489927385,
+      "recorded_at": "2026-07-28 23:47:16",
+      "temperature_c": 50.0
+    },
+    {
+      "delta_x_px": -3.5419214117261504,
+      "delta_y_px": -4.874855646627708,
+      "recorded_at": "2026-07-28 23:50:54",
+      "temperature_c": 50.0
+    },
+    {
+      "delta_x_px": -4.951169077045506,
+      "delta_y_px": -6.477610023395243,
+      "recorded_at": "2026-07-28 23:54:24",
+      "temperature_c": 50.0
+    },
+    {
+      "delta_x_px": -3.6550523455267125,
+      "delta_y_px": -8.475884231115174,
+      "recorded_at": "2026-07-28 23:57:52",
+      "temperature_c": 50.0
+    },
+    {
+      "delta_x_px": -5.839847883493235,
+      "delta_y_px": -8.120547615991711,
+      "recorded_at": "2026-07-29 00:01:28",
+      "temperature_c": 50.0
+    },
+    {
+      "delta_x_px": -3.682942175095633,
+      "delta_y_px": -9.269736350102164,
+      "recorded_at": "2026-07-29 00:05:02",
+      "temperature_c": 50.0
+    },
+    {
+      "delta_x_px": -8.97490429580455,
+      "delta_y_px": -5.842098962310757,
+      "recorded_at": "2026-07-29 00:08:40",
+      "temperature_c": 50.0
+    },
+    {
+      "delta_x_px": -3.2005035977855982,
+      "delta_y_px": -12.107464522959987,
+      "recorded_at": "2026-07-29 00:12:16",
+      "temperature_c": 50.0
+    },
+    {
+      "delta_x_px": -4.379716433671433,
+      "delta_y_px": -9.962358507529984,
+      "recorded_at": "2026-07-29 00:15:44",
+      "temperature_c": 50.0
+    },
+    {
+      "delta_x_px": -10.205384252774536,
+      "delta_y_px": -13.474264023274884,
+      "recorded_at": "2026-07-29 00:19:08",
+      "temperature_c": 50.0
+    },
+    {
+      "delta_x_px": -2.0359658117087065,
+      "delta_y_px": -10.685570671707978,
+      "recorded_at": "2026-07-29 00:22:36",
+      "temperature_c": 50.0
+    },
+    {
+      "delta_x_px": -0.2612491230505043,
+      "delta_y_px": -9.724748902447345,
+      "recorded_at": "2026-07-29 00:26:07",
+      "temperature_c": 50.0
+    },
+    {
+      "delta_x_px": -4.545089338446928,
+      "delta_y_px": -12.014921653169125,
+      "recorded_at": "2026-07-29 00:29:42",
+      "temperature_c": 50.0
+    },
+    {
+      "delta_x_px": -4.208207678730503,
+      "delta_y_px": -10.658469351597432,
+      "recorded_at": "2026-07-29 00:36:31",
+      "temperature_c": 50.0
+    },
+    {
+      "delta_x_px": -4.086331864279032,
+      "delta_y_px": -10.022624031836585,
+      "recorded_at": "2026-07-29 00:43:47",
+      "temperature_c": 50.0
+    },
+    {
+      "delta_x_px": -2.781989831906685,
+      "delta_y_px": -11.359384895918424,
+      "recorded_at": "2026-07-29 00:47:13",
+      "temperature_c": 50.0
+    },
+    {
+      "delta_x_px": -2.367938660518007,
+      "delta_y_px": -10.377626174565265,
+      "recorded_at": "2026-07-29 00:54:18",
+      "temperature_c": 50.0
+    }
+  ]
+}

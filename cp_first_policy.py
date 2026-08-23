@@ -266,7 +266,7 @@ def build_fft_ready_ca_trace(
     data: Sequence[Sequence[float]],
     *,
     average_bin_s: Optional[float] = None,
-    segmented_smoothing_window_points: Optional[int] = None,
+    segmented_smoothing_window_s: Optional[float] = None,
     current_despike: bool = False,
     despike_window_s: float = DEFAULT_FFT_READY_DESPIKE_WINDOW_S,
     despike_sigma: float = DEFAULT_FFT_READY_DESPIKE_SIGMA,
@@ -278,6 +278,16 @@ def build_fft_ready_ca_trace(
     Voltage-step information is preserved, but current-only isolated spikes can
     be removed segment-wise before dI/dt is calculated. Rows are not deleted, so
     FFT timing remains well behaved.
+
+    segmented_smoothing_window_s is a real-time boxcar width, not a point
+    count -- it's converted to a point count fresh, per segment, from that
+    segment's own current median sample spacing (same pattern despike_window_s
+    already uses above). This makes its effect independent of whether/how
+    average_bin_s changed the point density first: a formerly points-based
+    version of this parameter silently smoothed over a much shorter real time
+    span whenever binning was off (dense raw spacing => same point count spans
+    far less time), which looked like "smoothing doesn't do anything" unless
+    binning happened to run first.
     """
     arr = np.asarray(data, dtype=float)
     if arr.ndim != 2 or arr.shape[1] < 3 or len(arr) == 0:
@@ -310,16 +320,34 @@ def build_fft_ready_ca_trace(
     if processed_segments:
         work = np.vstack(processed_segments)
 
-    if segmented_smoothing_window_points is not None and int(segmented_smoothing_window_points) > 1 and len(work) >= 3:
+    if segmented_smoothing_window_s is not None and float(segmented_smoothing_window_s) > 0.0 and len(work) >= 3:
         step_idx = _detect_voltage_step_idx(work)
 
         smoothed = work.copy()
         pre = work[:step_idx]
         post = work[step_idx:]
         if len(pre):
-            smoothed[:step_idx, 2] = _moving_average(pre[:, 2], int(segmented_smoothing_window_points))
+            pre_dt = _median_time_step(pre[:, 0], fallback=0.1)
+            pre_window_points = _window_points_for_seconds(float(segmented_smoothing_window_s), pre_dt, min_points=1)
+            smoothed[:step_idx, 2] = _moving_average(pre[:, 2], pre_window_points)
         if len(post):
-            smoothed[step_idx:, 2] = _moving_average(post[:, 2], int(segmented_smoothing_window_points))
+            # Same step guard as the despike stage above: the region right
+            # after the voltage step is the real, sharp current peak, not
+            # noise -- boxcar-averaging over it (as an unguarded pass would)
+            # flattens the peak just as much as despiking it would have,
+            # silently undoing the protection the guard was there for.
+            if float(despike_step_guard_s) > 0.0:
+                guard_mask = post[:, 0] <= float(post[0, 0]) + float(despike_step_guard_s)
+            else:
+                guard_mask = np.zeros(len(post), dtype=bool)
+            post_smoothed = post[:, 2].copy()
+            if np.any(~guard_mask):
+                post_dt = _median_time_step(post[~guard_mask, 0], fallback=0.1)
+                post_window_points = _window_points_for_seconds(float(segmented_smoothing_window_s), post_dt, min_points=1)
+                post_smoothed[~guard_mask] = _moving_average(
+                    post[~guard_mask, 2], post_window_points
+                )
+            smoothed[step_idx:, 2] = post_smoothed
         work = smoothed
 
     return work
@@ -352,16 +380,22 @@ def recommend_peis_lf_from_cp_txt(dc_path, *, current_in_mA: bool = False) -> Di
             "std_factor": 2.5,
         },
     )
+    # Rebin to the CA's own actually-recorded sample spacing, not a fixed
+    # 0.1s -- a fixed bin silently discarded real resolution whenever the
+    # user configured a smaller CA dt (and wastefully oversampled whenever
+    # they configured a larger one).
+    raw_time = np.asarray(dc_data, dtype=float)[:, 0] if np.asarray(dc_data).ndim == 2 else np.asarray([])
+    measured_bin_s = _median_time_step(raw_time, fallback=DEFAULT_FFT_READY_BIN_S)
     fft_ready = build_fft_ready_ca_trace(
         dc_data,
-        average_bin_s=DEFAULT_FFT_READY_BIN_S,
-        segmented_smoothing_window_points=None,
+        average_bin_s=measured_bin_s,
+        segmented_smoothing_window_s=None,
         current_despike=True,
     )
     positive_time = np.asarray(fft_ready[:, 0], dtype=float)
     if len(positive_time) < 2:
         raise ValueError("Need at least two processed CA points to estimate a CP-only LF seed.")
-    fft_dt = _median_time_step(positive_time, fallback=DEFAULT_FFT_READY_BIN_S)
+    fft_dt = _median_time_step(positive_time, fallback=measured_bin_s)
     time_arr = np.arange(
         float(positive_time.min()),
         float(positive_time.max()) + 0.5 * float(fft_dt),
@@ -414,12 +448,12 @@ def recommend_peis_lf_from_cp_txt(dc_path, *, current_in_mA: bool = False) -> Di
         "cp_saturation": cp_saturation,
         "smoothed_duration_s": float(time_arr[-1] - time_arr[0]) if len(time_arr) else 0.0,
         "fft_ready_trace": np.asarray(fft_ready, dtype=float),
-        "fft_ready_average_bin_s": DEFAULT_FFT_READY_BIN_S,
+        "fft_ready_average_bin_s": measured_bin_s,
         "fft_ready_current_despike": True,
         "fft_ready_despike_window_s": DEFAULT_FFT_READY_DESPIKE_WINDOW_S,
         "fft_ready_despike_sigma": DEFAULT_FFT_READY_DESPIKE_SIGMA,
         "fft_ready_despike_step_guard_s": DEFAULT_FFT_READY_DESPIKE_STEP_GUARD_S,
         "fft_dt_s": dt_est,
         "fft_window_points": int(fft_window),
-        "fft_ready_segmented_smoothing_window_points": None,
+        "fft_ready_segmented_smoothing_window_s": None,
     }

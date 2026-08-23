@@ -1,8 +1,0 @@
-usage: run_350c_longterm_voltage_supervisor.py [-h] [--python PYTHON]
-                                               [--longterm-hours LONGTERM_HOURS]
-                                               [--interval-s INTERVAL_S]
-                                               [--adopt-current ADOPT_CURRENT]
-                                               [--history-since HISTORY_SINCE]
-                                               [--skip-longterm]
-                                               [--skip-voltage-ladder]
-run_350c_longterm_voltage_supervisor.py: error: argument --history-since: invalid <lambda> value: '2026-04-26'

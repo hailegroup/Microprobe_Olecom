@@ -19,16 +19,6 @@ scipy==1.10.1
 comtypes>=1.1.14
 galvani
 
-# Standalone analysis GUI (analysis_gui.py) — lets the runner re-analyze the
-# .txt CA/PEIS files it exports (CP->EIS recovery, RQRQRQ fit, Excel export).
-# numpy/pandas/scipy/matplotlib above are shared; add only the Excel engine:
-xlsxwriter==3.1.9
-# NOTE: reading raw BioLogic .mpr/.mpt needs `yadg`, which requires Python >=3.10
-# and therefore CANNOT be installed on this Win7 / Python 3.8 box. On the runner
-# the analysis GUI works with the .txt exports it produces (which is all it
-# writes). Native Origin .opju export (originpro) also needs a desktop Origin
-# install and is only available on the newer analysis machine.
-
 # Hardware drivers / wrappers used by the runner.
 # easy-biologic remains listed for legacy/debug only. Production BioLogic
 # communication is OLE-COM via EC-Lab; do not mix both in one instrument session.

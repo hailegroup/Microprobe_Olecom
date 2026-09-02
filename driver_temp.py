@@ -7,6 +7,7 @@ pywatlow has a known instance-handling bug in older releases, so the read/write
 request builders are patched at import time.
 """
 
+import threading
 import time
 
 
@@ -72,21 +73,37 @@ class WatlowController:
         self.baud = baud or SERIAL_BAUD["temp"]
         self.addr = addr or WATLOW_MODBUS_ADDR
         self._w = None
+        # self._w wraps a raw pyserial port (self._w.serial), read/written
+        # from both the temperature-safety-monitor background thread
+        # (_start_temperature_safety_monitor's poll loop, which runs for
+        # the full duration of every automated run) and the run thread
+        # itself (set_temperature/wait_stable during a temperature ramp) --
+        # concurrently, with no synchronization until this lock. Matches
+        # driver_motor.py::MDriveMotor's own _io_lock for the identical
+        # shared-serial-port-across-threads hazard; unlike that driver,
+        # this one didn't have it. A Win7 faulthandler crash dump caught
+        # the safety-monitor thread faulting (0xc0000005) inside this
+        # driver's own read path (via pywatlow/crcmod) while the run
+        # thread was concurrently active -- consistent with, though not
+        # proven to be caused by, this race.
+        self._io_lock = threading.RLock()
 
     def connect(self):
         if not _PYWATLOW_OK:
             raise ImportError("Run: pip install pywatlow")
-        self._w = _Watlow(port=self.port, address=self.addr)
+        with self._io_lock:
+            self._w = _Watlow(port=self.port, address=self.addr)
         print(f"[Temp] Connected on {self.port}")
 
     def disconnect(self):
-        if self._w:
-            try:
-                self._w.serial.close()
-            except Exception:
-                pass
-            self._w = None
-            print("[Temp] Disconnected")
+        with self._io_lock:
+            if self._w:
+                try:
+                    self._w.serial.close()
+                except Exception:
+                    pass
+                self._w = None
+                print("[Temp] Disconnected")
 
     @staticmethod
     def _f_to_c(value_f: float) -> float:
@@ -107,45 +124,50 @@ class WatlowController:
         return float(result["data"])
 
     def get_ramp_rate(self) -> float:
-        if not hasattr(self._w, "readParam"):
-            raise RuntimeError("[Temp] pywatlow readParam API not found")
-        result = self._w.readParam(7003, float)
+        with self._io_lock:
+            if not hasattr(self._w, "readParam"):
+                raise RuntimeError("[Temp] pywatlow readParam API not found")
+            result = self._w.readParam(7003, float)
         return self._extract_value(result, "read ramp rate")
 
     def set_ramp_rate(self, ramp_c_per_min: float):
         if ramp_c_per_min <= 0:
             raise ValueError("Ramp rate must be positive")
-        if not hasattr(self._w, "writeParam"):
-            raise RuntimeError("[Temp] pywatlow writeParam API not found")
-        # Watlow EZ-ZONE PM manual indicates:
-        #   7015 = ramp scale select, 57 -> minutes
-        #   7003 = ramp rate value in display units per minute
-        scale_result = self._w.writeParam(7015, 57, int)
-        self._extract_value(scale_result, "write ramp scale")
-        rate_result = self._w.writeParam(7003, float(ramp_c_per_min), float)
-        self._extract_value(rate_result, "write ramp rate")
-        readback = self.get_ramp_rate()
+        with self._io_lock:
+            if not hasattr(self._w, "writeParam"):
+                raise RuntimeError("[Temp] pywatlow writeParam API not found")
+            # Watlow EZ-ZONE PM manual indicates:
+            #   7015 = ramp scale select, 57 -> minutes
+            #   7003 = ramp rate value in display units per minute
+            scale_result = self._w.writeParam(7015, 57, int)
+            self._extract_value(scale_result, "write ramp scale")
+            rate_result = self._w.writeParam(7003, float(ramp_c_per_min), float)
+            self._extract_value(rate_result, "write ramp rate")
+            readback = self.get_ramp_rate()
         print(f"[Temp] Ramp rate -> {ramp_c_per_min:.3f} C/min (readback {readback:.3f} C/min)")
 
     def get_temperature(self) -> float:
-        result = self._w.read("actual value")
+        with self._io_lock:
+            result = self._w.read("actual value")
         return self._f_to_c(self._extract_value(result, "read temperature"))
 
     def get_setpoint(self) -> float:
-        result = self._w.read("setpoint 1")
+        with self._io_lock:
+            result = self._w.read("setpoint 1")
         return self._f_to_c(self._extract_value(result, "read setpoint"))
 
     def set_temperature(self, target_c: float):
         target_f = self._c_to_f(target_c)
-        if hasattr(self._w, "write"):
-            result = self._w.write(target_f)
-        elif hasattr(self._w, "writeParam"):
-            result = self._w.writeParam(7001, target_f, float)
-        else:
-            raise RuntimeError("[Temp] pywatlow write API not found")
-        self._extract_value(result, "write setpoint")
-        self._apply_pid(target_c)
-        readback_c = self.get_setpoint()
+        with self._io_lock:
+            if hasattr(self._w, "write"):
+                result = self._w.write(target_f)
+            elif hasattr(self._w, "writeParam"):
+                result = self._w.writeParam(7001, target_f, float)
+            else:
+                raise RuntimeError("[Temp] pywatlow write API not found")
+            self._extract_value(result, "write setpoint")
+            self._apply_pid(target_c)
+            readback_c = self.get_setpoint()
         print(f"[Temp] Setpoint -> {target_c:.1f} C (readback {readback_c:.1f} C)")
 
     def safe_shutdown(self, target_c: float = TEMP_SAFETY_SHUTDOWN_SETPOINT_C):

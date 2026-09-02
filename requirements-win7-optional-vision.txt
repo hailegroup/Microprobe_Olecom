@@ -1,9 +1,56 @@
 # Optional packages for the Image/OM tab on the Windows 7 runner.
 # Do not install these first. Get hardware acquisition working with
 # requirements-win7-runner.txt, then try this only if camera/vision is needed.
+#
+# Pillow, opencv-python, and matplotlib are intentionally NOT exact-pinned:
+# an exact pin has no prebuilt wheel for some Python/Windows-7 combinations,
+# and pip then tries to build from source (PEP 517), which fails without a
+# CMake + C++ toolchain -- not something to set up on an instrument PC.
+# Symptoms observed on this project's Win7 runner: pip could only resolve
+# matplotlib up to 3.5.3 (consistent with a Python 3.7 interpreter -- check
+# `python --version` on that machine; this project recommends Python
+# 3.8.10, see WIN7_RUNNER_SETUP.md), and a PEP 517 wheel build failure for
+# an exact-pinned opencv-python. A minimum-version bound lets pip pick the
+# newest release that actually ships a wheel for whatever interpreter is
+# installed, instead of failing over to a source build.
+#
+# If opencv-python still fails to find ANY wheel even unpinned, Windows 7
+# itself may be the blocker: opencv-python wheels from roughly 4.6+ are
+# built against a newer C runtime (UCRT) that Windows 7 needs a specific
+# Windows Update (KB2999226) to provide. If install succeeds but `import
+# cv2` then fails with a DLL load error, that's this issue -- either install
+# that update or pin an older opencv-python release built before the cutoff
+# (e.g. opencv-python-headless==4.5.5.64, see below).
+#
+# Use opencv-python-headless, not opencv-python: nothing in this project
+# calls cv2's own GUI-window functions (imshow/namedWindow/waitKey/etc) --
+# all rendering goes through Tkinter, including the "Tune Circle Params" /
+# "Tune Probe Params" tuning windows (vision/tuning_gui/), which are native
+# Tkinter Toplevel windows, not OpenCV windows -- and opencv-python's extra
+# bundled Windows GUI DLLs are a real source of DLL-load-order conflicts
+# with Anaconda's own MKL-linked numpy on the Win7 instrument PC (symptom:
+# `python -c "import cv2"` alone works, but `import cv2` fails with "DLL
+# load failed" once numpy/pandas have already been imported first in the
+# same process, which is exactly gui.py's own import order). Never have
+# both opencv-python and opencv-python-headless installed at once -- they
+# both provide a `cv2` package and can shadow each other.
+#
+# scikit-image was removed entirely (2026-07): it only ever backed a
+# low-priority supplementary Hough-circle fallback in
+# vision/electrode_mapper.py, never used by the live-camera or DXF-layout
+# workflows (only reachable through the older "Load Design" static-image
+# path), and on a Win7 instrument PC its skimage.feature subpackage failed
+# to import entirely because it unconditionally pulls in an unrelated,
+# unused Haar-cascade classifier with a fragile native dependency -- not
+# worth the dependency weight (scipy, PyWavelets, imageio, tifffile,
+# networkx) for a rarely-exercised, purely additive detection nicety.
 
-Pillow==9.5.0
-opencv-python==4.7.0.72
-scikit-image==0.19.3
-matplotlib==3.7.5
+Pillow>=9.0
+opencv-python-headless>=4.5
+matplotlib>=3.5
+
+# Only needed for vision/dxf_layout.py (CAD DXF -> electrode layout JSON,
+# used by the Image Monitor tab's DXF-layout-driven electrode alignment
+# workflow). Not required for camera/electrode/probe detection itself.
+ezdxf==1.0.3
 

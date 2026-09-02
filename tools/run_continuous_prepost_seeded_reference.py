@@ -1074,7 +1074,7 @@ def main() -> None:
         fft_ready = build_fft_ready_ca_trace(
             combined_trimmed,
             average_bin_s=None,
-            segmented_smoothing_window_points=None,
+            segmented_smoothing_window_s=None,
         )
         fft_ready_path = out_dir / "combined_prepost_fft_ready.txt"
         _save_txt(fft_ready_path, fft_ready, "time/s  V/V  I/A")

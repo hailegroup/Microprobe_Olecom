@@ -330,11 +330,21 @@ class BioLogicController:
     # ── PEIS ───────────────────────────────────────────────────────────────
     def run_peis(self, v_dc: float, f_high=1e5, f_low=0.1,
                  n_pts=60, amplitude_mv=10.0, channel=1,
-                 current_range=None, bandwidth=None,
+                 current_range=None, bandwidth=None, n_average=1,
+                 save_dir=None, label='',
                  on_segment=None, read_interval=1.0, stop_event=None,
                  bias_settle_s=DEFAULT_PEIS_BIAS_SETTLE_S):
         """
         Run Potentiostatic EIS.
+
+        n_average: number of repeated measurements averaged per frequency
+        point (easy-biologic's PEIS 'repeat' param, EC-Lab's "N average").
+        Defaults to 1 (no averaging), matching prior hardcoded behavior.
+        save_dir/label: accepted for interface parity with
+        driver_biologic_olecom.py's run_peis (which uses them to place its
+        raw EC-Lab .mpr file) -- this backend pulls PEIS data via the
+        easy-biologic API directly, with no on-disk raw artifact of its
+        own, so these are unused here.
         Returns numpy array columns: [freq/Hz, Re(Z)/Ohm, -Im(Z)/Ohm]
         """
         v_dc = float(v_dc)
@@ -356,7 +366,7 @@ class BioLogicController:
             'current_interval':   0.001,
             # easy-biologic 0.4.x mishandles dict params['sweep'] via params.sweep,
             # so we omit it here and rely on the default logarithmic spacing.
-            'repeat':             1,
+            'repeat':             max(1, int(n_average)),
             'correction':         False,
             'wait':               0,
         }
@@ -369,7 +379,8 @@ class BioLogicController:
         print(
             f"[BioLogic] PEIS: DC bias={v_dc:+.4f} V, "
             f"AC amp={amplitude_v:.4f} V, settle={bias_settle_s:.1f}s, "
-            f"{f_high:.1e}~{f_low:.1e} Hz  {n_pts} pts"
+            f"{f_high:.1e}~{f_low:.1e} Hz  {n_pts} pts, "
+            f"N average={params['repeat']}, bandwidth={bandwidth}"
         )
         raw = self._run_program(ebp.PEIS, params, channel,
                                 parse_kind='eis', on_segment=on_segment,

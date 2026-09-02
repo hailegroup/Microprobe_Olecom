@@ -1,33 +1,12 @@
-# Core hardware + measurement stack
 pyserial>=3.5
 pymodbus>=3.0
 easy-biologic>=0.4,<0.5
 comtypes>=1.1.14
 galvani
-# numpy MUST stay <2: numba (<1.27), scipy (<1.28), matplotlib, and pandas in
-# this stack all require numpy<2. numpy 1.26.x is the newest allowed on Py>=3.9.
-numpy>=1.24,<2
+numpy
 pandas
-# scipy 1.18+ requires numpy>=2.0; 1.17.x is the newest that supports numpy 1.26.x.
-scipy<1.18
+scipy
 opencv-python
 Pillow
 pywatlow
-scikit-image
-
-# Analysis / CP->EIS pipeline and the standalone analysis GUI
-# (analysis_gui.py, build_opju_from_folder.py, Analysis_Convert_CP_to_EIS/*)
-# Environment markers keep one file installable on both the newer analysis
-# machine (Python 3.11) and the Win7 runner (Python 3.8).
-matplotlib==3.7.5; python_version < "3.9"     # last matplotlib supporting Python 3.8 / Win7
-matplotlib>=3.8; python_version >= "3.9"       # newer analysis machine
-xlsxwriter==3.1.9                              # Excel engine (export_dict_to_excel.py); pure-Python, 3.8-3.12
-# Optional raw BioLogic .mpr/.mpt reader. Pinned <6 on purpose: yadg 6/7 pull
-# numpy>=2, which breaks numba/scipy/matplotlib. yadg 5.1.x keeps numpy<2 and has
-# the extract() API Load_CP_Data.py uses. Not needed for the origin_export/CSV or
-# .txt workflows; skipped on Win7 (Py3.8).
-yadg>=5,<6; python_version >= "3.10"
-
-# Optional: native OriginLab .opju export (Nyquist/Bode) from analysis_gui.py
-# and build_opju_from_folder.py. Requires a local Origin/OriginPro install;
-# see requirements-origin-optional.txt.
+ezdxf

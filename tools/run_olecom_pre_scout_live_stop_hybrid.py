@@ -59,6 +59,7 @@ def _write_pre_scout_ca_mps(
     scout_s: float,
     dt_s: float,
     bandwidth: int,
+    i_range: str = "Auto",
 ) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     v0 = f"{float(bias_v):.3f}"
@@ -107,7 +108,7 @@ def _write_pre_scout_ca_mps(
         _mps_row("dta (s)", [f"{dt_s:.4f}", f"{dt_s:.4f}"]),
         _mps_row("E range min (V)", ["-2.500", "-2.500"]),
         _mps_row("E range max (V)", ["2.500", "2.500"]),
-        _mps_row("I Range", ["Auto", "Auto"]),
+        _mps_row("I Range", [i_range, i_range]),
         _mps_row("I Range min", ["Unset", "Unset"]),
         _mps_row("I Range max", ["Unset", "Unset"]),
         _mps_row("I Range init", ["Unset", "Unset"]),
@@ -126,6 +127,7 @@ def _write_single_hold_ca_mps(
     duration_s: float,
     dt_s: float,
     bandwidth: int,
+    i_range: str = "Auto",
 ) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     v = f"{float(potential_v):.3f}"
@@ -174,7 +176,7 @@ def _write_single_hold_ca_mps(
         _mps_row("dta (s)", [f"{dt_s:.4f}"]),
         _mps_row("E range min (V)", ["-2.500"]),
         _mps_row("E range max (V)", ["2.500"]),
-        _mps_row("I Range", ["Auto"]),
+        _mps_row("I Range", [i_range]),
         _mps_row("I Range min", ["Unset"]),
         _mps_row("I Range max", ["Unset"]),
         _mps_row("I Range init", ["Unset"]),
@@ -442,11 +444,20 @@ def _wait_peis_completion_or_stable(
     target_low_hz: float,
     stable_s: float,
     poll_s: float,
+    monitor_callback=None,
 ) -> int:
     """PEIS can finish writing while OLE-COM MeasureStatus remains RUN."""
+    def _emit(event, **payload):
+        if monitor_callback:
+            try:
+                monitor_callback(event, **payload)
+            except Exception:
+                pass
+
     t0 = time.perf_counter()
     seen_points = False
     last_count = -1
+    last_emitted_count = 0
     stable_since = time.perf_counter()
     rve_path = Path(mpr_path).with_suffix(".rve")
     while True:
@@ -464,7 +475,22 @@ def _wait_peis_completion_or_stable(
         # EC-Lab/OLE-COM sometimes leaves MeasureStatus in RUN after the MPR
         # has stopped changing.  Do not use the RVE file alone as completion:
         # it can appear before the requested low-frequency end is reached.
-        min_freq = _safe_min_eis_freq(mpr_path) if count > 0 else float("nan")
+        # Parsed once per poll cycle (only when the point count actually
+        # changed) and reused for both the completion check and the live
+        # monitor emission below, instead of parsing the growing .mpr twice.
+        eis_live = None
+        min_freq = float("nan")
+        if count > 0 and count != last_emitted_count:
+            try:
+                eis_live = _parse_mpr_eis(mpr_path)
+            except Exception:
+                eis_live = None
+            if eis_live is not None and len(eis_live):
+                min_freq = float(np.nanmin(eis_live[:, 0]))
+                _emit('eis_data', step='peis', data=eis_live)
+                last_emitted_count = count
+        elif count > 0:
+            min_freq = _safe_min_eis_freq(mpr_path)
         enough_frequency = np.isfinite(min_freq) and min_freq <= max(float(target_low_hz) * 1.25, float(target_low_hz) + 1e-12)
         rve_done = rve_path.exists() and enough_frequency
         if not running and (seen_points or elapsed >= float(startup_grace_s)):
@@ -481,7 +507,7 @@ def _wait_peis_completion_or_stable(
         time.sleep(float(poll_s))
 
 
-def run_once(args, ctrl=None) -> dict:
+def run_once(args, ctrl=None, monitor_callback=None) -> dict:
     out_dir = Path(args.output_dir) if args.output_dir else PROJECT_DIR / "results" / f"olecom_pre_scout_live_stop_{_stamp()}"
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "settings.json").write_text(json.dumps(vars(args), indent=2), encoding="utf-8")
@@ -492,6 +518,8 @@ def run_once(args, ctrl=None) -> dict:
     else:
         killed = []
 
+    ca_bandwidth = int(getattr(args, "ca_bandwidth", None) or args.bandwidth)
+    ca_i_range = str(getattr(args, "ca_i_range", None) or "Auto")
     pre_scout_mps = _write_pre_scout_ca_mps(
         out_dir / "olecom_pre_scout_ca.mps",
         bias_v=args.bias,
@@ -499,7 +527,8 @@ def run_once(args, ctrl=None) -> dict:
         pre_s=args.pre_s,
         scout_s=args.scout_max_s,
         dt_s=args.dt,
-        bandwidth=args.bandwidth,
+        bandwidth=ca_bandwidth,
+        i_range=ca_i_range,
     )
     generated_pre_scout_mps = out_dir / "olecom_pre_scout_ca.generated_before_load.mps"
     generated_pre_scout_mps.write_bytes(pre_scout_mps.read_bytes())
@@ -509,8 +538,12 @@ def run_once(args, ctrl=None) -> dict:
             ("CA Ns 0/1", "Ns                  0                   1"),
             ("CA bias", f"{float(args.bias):.3f}"),
             ("CA scout", f"{float(args.bias + args.dv):.3f}"),
-            ("CA I range", "I Range             Auto"),
-            ("CA bandwidth", f"Bandwidth           {int(args.bandwidth)}"),
+            ("CA I range", f"I Range             {ca_i_range}"),
+            ("CA bandwidth", f"Bandwidth           {int(ca_bandwidth)}"),
+            (
+                "CA pre/scout duration",
+                f"{'ti (h:m:s)':<20}{_fmt_duration(args.pre_s):<20}{_fmt_duration(args.scout_max_s):<20}",
+            ),
         ],
     )
     post_mps = _write_single_hold_ca_mps(
@@ -518,7 +551,20 @@ def run_once(args, ctrl=None) -> dict:
         potential_v=args.bias,
         duration_s=args.post_s,
         dt_s=args.dt,
-        bandwidth=args.bandwidth,
+        bandwidth=ca_bandwidth,
+        i_range=ca_i_range,
+    )
+    _require_mps_fields(
+        post_mps,
+        [
+            ("Post-hold bias", f"{float(args.bias):.3f}"),
+            ("Post-hold I range", f"I Range             {ca_i_range}"),
+            ("Post-hold bandwidth", f"Bandwidth           {int(ca_bandwidth)}"),
+            (
+                "Post-hold duration",
+                f"{'ti (h:m:s)':<20}{_fmt_duration(args.post_s):<20}",
+            ),
+        ],
     )
     peis_mps = out_dir / "olecom_seeded_peis.mps"
 
@@ -538,10 +584,19 @@ def run_once(args, ctrl=None) -> dict:
         "scout_min_s": float(args.scout_min_s),
         "post_s": float(args.post_s),
         "bandwidth": int(args.bandwidth),
+        "ca_bandwidth": ca_bandwidth,
+        "ca_i_range": ca_i_range,
         "peis_high_hz": float(args.peis_high),
         "auto_clean_eclab_killed_pids": killed,
         "architecture": "continuous_pre_scout_then_separate_post",
     }
+    def _emit(event, **payload):
+        if monitor_callback:
+            try:
+                monitor_callback(event, **payload)
+            except Exception:
+                pass
+
     records: list[dict] = []
     last_idx = 0
     live_ca_png = out_dir / "live_ca_status.png"
@@ -565,6 +620,7 @@ def run_once(args, ctrl=None) -> dict:
             )
         summary["pre_scout_ca_mpr"] = str(pre_scout_run.mpr_path)
         print(f"[OLE-COM] pre+scout CA running: {pre_scout_run.mpr_path}", flush=True)
+        _emit('step', step='ca_pre_scout', message='OLE-COM pre+scout CA started')
         ctrl.wait_until_started(pre_scout_run.mpr_path, startup_grace_s=args.ca_startup_grace_s, label="pre+scout CA")
         t0 = time.perf_counter()
         scout_stop_reason = "scout_max_or_sequence_finished"
@@ -576,6 +632,7 @@ def run_once(args, ctrl=None) -> dict:
                     n = ctrl.point_count(pre_scout_run.mpr_path)
                 except Exception:
                     n = last_idx
+                points_before = last_idx
                 for idx in range(last_idx, n):
                     try:
                         records.append(ctrl.dc_value(pre_scout_run.mpr_path, idx))
@@ -586,6 +643,8 @@ def run_once(args, ctrl=None) -> dict:
                 if records:
                     now = time.perf_counter()
                     rec_arr = _records_to_array(records)
+                    if last_idx > points_before:
+                        _emit('dc_data', step='ca_pre_scout', data=rec_arr[:, :3])
                     scout_mask = np.isclose(rec_arr[:, 3], 1)
                     should_write_status = now - last_live_status_t >= float(args.live_status_interval_s)
                     if float(args.live_plot_interval_s) > 0 and now - last_live_plot_t >= float(args.live_plot_interval_s):
@@ -680,8 +739,10 @@ def run_once(args, ctrl=None) -> dict:
             timeout_s=args.buffer_timeout_s,
             poll_s=args.poll_s,
             label="pre+scout CA flush",
+            verify_row_count_fn=lambda p: len(_parse_mpr_dc(p)),
         )
         ca_pre_scout = _parse_mpr_dc(pre_scout_run.mpr_path)
+        _emit('dc_data', step='ca_pre_scout_done', data=ca_pre_scout[:, :3])
         continuity = _ca_sequence_continuity_metrics(ca_pre_scout)
         pre_stability = _estimate_pre_stabilization(ca_pre_scout)
         continuity_png = out_dir / "pre_scout_continuity_audit.png"
@@ -714,6 +775,7 @@ def run_once(args, ctrl=None) -> dict:
             }
         )
 
+        peis_n_average = int(getattr(args, "peis_n_average", 1) or 1)
         _write_peis_mps(
             peis_mps,
             bias_v=args.bias,
@@ -722,6 +784,7 @@ def run_once(args, ctrl=None) -> dict:
             points_per_decade=args.peis_points_per_decade,
             amplitude_mv=abs(args.dv) * 1000.0,
             bandwidth=args.bandwidth,
+            n_average=peis_n_average,
         )
         _require_mps_fields(
             peis_mps,
@@ -732,11 +795,13 @@ def run_once(args, ctrl=None) -> dict:
                 ("PEIS amplitude", f"Va (mV)             {abs(float(args.dv)) * 1000.0:.1f}"),
                 ("PEIS I range", "I Range             Auto"),
                 ("PEIS bandwidth", f"Bandwidth           {int(args.bandwidth)}"),
+                ("PEIS N average", f"Na                  {peis_n_average}"),
             ],
         )
 
         post_run = ctrl.load_and_run(post_mps, out_dir / "olecom_separate_post_hold")
         print(f"[OLE-COM] separate post hold running: {post_run.mpr_path}", flush=True)
+        _emit('step', step='ca_post_hold', message='OLE-COM post hold started')
         ctrl.wait_until_started(post_run.mpr_path, startup_grace_s=args.ca_startup_grace_s, label="post hold")
         _wait_for_run_completion(
             ctrl,
@@ -755,13 +820,16 @@ def run_once(args, ctrl=None) -> dict:
             timeout_s=args.buffer_timeout_s,
             poll_s=args.poll_s,
             label="post hold flush",
+            verify_row_count_fn=lambda p: len(_parse_mpr_dc(p)),
         )
         post_ca = _parse_mpr_dc(post_run.mpr_path)
+        _emit('dc_data', step='ca_post_hold_done', data=post_ca[:, :3])
         ca_all_display = _append_post_for_display(ca_pre_scout, post_ca)
         summary["post_ca_mpr"] = str(post_run.mpr_path)
 
         peis_run = ctrl.load_and_run(peis_mps, out_dir / "olecom_seeded_peis")
         print(f"[OLE-COM] PEIS running: {peis_run.mpr_path}", flush=True)
+        _emit('step', step='peis', message='OLE-COM PEIS started')
         expected_peis_points = _estimate_peis_points(
             float(args.peis_high),
             float(applied_lf),
@@ -776,12 +844,14 @@ def run_once(args, ctrl=None) -> dict:
             target_low_hz=applied_lf,
             stable_s=args.buffer_stable_s,
             poll_s=args.poll_s,
+            monitor_callback=monitor_callback,
         )
         if peis_points <= 0:
             raise RuntimeError("PEIS completed but produced zero points")
         peis = _parse_mpr_eis(peis_run.mpr_path)
         if len(peis) == 0:
             raise RuntimeError(f"PEIS MPR has zero parseable impedance rows: {peis_run.mpr_path}")
+        _emit('eis_data', step='peis_done', data=peis)
         peis_min_hz = float(np.nanmin(peis[:, 0]))
         if peis_min_hz > max(float(applied_lf) * 1.25, float(applied_lf) + 1e-12):
             raise RuntimeError(
@@ -900,7 +970,10 @@ def main() -> None:
     parser.add_argument("--scout-max-s", type=float, default=300.0)
     parser.add_argument("--post-s", type=float, default=10.0)
     parser.add_argument("--dt", type=float, default=0.1)
-    parser.add_argument("--bandwidth", type=int, default=4)
+    parser.add_argument("--bandwidth", type=int, default=4, help="PEIS bandwidth")
+    parser.add_argument("--peis-n-average", type=int, default=1, help="PEIS N average (repeats per point)")
+    parser.add_argument("--ca-bandwidth", type=int, default=None, help="CA bandwidth (defaults to --bandwidth)")
+    parser.add_argument("--ca-i-range", default="Auto", help="CA I Range (e.g. Auto, 100mA, 10mA, ...)")
     parser.add_argument("--poll-s", type=float, default=0.5)
     parser.add_argument("--live-status-interval-s", type=float, default=5.0)
     parser.add_argument("--live-plot-interval-s", type=float, default=0.0)

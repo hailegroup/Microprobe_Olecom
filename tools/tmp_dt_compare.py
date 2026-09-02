@@ -38,7 +38,7 @@ try:
         fft_arr = build_fft_ready_ca_trace(
             arr,
             average_bin_s=0.1,
-            segmented_smoothing_window_points=5,
+            segmented_smoothing_window_s=0.5,
         )
         fft_path = outdir / f"{name}_fft_ready.txt"
         pd.DataFrame({"time_s": fft_arr[:,0], "voltage_v": fft_arr[:,1], "current_a": fft_arr[:,2]}).to_csv(fft_path, sep='\t', index=False)

@@ -23,6 +23,8 @@ import numpy as np
 from config import (
     BIOLOGIC_IP,
     BIOLOGIC_OLECOM_BANDWIDTH,
+    BIOLOGIC_OLECOM_CA_BANDWIDTH,
+    BIOLOGIC_OLECOM_CA_I_RANGE,
     BIOLOGIC_OLECOM_CREATE_ECLAB_IF_MISSING,
     BIOLOGIC_OLECOM_DEVICE_INDEX,
     BIOLOGIC_OLECOM_DISCONNECT_DEVICE_ON_GUI_DISCONNECT,
@@ -152,6 +154,7 @@ class BioLogicOleComController:
         self.ctrl = None
         self._ctrl_thread_id = None
         self._active_stop_event = None
+        self._last_peis_mpr_path = None
 
     def connect(self):
         _ensure_com_initialized()
@@ -286,6 +289,7 @@ class BioLogicOleComController:
         stop_event=None,
         on_segment=None,
         bandwidth=None,
+        n_average=1,
     ):
         self._ensure_channel(channel)
         ctrl = self._ensure_connected()
@@ -302,6 +306,7 @@ class BioLogicOleComController:
             points_per_decade=points_per_decade,
             amplitude_mv=float(amplitude_mv),
             bandwidth=int(bandwidth or BIOLOGIC_OLECOM_BANDWIDTH),
+            n_average=max(1, int(n_average)),
         )
         _require_mps_fields(
             mps,
@@ -309,6 +314,7 @@ class BioLogicOleComController:
                 ("PEIS bias", f"E (V)               {float(v_dc):.4f}"),
                 ("PEIS I range", "I Range             Auto"),
                 ("PEIS bandwidth", f"Bandwidth           {int(bandwidth or BIOLOGIC_OLECOM_BANDWIDTH)}"),
+                ("PEIS N average", f"Na                  {max(1, int(n_average))}"),
             ],
         )
         run = ctrl.load_and_run(mps, base)
@@ -330,10 +336,19 @@ class BioLogicOleComController:
             timeout_s=180.0,
             poll_s=0.5,
             label="quick PEIS flush",
+            verify_row_count_fn=lambda p: len(_parse_mpr_eis(p)),
         )
         peis = _parse_mpr_eis(run.mpr_path)
-        txt = out_dir / f"{label}_PEIS_{time.strftime('%Y%m%d_%H%M%S')}.txt"
-        np.savetxt(txt, peis, header="freq/Hz  Re(Z)/Ohm  -Im(Z)/Ohm", comments="")
+        # No file writing here -- every caller (measurement_sequence.py,
+        # assorted tools/ scripts) already does its own explicit save from
+        # the returned array under its own filename convention. Just record
+        # where the raw EC-Lab .mpr for this call landed so a caller that
+        # wants it (e.g. measurement_sequence.py, to preserve it alongside
+        # its own .txt) can copy it under a matching name -- run.mpr_path
+        # lives at a fixed name derived from `base` above and gets
+        # overwritten by the very next PEIS call in this same save_dir, so
+        # it must be copied out promptly by whoever wants to keep it.
+        self._last_peis_mpr_path = str(run.mpr_path)
         if on_segment:
             on_segment(peis, None)
         return peis
@@ -354,11 +369,19 @@ class BioLogicOleComController:
         peis_overlap_limit=None,
         peis_npts=60,
         bandwidth=None,
+        peis_n_average=1,
+        ca_bandwidth=None,
+        ca_i_range=None,
         save_dir=None,
         label="olecom_hybrid",
         stop_event=None,
         defer_postprocess=False,
+        monitor_callback=None,
     ):
+        def _emit(event, **payload):
+            if monitor_callback:
+                monitor_callback(event=event, label=label, **payload)
+
         self._ensure_channel(channel)
         out_dir = Path(save_dir or PROJECT_DIR / "results" / ("olecom_hybrid_" + time.strftime("%Y%m%d_%H%M%S")))
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -382,6 +405,9 @@ class BioLogicOleComController:
             post_s=float(post_s),
             dt=float(dt),
             bandwidth=int(bandwidth or BIOLOGIC_OLECOM_BANDWIDTH),
+            peis_n_average=max(1, int(peis_n_average or 1)),
+            ca_bandwidth=int(ca_bandwidth or BIOLOGIC_OLECOM_CA_BANDWIDTH),
+            ca_i_range=str(ca_i_range or BIOLOGIC_OLECOM_CA_I_RANGE),
             poll_s=0.5,
             live_plot_interval_s=0.0,
             live_status_interval_s=2.0,
@@ -413,7 +439,7 @@ class BioLogicOleComController:
             try:
                 ctrl = self._ensure_connected()
                 with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-                    summary = _run_olecom_live_stop_once(args, ctrl=ctrl)
+                    summary = _run_olecom_live_stop_once(args, ctrl=ctrl, monitor_callback=_emit)
             except Exception as exc:
                 tail = ""
                 try:

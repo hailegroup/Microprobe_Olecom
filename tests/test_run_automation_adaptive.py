@@ -5,6 +5,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 import pandas as pd
@@ -145,6 +146,46 @@ class RunAutomationAdaptiveTests(unittest.TestCase):
         self.assertIn("completed-point policy stored a normal handoff", completed_text)
         self.assertIn("1 Hz", completed_text)
         self.assertIn("finished_at", payload)
+
+    def test_skip_ca_bypasses_adaptive_live_seeded_protocol(self):
+        # An ADAPT-labeled row would normally route to
+        # live_seeded_rapid_eis_sequence (a CA/FFT-seeded protocol) -- but
+        # SkipCA=1 must be an absolute guarantee of no CA call, so it has to
+        # override that routing entirely and run PEIS-only instead.
+        calls = []
+
+        def fake_normal_sequence(**kwargs):
+            calls.append(("normal", kwargs["label"]))
+            return SequenceResult(
+                measurement_mode="normal_eis",
+                eis_data=np.array([[1.0, 9.0, 1.5]]),
+                peis_path=os.path.join(kwargs["save_dir"], f"{kwargs['label']}_peis_only.txt"),
+            )
+
+        def fake_rapid_sequence(**kwargs):
+            calls.append(("rapid", kwargs["label"]))
+            raise AssertionError("rapid_sequence must not be called when SkipCA=1")
+
+        row = self._make_row("ADAPT_T300_E1_V+0.000", 0.0)
+        row["SkipCA"] = 1
+        df = pd.DataFrame([row])
+
+        with tempfile.TemporaryDirectory() as tmpdir, \
+             mock.patch.object(
+                 run_automation, "live_seeded_rapid_eis_sequence",
+                 side_effect=AssertionError("live_seeded_rapid_eis_sequence must not be called when SkipCA=1"),
+             ):
+            results = run_automation._run_conditions(
+                df,
+                result_root=tmpdir,
+                bl=_StubDevice(),
+                rapid_sequence=fake_rapid_sequence,
+                normal_sequence=fake_normal_sequence,
+                log_fn=lambda *args, **kwargs: None,
+            )
+
+        self.assertEqual(calls, [("normal", "ADAPT_T300_E1_V+0.000")])
+        self.assertEqual(results[0]["MeasurementMode"], "normal_eis")
 
     def test_run_conditions_backfills_delayed_analysis_summary(self):
         calls = []

@@ -1,5 +1,0 @@
-pyserial>=3.5
-pymodbus>=3.0
-easy-biologic>=0.5
-numpy
-pandas

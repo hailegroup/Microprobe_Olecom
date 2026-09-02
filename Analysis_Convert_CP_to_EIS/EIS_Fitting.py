@@ -60,6 +60,67 @@ MODEL_PARAM_KEYS = {
 MODEL_PARAMETER_COUNT = {name: len(keys) for name, keys in MODEL_PARAM_KEYS.items()}
 
 
+# Empirically calibrated, not a pure numerical-analysis cutoff: ordinary RQ/CPE
+# fits on real EIS data routinely land in the ~1e8-1e9 range on their own
+# (e.g. Rs/R and Q/alpha are naturally correlated for a single well-resolved
+# arc) without the covariance estimate itself being unreliable -- a plain
+# "half of float64's digits are gone" threshold (~sqrt(1/eps) =~ 6.7e7) fires
+# on essentially every fit and is useless as a signal. Measured directly: a
+# clean, well-determined single-arc fit sits around 2e8; a genuinely
+# non-identifiable fit (e.g. a 2-branch model forced onto single-arc data,
+# where the two branches can freely trade resistance between them) jumps to
+# ~2e9+; a fully degenerate case (two branches seeded identically) reaches
+# ~1e14-1e15, near float64's actual precision ceiling. 1e9 sits in the gap
+# between "ordinary parameter correlation" and "genuine non-identifiability".
+ILL_CONDITIONED_THRESHOLD = 1e9
+
+
+def param_std_errors(result, n_params: int):
+    """Asymptotic 1-sigma parameter uncertainty from a converged least_squares fit.
+
+    Standard linearized (Gauss-Newton) estimate: cov = s^2 * (J^T J)^-1, where
+    J is the residual Jacobian at the solution and s^2 = RSS / dof is the
+    reduced chi-square. Every fit in this module normalizes residuals by
+    max(|Z_data|, 1e-8) rather than a calibrated per-point measurement sigma,
+    so s^2 self-consistently rescales that ad hoc relative weighting to match
+    the fit's actual residual spread -- the same thing scipy.optimize.curve_fit
+    does by default (absolute_sigma=False).
+
+    Computed via SVD of J directly (mirroring scipy.optimize.curve_fit's own
+    reference implementation), NOT via np.linalg.pinv(J.T @ J): forming J^T J
+    explicitly squares J's condition number before inverting, which routinely
+    pushes an already ill-conditioned (but still informative) Jacobian past
+    float64's precision ceiling and silently corrupts the result -- observed
+    directly on a poorly-fit RQ branch where J itself had condition number
+    ~1.85e8, but J^T J's was ~3.4e16, beyond float64's ~4.5e15 precision
+    limit, producing implausibly tiny "confident" errors on a fit that was
+    actually barely constrained in that direction.
+
+    Returns (perr, condition_number, ill_conditioned): perr is per-parameter
+    1-sigma uncertainty; condition_number is J's own (not J^T J's) condition
+    number; ill_conditioned flags condition_number > ILL_CONDITIONED_THRESHOLD,
+    for callers to surface as a "don't trust these error bars" signal even
+    after this numerically-stabler computation.
+    """
+    jac = np.asarray(result.jac, dtype=float)
+    n_obs = jac.shape[0]
+    dof = max(n_obs - int(n_params), 1)
+    rss = 2.0 * float(result.cost)
+    s_sq = rss / dof
+    try:
+        _u, s, vt = np.linalg.svd(jac, full_matrices=False)
+        condition_number = float(s[0] / s[-1]) if s[-1] > 0 else float("inf")
+        threshold = np.finfo(float).eps * max(jac.shape) * s[0]
+        keep = s > threshold
+        s_inv2 = np.where(keep, 1.0 / np.square(np.where(keep, s, 1.0)), 0.0)
+        cov = s_sq * (vt.T * s_inv2) @ vt
+        perr = np.sqrt(np.clip(np.diag(cov), 0.0, None))
+    except Exception:
+        return np.full(int(n_params), np.nan), float("nan"), True
+    ill_conditioned = bool(not np.isfinite(condition_number) or condition_number > ILL_CONDITIONED_THRESHOLD)
+    return perr, condition_number, ill_conditioned
+
+
 def Z_3RQ(p, freq):
     """Return complex impedance for the project RQRQRQ model."""
     r0, q0, a0, r1, q1, a1, r2, q2, a2 = p
@@ -406,26 +467,36 @@ def _dedupe_seed_candidates(seed_candidates):
     return deduped
 
 
-def _sort_branch_params(params):
-    branch_params = [
-        [params[0], params[1], params[2]],
-        [params[3], params[4], params[5]],
-        [params[6], params[7], params[8]],
-    ]
-    branch_params.sort(
-        key=lambda item: _characteristic_frequency(item[0], item[1], item[2]),
+def _sort_branch_params(params, perr=None):
+    """Sort the 3 RQ branches by descending characteristic frequency.
+
+    When `perr` (a parallel per-parameter uncertainty vector) is given, it is
+    permuted by the same branch order and returned alongside params -- keeping
+    each error matched to the parameter it belongs to after reordering.
+    """
+    params = np.asarray(params, dtype=float)
+    branches = [params[0:3], params[3:6], params[6:9]]
+    order = sorted(
+        range(3),
+        key=lambda i: _characteristic_frequency(branches[i][0], branches[i][1], branches[i][2]),
         reverse=True,
     )
-    return np.array([value for branch in branch_params for value in branch], dtype=float)
+    sorted_params = np.concatenate([branches[i] for i in order])
+    if perr is None:
+        return sorted_params
+    perr = np.asarray(perr, dtype=float)
+    perr_branches = [perr[0:3], perr[3:6], perr[6:9]]
+    sorted_perr = np.concatenate([perr_branches[i] for i in order])
+    return sorted_params, sorted_perr
 
 
-def _fit_once(freq, z_data, seed):
+def _fit_once(freq, z_data, seed, relative_error=True):
     lower = np.array([0.0, 1e-12, 0.0, 0.0, 1e-12, 0.0, 0.0, 1e-12, 0.0], dtype=float)
     upper = np.array([np.inf, np.inf, 1.0, np.inf, np.inf, 1.0, np.inf, np.inf, 1.0], dtype=float)
 
     def _residuals(params):
         z_model = Z_3RQ(params, freq)
-        scale = np.maximum(np.abs(z_data), 1e-8)
+        scale = np.maximum(np.abs(z_data), 1e-8) if relative_error else np.ones_like(z_data, dtype=float)
         res_re = (z_data.real - z_model.real) / scale
         res_im = (z_data.imag - z_model.imag) / scale
         return np.concatenate([res_re, res_im])
@@ -443,9 +514,13 @@ def _fit_once(freq, z_data, seed):
     if not result.success or not np.isfinite(result.cost):
         return None
 
-    params = _sort_branch_params(result.x)
+    perr_raw, condition_number, ill_conditioned = param_std_errors(result, len(seed))
+    params, perr = _sort_branch_params(result.x, perr_raw)
     return {
         "params": params,
+        "perr": perr,
+        "condition_number": condition_number,
+        "ill_conditioned": ill_conditioned,
         "cost": float(result.cost),
         "success": True,
     }
@@ -505,8 +580,15 @@ def _evaluate_fit_quality(freq, z_data, params, cost):
     }
 
 
-def _result_from_params(params, cost, metrics, seed_source, pass_used):
+def _result_from_params(params, cost, metrics, seed_source, pass_used, perr=None, condition_number=None, ill_conditioned=None):
     result = {key: float(value) for key, value in zip(FIT_RESULT_KEYS, params)}
+    if perr is not None:
+        for key, value in zip(FIT_RESULT_KEYS, perr):
+            result[f"{key} error"] = float(value)
+    if condition_number is not None:
+        result["Fit condition number"] = float(condition_number)
+    if ill_conditioned is not None:
+        result["Fit errors ill-conditioned"] = bool(ill_conditioned)
     result.update(
         {
             "Fit cost": float(cost),
@@ -528,6 +610,7 @@ def fit_RQRQRQ_stable(
     reference_full_fit_seed=None,
     freq_range=None,
     return_details=False,
+    relative_error=True,
 ):
     """
     Stable 3RQ fitting with multi-seed, two-pass refinement, and quality scoring.
@@ -568,20 +651,26 @@ def fit_RQRQRQ_stable(
     candidate_logs = []
 
     for seed_name, seed in seed_candidates:
-        pass1 = _fit_once(freq, z_data, seed)
+        pass1 = _fit_once(freq, z_data, seed, relative_error=relative_error)
         if pass1 is None:
             candidate_logs.append({"seed": seed_name, "pass1": None, "pass2": None})
             continue
 
         pass1_metrics = _evaluate_fit_quality(freq, z_data, pass1["params"], pass1["cost"])
-        pass1_result = _result_from_params(pass1["params"], pass1["cost"], pass1_metrics, seed_name, "pass1")
+        pass1_result = _result_from_params(
+            pass1["params"], pass1["cost"], pass1_metrics, seed_name, "pass1",
+            perr=pass1["perr"], condition_number=pass1["condition_number"], ill_conditioned=pass1["ill_conditioned"],
+        )
 
-        pass2 = _fit_once(freq, z_data, pass1["params"])
+        pass2 = _fit_once(freq, z_data, pass1["params"], relative_error=relative_error)
         pass2_result = None
         pass2_metrics = None
         if pass2 is not None:
             pass2_metrics = _evaluate_fit_quality(freq, z_data, pass2["params"], pass2["cost"])
-            pass2_result = _result_from_params(pass2["params"], pass2["cost"], pass2_metrics, seed_name, "pass2")
+            pass2_result = _result_from_params(
+                pass2["params"], pass2["cost"], pass2_metrics, seed_name, "pass2",
+                perr=pass2["perr"], condition_number=pass2["condition_number"], ill_conditioned=pass2["ill_conditioned"],
+            )
 
         chosen = pass1_result
         if pass2_result is not None and pass2_result["Fit quality score"] <= pass1_result["Fit quality score"]:
@@ -650,19 +739,43 @@ def _normalize_model_seed(model, seed):
     return _normalize_seed(seed)
 
 
-def _sort_model_params(model, params):
+def _sort_model_params(model, params, perr=None):
+    """Sort a model's RQ branches by descending characteristic frequency.
+
+    See `_sort_branch_params` -- `perr` (if given) is permuted the same way so
+    each parameter keeps its own uncertainty after reordering.
+    """
     model = str(model).upper()
     params = np.asarray(params, dtype=float)
+    perr = None if perr is None else np.asarray(perr, dtype=float)
     if model == "RQRQ":
-        branches = [[params[0], params[1], params[2]], [params[3], params[4], params[5]]]
-        branches.sort(key=lambda item: _characteristic_frequency(item[0], item[1], item[2]), reverse=True)
-        return np.array([value for branch in branches for value in branch], dtype=float)
+        branches = [params[0:3], params[3:6]]
+        order = sorted(
+            range(2),
+            key=lambda i: _characteristic_frequency(branches[i][0], branches[i][1], branches[i][2]),
+            reverse=True,
+        )
+        sorted_params = np.concatenate([branches[i] for i in order])
+        if perr is None:
+            return sorted_params
+        perr_branches = [perr[0:3], perr[3:6]]
+        return sorted_params, np.concatenate([perr_branches[i] for i in order])
     if model == "RRQRQ":
         rs = float(params[0])
-        branches = [[params[1], params[2], params[3]], [params[4], params[5], params[6]]]
-        branches.sort(key=lambda item: _characteristic_frequency(item[0], item[1], item[2]), reverse=True)
-        return np.array([rs, *[value for branch in branches for value in branch]], dtype=float)
-    return _sort_branch_params(params)
+        branches = [params[1:4], params[4:7]]
+        order = sorted(
+            range(2),
+            key=lambda i: _characteristic_frequency(branches[i][0], branches[i][1], branches[i][2]),
+            reverse=True,
+        )
+        sorted_params = np.array([rs, *np.concatenate([branches[i] for i in order])], dtype=float)
+        if perr is None:
+            return sorted_params
+        rs_err = float(perr[0])
+        perr_branches = [perr[1:4], perr[4:7]]
+        sorted_perr = np.array([rs_err, *np.concatenate([perr_branches[i] for i in order])], dtype=float)
+        return sorted_params, sorted_perr
+    return _sort_branch_params(params, perr)
 
 
 def _model_seed_candidates(model, freq, z_data, p0=None):
@@ -761,7 +874,7 @@ def _model_seed_candidates(model, freq, z_data, p0=None):
     return deduped
 
 
-def _fit_model_once(model, freq, z_data, seed):
+def _fit_model_once(model, freq, z_data, seed, relative_error=True):
     model = str(model).upper()
     seed = _normalize_model_seed(model, seed)
     if seed is None:
@@ -773,11 +886,11 @@ def _fit_model_once(model, freq, z_data, seed):
         lower = np.array([0.0, 0.0, 1e-12, 0.0, 0.0, 1e-12, 0.0], dtype=float)
         upper = np.array([np.inf, np.inf, np.inf, 1.0, np.inf, np.inf, 1.0], dtype=float)
     else:
-        return _fit_once(freq, z_data, seed)
+        return _fit_once(freq, z_data, seed, relative_error=relative_error)
 
     def _residuals(params):
         z_model = Z_model(model, params, freq)
-        scale = np.maximum(np.abs(z_data), 1e-8)
+        scale = np.maximum(np.abs(z_data), 1e-8) if relative_error else np.ones_like(z_data, dtype=float)
         res_re = (z_data.real - z_model.real) / scale
         res_im = (z_data.imag - z_model.imag) / scale
         return np.concatenate([res_re, res_im])
@@ -788,16 +901,21 @@ def _fit_model_once(model, freq, z_data, seed):
         return None
     if not result.success or not np.isfinite(result.cost):
         return None
+    perr_raw, condition_number, ill_conditioned = param_std_errors(result, len(seed))
+    params, perr = _sort_model_params(model, result.x, perr_raw)
     return {
-        "params": _sort_model_params(model, result.x),
+        "params": params,
+        "perr": perr,
+        "condition_number": condition_number,
+        "ill_conditioned": ill_conditioned,
         "cost": float(result.cost),
         "success": True,
     }
 
 
-def _evaluate_common_model_metrics(model, freq, z_data, params, cost):
+def _evaluate_common_model_metrics(model, freq, z_data, params, cost, relative_error=True):
     z_model = Z_model(model, params, freq)
-    scale = np.maximum(np.abs(z_data), 1e-8)
+    scale = np.maximum(np.abs(z_data), 1e-8) if relative_error else np.ones_like(z_data, dtype=float)
     res_re = (z_data.real - z_model.real) / scale
     res_im = (z_data.imag - z_model.imag) / scale
     rss = float(np.sum(np.square(res_re)) + np.sum(np.square(res_im)))
@@ -829,13 +947,20 @@ def _evaluate_common_model_metrics(model, freq, z_data, params, cost):
     }
 
 
-def _result_from_model_params(model, params, cost, metrics, seed_source, pass_used):
+def _result_from_model_params(model, params, cost, metrics, seed_source, pass_used, perr=None, condition_number=None, ill_conditioned=None):
     model = str(model).upper()
     result = {key: np.nan for key in FIT_RESULT_KEYS}
     result["Equivalent circuit"] = model
     result["Fit model"] = model
     for key, value in zip(MODEL_PARAM_KEYS[model], params):
         result[key] = float(value)
+    if perr is not None:
+        for key, value in zip(MODEL_PARAM_KEYS[model], perr):
+            result[f"{key} error"] = float(value)
+    if condition_number is not None:
+        result["Fit condition number"] = float(condition_number)
+    if ill_conditioned is not None:
+        result["Fit errors ill-conditioned"] = bool(ill_conditioned)
     result.update(
         {
             "Fit cost": float(cost),
@@ -884,15 +1009,29 @@ def _result_from_model_params(model, params, cost, metrics, seed_source, pass_us
     return result
 
 
-def fit_circuit_model_stable(freq, ReZ, ImZ, model="RQRQ", p0=None, freq_range=None, return_details=False):
-    """Fit one supported model using the same normalized residual convention."""
+def fit_circuit_model_stable(freq, ReZ, ImZ, model="RQRQ", p0=None, freq_range=None, return_details=False, relative_error=True):
+    """Fit one supported model using the same normalized residual convention.
+
+    relative_error=True (default) weights each residual by max(|Z_data|, 1e-8)
+    -- every point contributes comparably in *percentage* terms, which is why
+    every existing caller of this function gets identical results to before
+    this parameter existed. relative_error=False minimizes raw, unweighted
+    (data-model) residuals instead, letting the largest-|Z| points dominate
+    the sum of squares -- this changes the actual fitted parameters, not just
+    their reported uncertainty, so it is not a default anywhere in this
+    codebase; it must be explicitly requested by every caller that wants it.
+    """
     model = str(model).upper()
     if model == "RQRQRQ":
-        result, details = fit_RQRQRQ_stable(freq, ReZ, ImZ, p0=p0, freq_range=freq_range, return_details=True)
+        result, details = fit_RQRQRQ_stable(
+            freq, ReZ, ImZ, p0=p0, freq_range=freq_range, return_details=True, relative_error=relative_error,
+        )
         freq_p, z_data = _prepare_data(freq, ReZ, ImZ, freq_range=freq_range)
         params = fit_result_to_seed(result)
         if params is not None and freq_p.size:
-            metrics = _evaluate_common_model_metrics(model, freq_p, z_data, params, float(result.get("Fit cost", np.nan)))
+            metrics = _evaluate_common_model_metrics(
+                model, freq_p, z_data, params, float(result.get("Fit cost", np.nan)), relative_error=relative_error,
+            )
             result.update(_result_from_model_params(model, params, float(result.get("Fit cost", np.nan)), metrics, result.get("Fit seed source", "unknown"), result.get("Fit pass used", "unknown")))
         return (result, details) if return_details else result
 
@@ -906,18 +1045,28 @@ def fit_circuit_model_stable(freq, ReZ, ImZ, model="RQRQ", p0=None, freq_range=N
     best_score = np.inf
     candidate_logs = []
     for seed_name, seed in _model_seed_candidates(model, freq_p, z_data, p0=p0):
-        pass1 = _fit_model_once(model, freq_p, z_data, seed)
+        pass1 = _fit_model_once(model, freq_p, z_data, seed, relative_error=relative_error)
         if pass1 is None:
             candidate_logs.append({"seed": seed_name, "pass1": None, "pass2": None})
             continue
-        pass1_metrics = _evaluate_common_model_metrics(model, freq_p, z_data, pass1["params"], pass1["cost"])
-        pass1_result = _result_from_model_params(model, pass1["params"], pass1["cost"], pass1_metrics, seed_name, "pass1")
+        pass1_metrics = _evaluate_common_model_metrics(
+            model, freq_p, z_data, pass1["params"], pass1["cost"], relative_error=relative_error,
+        )
+        pass1_result = _result_from_model_params(
+            model, pass1["params"], pass1["cost"], pass1_metrics, seed_name, "pass1",
+            perr=pass1["perr"], condition_number=pass1["condition_number"], ill_conditioned=pass1["ill_conditioned"],
+        )
 
-        pass2 = _fit_model_once(model, freq_p, z_data, pass1["params"])
+        pass2 = _fit_model_once(model, freq_p, z_data, pass1["params"], relative_error=relative_error)
         pass2_result = None
         if pass2 is not None:
-            pass2_metrics = _evaluate_common_model_metrics(model, freq_p, z_data, pass2["params"], pass2["cost"])
-            pass2_result = _result_from_model_params(model, pass2["params"], pass2["cost"], pass2_metrics, seed_name, "pass2")
+            pass2_metrics = _evaluate_common_model_metrics(
+                model, freq_p, z_data, pass2["params"], pass2["cost"], relative_error=relative_error,
+            )
+            pass2_result = _result_from_model_params(
+                model, pass2["params"], pass2["cost"], pass2_metrics, seed_name, "pass2",
+                perr=pass2["perr"], condition_number=pass2["condition_number"], ill_conditioned=pass2["ill_conditioned"],
+            )
 
         chosen = pass1_result
         if pass2_result is not None and pass2_result["Common BIC"] <= pass1_result["Common BIC"]:

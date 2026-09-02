@@ -253,6 +253,7 @@ def _write_peis_mps(
     points_per_decade: int,
     amplitude_mv: float,
     bandwidth: int,
+    n_average: int = 1,
 ) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     text = [
@@ -302,7 +303,7 @@ def _write_peis_mps(
         "spacing             Logarithmic\n",
         f"Va (mV)             {float(amplitude_mv):.1f}\n",
         "pw                  0.10\n",
-        "Na                  1\n",
+        f"Na                  {int(n_average)}\n",
         "corr                0\n",
         "E range min (V)     -10.000\n",
         "E range max (V)     10.000\n",
@@ -499,12 +500,28 @@ class OleComController:
                     self.wait_until_stopped(timeout_s=15.0)
             except Exception:
                 pass
-            try:
-                self.obj.ConnectDevice(self.device)
-                self.obj.SelectDevice(self.device)
-                self.obj.SelectChannel(self.device, self.com_channel)
-            except Exception:
-                pass
+            if attempt == 1:
+                # First retry: cheap re-select on the existing COM proxy,
+                # in case this was just a transient device/channel
+                # selection glitch.
+                try:
+                    self.obj.ConnectDevice(self.device)
+                    self.obj.SelectDevice(self.device)
+                    self.obj.SelectChannel(self.device, self.com_channel)
+                except Exception:
+                    pass
+            else:
+                # Later retries: LoadSettings failing with RPC_E_SERVERFAULT
+                # (EC-Lab's own COM server throwing internally, observed in
+                # practice) means the existing self.obj proxy itself can be
+                # stale, not just the device/channel selection on it --
+                # connect() re-fetches self.obj via GetActiveObject and
+                # redoes the full ConnectDevice/SelectDevice/SelectChannel
+                # sequence, a deeper recovery than the light re-select above.
+                try:
+                    self.connect()
+                except Exception:
+                    pass
             time.sleep(1.5 * attempt)
         if int(load_code or 0) != 1:
             raise RuntimeError(
@@ -625,6 +642,7 @@ def _wait_for_point_count_stable(
     timeout_s: float = 120.0,
     poll_s: float = 0.5,
     label: str = "file",
+    verify_row_count_fn=None,
 ) -> int:
     """
     Wait for EC-Lab to finish flushing buffered rows to the .mpr file.
@@ -632,6 +650,20 @@ def _wait_for_point_count_stable(
     OLE-COM can report STOP before EC-Lab has emptied the channel buffer to
     disk.  Loading the next technique in that window can trigger EC-Lab's
     "buffer is still emptying" warning and LoadSettings=0.
+
+    `verify_row_count_fn`, if given, is called with `mpr_path` once
+    `ctrl.point_count()` (EC-Lab's own live channel query) has been stable
+    for `stable_s` -- it must return the row count an independent on-disk
+    parse (e.g. `_parse_mpr_dc`/`_parse_mpr_eis`) actually sees for that
+    same path. Confirmed on a real run: OLE-COM's point count stabilized
+    at the true final total while `galvani`'s independent read of the
+    identical .mpr path still saw only a handful of the ~24000 pre-hold
+    rows -- EC-Lab's live channel state and what's actually flushed to
+    the on-disk binary file are two different things, and only the
+    former was being waited on. Without this cross-check, whichever
+    technique segment finishes flushing to disk quickly (typically
+    whatever was most recently active) reads back correctly while an
+    earlier, already-buffered segment can be silently truncated.
     """
     t0 = time.perf_counter()
     last_count = -1
@@ -645,7 +677,20 @@ def _wait_for_point_count_stable(
             last_count = count
             stable_since = time.perf_counter()
         elif count > 0 and time.perf_counter() - stable_since >= float(stable_s):
-            return int(count)
+            if verify_row_count_fn is None:
+                return int(count)
+            try:
+                on_disk_count = int(verify_row_count_fn(mpr_path))
+            except Exception:
+                on_disk_count = 0
+            if on_disk_count >= count:
+                return int(count)
+            print(
+                f"[OLE-COM] {label}: OLE-COM reports {count} stable points but the "
+                f"on-disk file only has {on_disk_count} so far; waiting for the flush "
+                "to catch up",
+                flush=True,
+            )
         time.sleep(float(poll_s))
 
 
@@ -1232,6 +1277,7 @@ def run_once(args) -> dict:
             timeout_s=args.buffer_timeout_s,
             poll_s=args.poll_s,
             label="CA MPR flush",
+            verify_row_count_fn=lambda p: len(_parse_mpr_dc(p)),
         )
         summary["ca_stable_points_after_flush"] = int(stable_points)
         ca_all = _parse_mpr_dc(ca_run.mpr_path)

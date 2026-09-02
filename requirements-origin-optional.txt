@@ -1,9 +1,0 @@
-# Optional: native OriginLab .opju export from analysis_gui.py
-# ------------------------------------------------------------
-# originpro automates a locally installed OriginLab Origin / OriginPro
-# (2021b or newer) over COM. It is Windows-only and REQUIRES a licensed
-# Origin/OriginPro install on the same machine (the free Origin Viewer
-# cannot be automated). Without it, analysis_gui.py still produces the
-# Excel workbook and the origin_export CSV bundle.
-originpro
-pywin32

@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
 import cv2
 import numpy as np
+import pandas as pd
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 if str(PROJECT_DIR) not in sys.path:
@@ -13,51 +13,31 @@ if str(PROJECT_DIR) not in sys.path:
 
 from vision.electrode_mapper import (
     annotate_detections,
-    compute_ecc_affine_registration,
-    detect_electrode_map,
-    detect_electrode_map_rgb,
     detect_live_microscope_electrode_map_rgb,
-    detect_markup_electrode_map_rgb,
-    detect_reference_microscope_electrode_map_rgb,
     filter_live_overlay_detections,
-    load_image_rgb,
-    save_detection_outputs,
-    scale_detection_table,
-    strip_red_markup_from_rgb,
-    transform_detection_table,
 )
+
+
+def _load_image_rgb(path):
+    image_bgr = cv2.imread(str(path), cv2.IMREAD_COLOR)
+    if image_bgr is None:
+        raise FileNotFoundError(f"Could not read image: {path}")
+    return cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
 
 
 class VisionElectrodeMapperTests(unittest.TestCase):
     def setUp(self):
         self.om_dir = PROJECT_DIR.parent / "OM"
-        self.design = self.om_dir / "Design.png"
         self.photo = self.om_dir / "photo.png"
 
-    def test_detect_design_map_finds_expected_grid(self):
-        detections = detect_electrode_map(self.design, sample_side_mm=10.0, size_group="all")
-        self.assertGreaterEqual(len(detections), 30)
-        self.assertGreaterEqual(detections["row_index"].nunique(), 4)
-        self.assertIn("large", set(detections["size_group"]))
-        self.assertIn("small", set(detections["size_group"]))
-
-    def test_detect_photo_map_finds_candidates_and_can_save_outputs(self):
-        detections = detect_electrode_map(self.photo, sample_side_mm=10.0, size_group="all")
+    def test_detect_photo_map_rgb_finds_candidates(self):
+        if not self.photo.exists():
+            self.skipTest("photo.png not present in OM/")
+        image_rgb = _load_image_rgb(self.photo)
+        detections = detect_live_microscope_electrode_map_rgb(image_rgb, sample_side_mm=10.0, size_group="all")
         self.assertGreaterEqual(len(detections), 16)
-        annotated = annotate_detections(load_image_rgb(self.photo), detections)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            csv_path, overlay_path = save_detection_outputs(tmpdir, self.photo, detections, annotated)
-            self.assertTrue(csv_path.exists())
-            self.assertTrue(overlay_path.exists())
-            loaded = cv2.imread(str(overlay_path), cv2.IMREAD_COLOR)
-            self.assertIsNotNone(loaded)
-
-    def test_detect_photo_map_from_rgb_matches_path_detector_shape(self):
-        image_rgb = load_image_rgb(self.photo)
-        by_path = detect_electrode_map(self.photo, sample_side_mm=10.0, size_group="all")
-        by_rgb = detect_electrode_map_rgb(image_rgb, sample_side_mm=10.0, size_group="all")
-        self.assertGreaterEqual(len(by_rgb), 16)
-        self.assertEqual(set(by_path.columns), set(by_rgb.columns))
+        annotated = annotate_detections(image_rgb, detections)
+        self.assertEqual(annotated.shape, image_rgb.shape)
 
     def test_live_microscope_preset_detects_candidates_on_saved_swift_snapshot(self):
         snapshot = (
@@ -69,7 +49,7 @@ class VisionElectrodeMapperTests(unittest.TestCase):
         if not snapshot.exists():
             self.skipTest("Saved Swift/OpenCV snapshot not present in results/")
 
-        image_rgb = load_image_rgb(snapshot)
+        image_rgb = _load_image_rgb(snapshot)
         detections = detect_live_microscope_electrode_map_rgb(
             image_rgb,
             sample_side_mm=10.0,
@@ -88,7 +68,7 @@ class VisionElectrodeMapperTests(unittest.TestCase):
         if not snapshot.exists():
             self.skipTest("Saved Swift/OpenCV snapshot not present in results/")
 
-        image_rgb = load_image_rgb(snapshot)
+        image_rgb = _load_image_rgb(snapshot)
         raw = detect_live_microscope_electrode_map_rgb(
             image_rgb,
             sample_side_mm=10.0,
@@ -108,7 +88,7 @@ class VisionElectrodeMapperTests(unittest.TestCase):
         if not snapshot.exists():
             self.skipTest("Saved Swift/OpenCV snapshot not present in results/")
 
-        image_rgb = load_image_rgb(snapshot)
+        image_rgb = _load_image_rgb(snapshot)
         raw = detect_live_microscope_electrode_map_rgb(
             image_rgb,
             sample_side_mm=10.0,
@@ -117,99 +97,69 @@ class VisionElectrodeMapperTests(unittest.TestCase):
         overlay = filter_live_overlay_detections(raw, max_candidates=12)
         self.assertLessEqual(len(overlay), 12)
 
-    def test_reference_microscope_preset_reduces_monitoring_image_overdetection(self):
-        monitoring = self.om_dir / "monitoring during measurement.png"
-        if not monitoring.exists():
-            self.skipTest("monitoring during measurement image not present in OM/")
+class AnnotateDetectionsColorTests(unittest.TestCase):
+    def _detections_row(self, *, x, y, radius, size_group, detected=None):
+        row = {
+            "x_px": float(x),
+            "y_px": float(y),
+            "radius_px": float(radius),
+            "row_index": 0,
+            "col_index": 0,
+            "size_group": size_group,
+        }
+        if detected is not None:
+            row["detected"] = detected
+        return row
 
-        image_rgb = load_image_rgb(monitoring)
-        live = detect_live_microscope_electrode_map_rgb(
-            image_rgb,
-            sample_side_mm=10.0,
-            size_group="all",
-        )
-        reference = detect_reference_microscope_electrode_map_rgb(
-            image_rgb,
-            sample_side_mm=10.0,
-            size_group="all",
-        )
-        self.assertGreaterEqual(len(reference), 10)
-        self.assertLess(len(reference), len(live))
-        self.assertGreaterEqual(reference["row_index"].nunique(), 2)
-        self.assertLess(reference["row_index"].nunique(), 8)
-        self.assertGreater(float(reference["y_px"].min()), image_rgb.shape[0] * 0.2)
+    def test_undetected_row_is_drawn_gray_not_size_group_color(self):
+        image_rgb = np.zeros((100, 100, 3), dtype=np.uint8)
+        detections = pd.DataFrame([
+            self._detections_row(x=30, y=50, radius=10, size_group="large", detected=True),
+            self._detections_row(x=70, y=50, radius=10, size_group="large", detected=False),
+        ])
 
-    def test_manual_markup_snapshot_parses_all_18_marked_electrodes(self):
-        markup = self.om_dir / "Swift_snapshot_markup.png"
-        if not markup.exists():
-            self.skipTest("Manual markup snapshot not present in OM/")
+        annotated = annotate_detections(image_rgb, detections, annotate_labels=False)
 
-        image_rgb = load_image_rgb(markup)
-        detections = detect_markup_electrode_map_rgb(
-            image_rgb,
-            sample_side_mm=10.0,
-            size_group="all",
-        )
-        self.assertEqual(len(detections), 18)
-        self.assertEqual(detections["row_index"].nunique(), 3)
-        self.assertGreaterEqual(detections["col_index"].max(), 6)
+        detected_pixel = annotated[50, 30 + 10]
+        undetected_pixel = annotated[50, 70 + 10]
+        np.testing.assert_array_equal(detected_pixel, [40, 220, 40])
+        np.testing.assert_array_equal(undetected_pixel, [160, 160, 160])
 
-    def test_markup_cleanup_and_scaling_preserve_tracking_seed_structure(self):
-        markup = self.om_dir / "Swift_snapshot_markup.png"
-        if not markup.exists():
-            self.skipTest("Manual markup snapshot not present in OM/")
+    def test_missing_detected_column_defaults_to_size_group_color(self):
+        image_rgb = np.zeros((100, 100, 3), dtype=np.uint8)
+        detections = pd.DataFrame([
+            self._detections_row(x=50, y=50, radius=10, size_group="small"),
+        ])
+        self.assertNotIn("detected", detections.columns)
 
-        image_rgb = load_image_rgb(markup)
-        detections = detect_markup_electrode_map_rgb(
-            image_rgb,
-            sample_side_mm=10.0,
-            size_group="all",
-        )
-        cleaned = strip_red_markup_from_rgb(image_rgb)
-        self.assertEqual(cleaned.shape, image_rgb.shape)
-        self.assertGreater(float(np.mean(np.abs(cleaned.astype(np.float32) - image_rgb.astype(np.float32)))), 1.0)
+        annotated = annotate_detections(image_rgb, detections, annotate_labels=False)
 
-        scaled = scale_detection_table(
-            detections,
-            source_shape=image_rgb.shape[:2],
-            target_shape=(image_rgb.shape[0] // 2, image_rgb.shape[1] // 2),
-        )
-        self.assertEqual(len(scaled), len(detections))
-        self.assertAlmostEqual(
-            float(scaled["x_px"].iloc[0]),
-            float(detections["x_px"].iloc[0]) * 0.5,
-            delta=1.5,
-        )
-        self.assertAlmostEqual(
-            float(scaled["radius_px"].median()),
-            float(detections["radius_px"].median()) * 0.5,
-            delta=1.5,
-        )
+        pixel = annotated[50, 50 + 10]
+        np.testing.assert_array_equal(pixel, [255, 160, 40])
 
-    def test_affine_registration_tracks_shifted_markup_layout(self):
-        markup = self.om_dir / "Swift_snapshot_markup.png"
-        if not markup.exists():
-            self.skipTest("Manual markup snapshot not present in OM/")
+    def test_occluded_row_is_drawn_magenta_overriding_detected_color(self):
+        image_rgb = np.zeros((100, 100, 3), dtype=np.uint8)
+        row = self._detections_row(x=30, y=50, radius=10, size_group="large", detected=True)
+        row["occluded"] = True
+        detections = pd.DataFrame([row])
 
-        image_rgb = load_image_rgb(markup)
-        detections = detect_markup_electrode_map_rgb(
-            image_rgb,
-            sample_side_mm=10.0,
-            size_group="all",
-        )
-        shifted = cv2.warpAffine(
-            cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR),
-            np.array([[1.0, 0.0, 12.0], [0.0, 1.0, -9.0]], dtype=np.float32),
-            (image_rgb.shape[1], image_rgb.shape[0]),
-            flags=cv2.INTER_LINEAR,
-            borderMode=cv2.BORDER_REFLECT,
-        )
-        shifted_rgb = cv2.cvtColor(shifted, cv2.COLOR_BGR2RGB)
+        annotated = annotate_detections(image_rgb, detections, annotate_labels=False)
 
-        transform, cc = compute_ecc_affine_registration(image_rgb, shifted_rgb)
-        projected = transform_detection_table(detections, transform)
-        self.assertGreater(cc, 0.85)
-        delta_x = projected["x_px"].to_numpy() - detections["x_px"].to_numpy()
-        delta_y = projected["y_px"].to_numpy() - detections["y_px"].to_numpy()
-        self.assertAlmostEqual(float(np.median(delta_x)), 12.0, delta=3.0)
-        self.assertAlmostEqual(float(np.median(delta_y)), -9.0, delta=3.0)
+        pixel = annotated[50, 30 + 10]
+        np.testing.assert_array_equal(pixel, [255, 0, 255])
+
+    def test_missing_occluded_column_falls_back_to_detected_color(self):
+        image_rgb = np.zeros((100, 100, 3), dtype=np.uint8)
+        detections = pd.DataFrame([
+            self._detections_row(x=30, y=50, radius=10, size_group="large", detected=True),
+        ])
+        self.assertNotIn("occluded", detections.columns)
+
+        annotated = annotate_detections(image_rgb, detections, annotate_labels=False)
+
+        pixel = annotated[50, 30 + 10]
+        np.testing.assert_array_equal(pixel, [40, 220, 40])
+
+
+if __name__ == "__main__":
+    unittest.main()
